@@ -13,7 +13,7 @@
     <p>Har du glemt/ikke fått passord, kan du <a href="https://mytss.mannskor.no/request.php">få det tilsendt<br> ved å klikke her</a> og følge instruksjonene der.</p>
     {% if request.GET.loginFail %}<p style="color: red;">Login failed</p>{% endif %}
 
-    <form  action="{% url 'mytxs:loginEndpoint' %}" method="post">
+    <form  action="{% url 'loginEndpoint' %}" method="post">
     {% csrf_token %}
     <table>
 	<tbody><tr>

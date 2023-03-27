@@ -3,7 +3,7 @@ from django.db import models
 from datetime import datetime
 
 class MedlemManager(models.Manager):
-    def medlemmerMedTilgang(self, tilgangNavn):
+    def medlemmerMedTilgangNo(self, tilgangNavn):
         tilgang = Tilgang.objects.get(navn=tilgangNavn)
         verv = tilgang.verv.all()
         vervInnehavelser = []
@@ -11,6 +11,14 @@ class MedlemManager(models.Manager):
             vervInnehavelser.extend(verv.vervInnehavelse.all())
         return [vervInnehavelse.medlem for vervInnehavelse in vervInnehavelser
                 if vervInnehavelse.start <= datetime.now().date() <= vervInnehavelse.slutt]
+    
+    def medlemmerMedTilgang(self, tilgangNavn):
+        tilgang = Tilgang.objects.get(navn=tilgangNavn)
+        verv = tilgang.verv.all()
+        vervInnehavelser = []
+        for verv in verv:
+            vervInnehavelser.extend(verv.vervInnehavelse.all())
+        return [vervInnehavelse.medlem for vervInnehavelse in vervInnehavelser]
 
 # Create your models here.
 class Medlem(models.Model):
@@ -46,9 +54,9 @@ class Medlem(models.Model):
     #     return firstVervInnehavelse.start
 
     @property
-    def karantenekor(self):
+    def storkor(self):
         """
-        Returne {'TSS' eller 'TKS'} K{two digit year of first stemmegruppeVerv}
+        Returne {'TSS', 'TKS' eller ''}
         """
         stemmegruppeNavn = ["1S", "2S", "1A", "2A", "1T", "2T", "1B", "2B"]
         firstVervInnehavelse = self.vervInnehavelse\
@@ -56,7 +64,22 @@ class Medlem(models.Model):
             .filter(verv__kor__kortTittel__in=["TSS", "TKS"])\
             .order_by('start').first()
         if firstVervInnehavelse:
-            return f'{firstVervInnehavelse.verv.kor.kortTittel} K{firstVervInnehavelse.start.strftime("%y")}'
+            return f'{firstVervInnehavelse.verv.kor.kortTittel}'
+        else:
+            return ''
+
+    @property
+    def karantenekor(self):
+        """
+        Returne K{to sifret år av første storkor stemmegruppeverv}
+        """
+        stemmegruppeNavn = ["1S", "2S", "1A", "2A", "1T", "2T", "1B", "2B"]
+        firstVervInnehavelse = self.vervInnehavelse\
+            .filter(verv__navn__in=stemmegruppeNavn)\
+            .filter(verv__kor__kortTittel__in=["TSS", "TKS"])\
+            .order_by('start').first()
+        if firstVervInnehavelse:
+            return f'K{firstVervInnehavelse.start.strftime("%y")}'
         else:
             return ''
 

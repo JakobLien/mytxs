@@ -30,7 +30,7 @@ def index(request):
 @login_required
 def sjekkheftet(request, gruppe):
     if gruppe in [kor.kortTittel for kor in Kor.objects.all()]:
-        gruppeMedlemmer = Medlem.objects.medlemmerMedTilgang(f'{gruppe}-aktiv')
+        gruppeMedlemmer = Medlem.objects.medlemmerMedTilgangNo(f'{gruppe}-aktiv')
 
     return render(request, 'mytxs/sjekkheftet.html', {
         'medlemmer': gruppeMedlemmer, 
@@ -40,17 +40,23 @@ def sjekkheftet(request, gruppe):
 @login_required()
 @user_passes_test(lambda user : 'medlemListe' in user.medlem.tilgangTilSider)
 def medlemListe(request):
-    alleMedlemmer = Medlem.objects.all()
+    if(kor := request.GET.get('kor', '')):
+        medlemmer = Medlem.objects.medlemmerMedTilgang(f'{kor}-aktiv')
+    elif(K := request.GET.get('K', '')):
+        medlemmer = Medlem.objects.medlemmerMedTilgang(f'{kor}-aktiv')
 
-    # TODO: Filtrer medlemmer
+    else:
+        medlemmer = Medlem.objects.all()
 
-    return render(request, 'mytxs/medlemListe.html', {'medlemmer': alleMedlemmer})
+    
+
+    return render(request, 'mytxs/medlemListe.html', {'medlemmer': medlemmer})
 
 # example URL params: http://127.0.0.1:8000/medlem/1?initialStart=2023-01-01&initialSlutt=2023-12-31
 @login_required()
 def medlem(request, pk):
     if pk != request.user.medlem.pk and 'medlem' not in request.user.medlem.tilgangTilSider:
-        return HttpResponseRedirect(reverse('mytxs:index'))
+        return HttpResponseRedirect(reverse('index'))
     
     VervInnehavelseFormset = inlineformset_factory(Medlem, VervInnehavelse, exclude=[], extra=1, 
         widgets = {
@@ -103,7 +109,7 @@ def medlem(request, pk):
                 request.user.medlem.korForTilgang("dekorasjonInnehavelse"):
             formet.fields['dekorasjon'].queryset = Dekorasjon.objects.filter(pk=formet.instance.dekorasjon.pk)
 
-            formet.fields['verv'].disabled = True
+            formet.fields['dekorasjon'].disabled = True
             formet.fields['start'].disabled = True
             formet.fields['DELETE'].disabled = True
         else:
@@ -126,7 +132,7 @@ def medlem(request, pk):
         if dekorasjonInnehavelseFormset.is_valid():
             dekorasjonInnehavelseFormset.save()
 
-        return HttpResponseRedirect(reverse('mytxs:medlem', kwargs={'pk': pk}))
+        return HttpResponseRedirect(reverse('medlem', kwargs={'pk': pk}))
 
     return render(request, 'mytxs/medlem.html', {
         'medlemsDataForm': medlemsDataForm, 
@@ -144,7 +150,7 @@ def vervListe(request):
         nyttVervForm = NyttVervForm(request.POST)
         if nyttVervForm.is_valid():
             nyttVervForm.save()
-        return HttpResponseRedirect(reverse('mytxs:vervListe'))
+        return HttpResponseRedirect(reverse('vervListe'))
 
     nyttVervForm = NyttVervForm()
 
@@ -180,7 +186,7 @@ def verv(request, kor, vervNavn):
             innehavelseFormset.save()
         if tilgangFormset.is_valid():
             tilgangFormset.save()
-        return HttpResponseRedirect(reverse('mytxs:verv', kwargs={'kor': kor, 'vervNavn': vervNavn}))
+        return HttpResponseRedirect(reverse('verv', kwargs={'kor': kor, 'vervNavn': vervNavn}))
 
 
     # # Sette initial values for datoer fra url
@@ -227,7 +233,7 @@ def tilgang(request, tilgangNavn):
             #print(formset)
             formset.save()
             
-            return HttpResponseRedirect(reverse('mytxs:tilgang', kwargs={'tilgangNavn': tilgangNavn}))
+            return HttpResponseRedirect(reverse('tilgang', kwargs={'tilgangNavn': tilgangNavn}))
 
     formset = TilgangVervFormset(instance=instance)
 
@@ -248,7 +254,7 @@ def dekorasjonListe(request):
         nyDekorasjonForm = NyDekorasjonForm(request.POST)
         if nyDekorasjonForm.is_valid():
             nyDekorasjonForm.save()
-        return HttpResponseRedirect(reverse('mytxs:dekorasjonListe'))
+        return HttpResponseRedirect(reverse('dekorasjonListe'))
 
     nyDekorasjonForm = NyDekorasjonForm()
 
@@ -280,7 +286,7 @@ def dekorasjon(request, kor, dekorasjonNavn):
 
         if innehavelseFormset.is_valid():
             innehavelseFormset.save()
-        return HttpResponseRedirect(reverse('mytxs:dekorasjon', kwargs={'kor': kor, 'dekorasjonNavn': dekorasjonNavn}))
+        return HttpResponseRedirect(reverse('dekorasjon', kwargs={'kor': kor, 'dekorasjonNavn': dekorasjonNavn}))
 
     innehavelseFormset = DekorasjonInnehavelseFormset(instance=instance, prefix='dekorasjonInnehavelse')
 
@@ -310,14 +316,14 @@ def loginEndpoint(request):
         )
 
         # Redirect to a success page.
-        return HttpResponseRedirect(reverse('mytxs:index'))
+        return HttpResponseRedirect(reverse('index'))
     else:
         # Return an 'invalid login' error message.
-        return HttpResponseRedirect(reverse('mytxs:login') + '?loginFail=t')
+        return HttpResponseRedirect(reverse('login') + '?loginFail=t')
         # return render(request, reverse, {
         #     'error_message': "You didn't select a choice.",
         # })
 
 def logoutEndpoint(request):
     logout(request)
-    return HttpResponseRedirect(reverse('mytxs:login'))
+    return HttpResponseRedirect(reverse('login'))

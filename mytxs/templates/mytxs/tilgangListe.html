@@ -16,7 +16,7 @@ SubSidebar
 
 {% for tilgang in tilganger %}
 
-    <li><a href="{% url 'mytxs:tilgang' tilgang.navn %}">{{tilgang}} </a></li>
+    <li><a href="{% url 'tilgang' tilgang.navn %}">{{tilgang}} </a></li>
 
 {% endfor %}
 

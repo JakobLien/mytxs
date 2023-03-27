@@ -5,7 +5,6 @@ from . import views
 from django.contrib.auth import views as auth_views
 
 
-app_name = 'mytxs'
 urlpatterns = [
     path('login', views.loginView, name='login'),
     path('', views.index, name='index'),
