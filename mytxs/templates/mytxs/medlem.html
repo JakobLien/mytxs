@@ -1,0 +1,34 @@
+{% extends "mytxs/base.html" %}
+
+{% block content %}
+    <form action="{{ request.path }}" method="post">
+        {% csrf_token %}
+        {{ medlemsDataForm.as_p }}
+
+        <input type="submit" value="Lagre">
+    </form>
+
+    <br>
+
+    <form action="{{ request.path }}" method="post">
+        {% csrf_token %}
+        {{ vervInnehavelseFormset.management_form }}
+
+        {% for vervInnehavelseForm in vervInnehavelseFormset %}
+            {{ vervInnehavelseForm }} <br>
+        {% endfor %}
+        <input type="submit" value="Lagre">
+    </form>
+
+    <br>
+
+    <form action="{{ request.path }}" method="post">
+        {% csrf_token %}
+        {{ dekorasjonInnehavelseFormset.management_form }}
+
+        {% for dekorasjonInnehavelseForm in dekorasjonInnehavelseFormset %}
+            {{ dekorasjonInnehavelseForm }} <br>
+        {% endfor %}
+        <input type="submit" value="Lagre">
+    </form>
+{% endblock %}

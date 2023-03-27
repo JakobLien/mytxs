@@ -1,0 +1,32 @@
+{% extends "mytxs/base.html" %}
+
+{% block title%} Innlogging til {{ block.super }} {% endblock %}
+
+{% block body %}
+
+<table width="100%" height="70%"><tbody><tr><td valign="middle" align="center">
+    <table class="loginwindowframe" cellspacing="0" cellpadding="1"><tbody><tr><td class="loginwindowframe" align="center">I n n l o g g i n g</td></tr><tr><td><table class="loginwindow" width="100%" cellspacing="0" cellpadding="5"><tbody><tr><td align="left">    <h3>Hei!</h3>
+    <p>Du har kommet til innloggingswebsiden for MyTSS 2.0!<br>
+    Skriv inn brukernavn og passordet ditt<br>
+    i feltene nedenfor for å logge inn.<br>
+    </p>
+    <p>Har du glemt/ikke fått passord, kan du <a href="https://mytss.mannskor.no/request.php">få det tilsendt<br> ved å klikke her</a> og følge instruksjonene der.</p>
+    {% if request.GET.loginFail %}<p style="color: red;">Login failed</p>{% endif %}
+
+    <form  action="{% url 'mytxs:loginEndpoint' %}" method="post">
+    {% csrf_token %}
+    <table>
+	<tbody><tr>
+	    <td class="loginfieldtext">Medlemsnummer:</td><td><input type="text" name="username" size="10" maxlength="6" class=""></td>
+	</tr><tr>
+	    <td class="loginfieldtext">Passord:</td><td><input type="password" name="password" size="10" maxlength="10" class=""></td>
+	</tr><tr>
+	    <td>&nbsp;</td><td><input type="submit" value="Logg inn"></td><td>
+	</td></tr>
+    </tbody></table>
+        <br>
+        <input type="hidden" name="next" value="{{ next }}">
+    </form>
+</td></tr></tbody></table></td></tr></tbody></table></td></tr></tbody></table>
+
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends "mytxs/base.html" %}
+
+
+{% block content %} Sjekkheftet
+
+{% for gruppe in grupper %}
+
+    <a href="{% url 'mytxs:sjekkheftet' gruppe %}">{{gruppe}}</a> 
+
+{% endfor %}
+
+{% for medlem in medlemmer %}
+    <ul>
+        <li>Navn: {{medlem.navn}}
+            {% if 'medlem' in user.medlem.tilgangTilSider %} <a href="{% url 'mytxs:medlem' medlem.pk %}">Rediger</a> {% endif %}
+        </li>
+        <li>Fødselsdato: {{medlem.fødselsdato|date:"d.m.Y"}}</li>
+        <li>Epost: {{medlem.epost}}</li>
+        <li>Telefon: {{medlem.tlf}}</li>
+        {% if medlem.vervInnehavelse.all|length > 0 %}
+        <li>Verv: 
+            <ul>
+            {% for vervInnehavelse in medlem.vervInnehavelse.all %}
+                <li> {{ vervInnehavelse.verv.navn }}({{vervInnehavelse.verv.kor.kortTittel}}): {{ vervInnehavelse.start }} - {{ vervInnehavelse.slutt }} </li>
+            {% endfor %}
+            </ul>
+        </li>
+        {% endif %}
+        {% if medlem.dekorasjonInnehavelse.all|length > 0 %}
+        <li>Dekorasjoner: 
+            <ul>
+            {% for dekorasjonInnehavelse in medlem.dekorasjonInnehavelse.all %}
+                <li> {{ dekorasjonInnehavelse.dekorasjon.navn }}({{dekorasjonInnehavelse.dekorasjon.kor.kortTittel}}): {{ dekorasjonInnehavelse.start }} </li>
+            {% endfor %}
+            </ul>
+        </li>
+        {% endif %}
+    </ul>
+{% endfor %}
+
+{% endblock %}

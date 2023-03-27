@@ -1,0 +1,397 @@
+a.menulink {
+	color: white;
+	text-decoration: none;
+}
+
+body {
+	background-color: #AAAAFF;
+	font-family: verdana, helvetica, arial, sans-serif;
+}
+
+p {
+	font-family: verdana, helvetica, arial, sans-serif;
+}
+
+p.dato {
+	font-family: lucida console, lucidatypewriter, monospace;
+	font-size: 9pt;
+}
+
+p.error {
+	font-family: verdana, helvetica, arial, sans-serif;
+	color: red;
+	font-weight: bold;
+}
+
+p.logdump {
+	font-family: lucida console, lucidatypewriter, monospace;
+	font-size: 8pt;
+}
+
+p.menu {
+	font-family: lucida console, lucidatypewriter, monospace;
+	font-size: 9pt;
+	font-weight: bold;
+}
+
+p.monospace {
+	font-family: lucida console, lucidatypewriter, monospace;
+	font-size: 9pt;
+}
+
+span.dato {
+	font-family: lucida console, lucidatypewriter, monospace;
+	font-size: 9pt;
+}
+
+table {
+	font-family: verdana, helvetica, arial, sans-serif;
+}
+
+table.defaultwindow {
+	background-color: white;
+	color: black;
+}
+
+table.defaultwindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	color: white;
+}
+
+table.errorwindow {
+	background-color: white;
+	color: black;
+}
+
+table.errorwindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	color: white;
+}
+
+table.loginwindow {
+	background-color: white;
+	color: black;
+}
+
+table.loginwindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	color: white;
+}
+
+table.logoutwindow {
+	background-color: white;
+	color: black;
+}
+
+table.logoutwindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	color: white;
+}
+
+table.jubileumwindow {
+	background-color: white;
+	color: black;
+}
+
+table.jubileumwindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	color: white;
+}
+
+table.logviewerwindow {
+	background-color: #ffe3c9;
+	color: black;
+}
+
+table.logviewerwindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	color: white;
+}
+
+table.mailmanwindow {
+	background-color: white;
+	color: black;
+}
+
+table.mailmanwindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	color: white;
+}
+
+table.semesterplanwindow {
+	background-color: white;
+	color: black;
+}
+
+table.semesterplanwindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	color: white;
+}
+
+table.sjekkheftetwindow {
+	background-color: white;
+	color: black;
+}
+
+table.sjekkheftetwindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	color: white;
+}
+
+table.sangernwindow {
+	background-color: white;
+	color: black;
+}
+
+table.sangernwindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	color: white;
+}
+
+table.mainmenuwindow {
+	background-color: #303030;
+	color: white;
+	font-weight: bold;
+	font-size: 7pt;
+	font-family: tahoma, verdana, helvetica, arial, sans-serif;
+}
+
+table.mainmenuwindowframe {
+	background-color: #e8d688;
+	font-family: lucida console, lucidatypewriter, monospace;
+	font-weight: bold;
+	font-size: 8pt;
+	color: black;
+}
+
+table.medlemsregisterwindow {
+	background-color: white;
+	color: black;
+}
+
+table.medlemsregisterwindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	color: white;
+}
+
+table.notearkivwindow {
+	background-color: white;
+	color: black;
+}
+
+table.notearkivwindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	color: white;
+}
+
+table.newswindow {
+	background-color: white;
+	color: black;
+}
+
+table.newswindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	color: white;
+}
+
+table.permisjonerwindow {
+	background-color: white;
+	color: black;	
+}
+
+table.permisjonerwindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	color: white;	
+}
+
+
+table.passordwindow {
+	background-color: white;
+	color: black;	
+}
+
+table.passordwindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	color: white;	
+}
+
+table.statistikkwindow {
+	background-color: white;
+	color: black;	
+}
+
+table.statistikkwindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	color: white;	
+}
+
+table.pirumwindow {
+	background-color: white;
+	color: black;	
+}
+
+table.pirumwindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	color: white;	
+}
+
+table.knauswindow {
+	background-color: white;
+	color: black;	
+}
+
+table.knauswindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	color: white;	
+}
+
+table.vrangstrupenwindow {
+	background-color: white;
+	color: black;	
+}
+
+table.vrangstrupenwindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	color: white;	
+}
+
+table.bibelwindow {
+	background-color: white;
+	color: black;	
+}
+
+table.bibelwindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	color: white;	
+}
+
+table.tksbibelwindow {
+	background-color: white;
+	color: black;	
+}
+
+table.tksbibelwindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	color: white;	
+}
+
+
+table.arkivwindow {
+	background-color: white;
+	color: black;	
+}
+
+table.arkivwindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	color: white;	
+}
+
+table.statuswindow {
+	background-color: white;
+	color: black;
+}
+
+table.statuswindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	font-size: 9pt;
+	color: white;
+}
+
+table.topstatuswindow {
+	background-color: white;
+	color: black;
+}
+
+table.topstatuswindowframe {
+	background-color: #222222;
+	font-family: lucida console, lucidatypewriter, monospace;
+	color: white;
+}
+
+/*
+ * CSS til p�meldingsskjema
+ */
+
+.pamelding {border-collapse: collapse; font-size: 10; overflow: hidden; visibility: hidden; position: absolute; border: 1px solid black; padding-left:4px; padding-right:4px; padding-top:4px; padding-bottom:4px; width:600px;}
+
+/*
+ * CSS til medlemsregister og notearkiv/notes�k
+ *
+ */  
+
+.luft {padding-left:3px; padding-right:4px; padding-top:0px; padding-bottom:0px;}
+
+.meny {font: 11px arial; width:560; height: 15; background:url('../../scripts/meny.gif'); background-repeat:repeat-x;  border-bottom: 1px solid black;}
+
+.submenu {font: 11px arial; width:150; background: #ccc; visibility:hidden; border-left: 1px solid black; border-right: 1px solid black; border-bottom: 1px solid black; padding-bottom:3px;}
+
+.side {width:560; border: 1px solid black;}
+
+.proklamasjon {font: bold 13px arial}
+
+.topp {width:560; height:15; font-size: 10; }
+
+.personalia {width:560; border-bottom: 1px solid black; font-size: 10;}
+
+.navigasjon {width:560; font-size: 10;}
+
+.knapp {background: #ccc; font-size: 10; border-top: 1px solid #888; border-left: 1px solid #888; border-bottom: 1px solid #999; border-right: 1px solid #999;}
+
+.tekstboks {font-size: 10; border-top: 1px solid #888; border-left: 1px solid #888; border-bottom: 1px solid #999; border-right: 1px solid #999;}
+
+.sokeboks {font-size: 9; border:0; height:14px; margin:0px; padding-left:2px; padding-bottom:2px; z-index:2; border-left:1px solid black;}
+
+.fontsize {font-size:10;}
+
+.sideboks {border:1px solid black; visibility:hidden; width:250; background: #fff; position:absolute; top:0;}
+
+.overskrift {font: 11px arial; height: 15; background:url('../../scripts/meny.gif'); background-repeat:repeat-x;  border-bottom: 1px solid black; padding-right:1px;}
+
+.tittel {padding-left:3px; font: 11px arial; }
+
+.innhold {font: 11px arial; padding-left:3px; padding-right:4px; }
+
+.avkrysningsboks {background: #fed; font: 8px bold; border-top: 1px solid #555; border-left: 1px solid #555; border-bottom: 1px solid #555; border-right: 1px solid #555; padding-left:3px; padding-right:3px; padding-top:1px; padding-bottom:0px; margin-top:0px; height:12px; float:right; }
+
+.notearkivmeny {font: 11px arial; width:480; height: 15; background:url('../../scripts/meny.gif'); background-repeat:repeat-x;  border-bottom: 1px solid black;}
+
+.notearkivside {width:480; border: 1px solid black;}
+
+.notearkivtopp {width:480; height:15; font-size: 9; }
+
+.notearkivpersonalia {width:480; border-bottom: 1px solid black; font-size: 9;}
+
+.notearkivnavigasjon {width:480; font-size: 9;}
+
+.notesamlingmeny {font: 11px arial; width:229; height: 15; background:url('../../scripts/meny.gif'); background-repeat:repeat-x;  border-bottom: 1px solid black;}
+
+.notesamlingside {width:229; border: 1px solid black; }
+
+.notesamlingtopp {width:229; height:15; font-size: 9; }
+
+.notesamlingpersonalia {width:229; border-bottom: 1px solid black; font-size: 9;}
+
+.notesamlingnavigasjon {width:229; font-size: 9;}

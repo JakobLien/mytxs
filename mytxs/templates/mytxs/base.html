@@ -1,0 +1,128 @@
+{% load static %}
+{% load static tailwind_tags %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="stylesheet" href={% static 'mytxs/styles.css' %}>
+    <title>{% block title %}MyTXS 2.0{% endblock %}</title>
+    <style>
+    body {
+        display: flex;
+        flex-direction: row;
+    }
+    body > * {
+        margin: 10px;
+    }
+    </style>
+    {% comment %} {% tailwind_css %} {% endcomment %}
+</head>
+
+<body>
+    {% block body %}
+
+    <div id="sidebar">
+        {% block sidebar %}
+        {% comment %} [Default Sidebar] {% endcomment %}
+
+        <td valign="top"><table class="mainmenuwindowframe" width="100" cellspacing="0" cellpadding="1"><tbody><tr><td class="mainmenuwindowframe" align="center">M E N Y</td></tr><tr><td><table class="mainmenuwindow" width="100%" cellspacing="0" cellpadding="5"><tbody><tr><td align="center">
+            {% comment %} <a href="https://mytss.mannskor.no/index.php?cgi_module=news" class="menulink"><img src="Min%20TSS%20side_files/news_section.png" border="0"></a><br>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=news" class="menulink">Siste nytt</a><br><br> {% endcomment %}
+            <a href="{% url 'mytxs:medlem' user.medlem.pk %}" class="menulink"><img src="{% static 'mytxs/bok.png' %}" border="0"><br>
+            Medlems-<br>registerdata</a><br><br>
+            {% comment %} <a href="https://mytss.mannskor.no/index.php?cgi_module=sangern" class="menulink"><img src="Min%20TSS%20side_files/beer01.gif" border="0"></a><br>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=sangern" class="menulink">Sangern</a><br><br>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=arkiv" class="menulink"><img src="Min%20TSS%20side_files/arkiv.png" border="0"></a><br>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=arkiv" class="menulink">Arkiv</a><br><br>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=notearkiv" class="menulink"><img src="Min%20TSS%20side_files/notearkiv.png" border="0"></a><br>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=notearkiv" class="menulink">Notearkivet</a><br><br>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=statistikk" class="menulink"><img src="Min%20TSS%20side_files/edutainment_mathematics.png" border="0"></a><br>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=statistikk" class="menulink">Passiv kontingent-<br>statistikk</a><br><br> {% endcomment %}
+            <a href="{% url 'mytxs:sjekkheftet' 'TSS' %}" class="menulink"><img src="{% static 'mytxs/sjekkheftet.png' %}" border="0"><br>
+            Sjekkheftet</a><br><br>
+            
+            {% if 'medlemListe' in user.medlem.tilgangTilSider %}
+                <a href="{% url 'mytxs:medlemListe' %}" class="menulink"><img src="{% static 'mytxs/arkiv.png' %}" border="0"><br>
+                Medlemmer</a><br><br>
+            {% endif %}
+
+            {% if 'dekorasjonListe' in user.medlem.tilgangTilSider %}
+                <a href="{% url 'mytxs:dekorasjonListe' %}" class="menulink"><img src="https://www.svgrepo.com/download/7725/gold-medal.svg" width=50 border="0"><br>
+                Dekorasjoner</a><br><br>
+            {% endif %}
+
+            {% if 'vervListe' in user.medlem.tilgangTilSider %}
+                <a href="{% url 'mytxs:vervListe' %}" class="menulink"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/Simple_crown_icon.svg/1200px-Simple_crown_icon.svg.png" width=50 border="0"><br>
+                Verv</a><br><br>
+            {% endif %}
+
+            {% if 'tilgangListe' in user.medlem.tilgangTilSider %}
+                <a href="{% url 'mytxs:tilgangListe' %}" class="menulink"><img src="https://www.kindpng.com/picc/m/169-1691767_keys-transparent-simple-key-icon-hd-png-download.png" width=50 border="0"><br>
+                Tilganger</a><br><br>
+            {% endif %}
+
+
+
+
+
+            
+            
+            {% comment %} <a href="https://mytss.mannskor.no/index.php?cgi_module=semesterplan" class="menulink"><img src="Min%20TSS%20side_files/spreadsheet_section.png" border="0"></a><br>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=semesterplan" class="menulink">Semesterplan</a><br><br>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=permisjoner" class="menulink"><img src="Min%20TSS%20side_files/gnome-ghostview.png" border="0"></a><br>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=permisjoner" class="menulink">Søke permisjon</a><br><br>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=knaus" class="menulink"><img src="Min%20TSS%20side_files/knaus.png" border="0"></a><br>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=knaus" class="menulink">Knauskoret</a><br><br>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=passord" class="menulink"><img src="Min%20TSS%20side_files/lock.png" border="0"></a><br>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=passord" class="menulink">Skifte passord</a><br><br> {% endcomment %}
+            <a href="/logoutEndpoint" class="menulink"><img src="{% static 'mytxs/lock.png' %}" border="0"><br>
+            Logg ut</a>
+        <br><br></td></tr></tbody></table></td></tr></tbody></table></td>
+
+
+        {% comment %} <ul>
+            <li><a href="{% url 'mytxs:index' %}">Index</a></li>
+            <li><a href="{% url 'mytxs:sjekkheftet' %}">Sjekkheftet</a></li>
+            <li><a href="{% url 'mytxs:medlemsdata' %}">Medlemsdata</a></li>
+        </ul> {% endcomment %}
+        
+        {% endblock %}
+    </div>
+    
+    <div>
+
+        <div id="topbar">
+            {% block topbar %}
+                {% comment %} [Default Topbar] {% endcomment %}
+                {% comment %} <p>Yo {{user.medlem.navn}}</p>
+                <a href="/logoutEndpoint">Log out</a> {% endcomment %}
+
+                <table class="statuswindowframe" width="800" cellspacing="0" cellpadding="1"><tbody><tr><td class="statuswindowframe" align="right">{% now "l d. F Y H:i" %}</td></tr><tr><td><table class="statuswindow" width="100%" cellspacing="0" cellpadding="5"><tbody><tr><td align="left">	    <table width="100%" border="0">
+                    <tbody><tr>
+                        <td class="monospace" valign="top" nowrap="nowrap">
+                        <b>Hei {{ user.medlem.navn }}!</b><br>
+                        Dette er din 847. innlogging.<br>
+                        Du logget sist inn {% now "l d. F Y H:i" %}		    </td>
+                        <td class="dato" valign="top" align="right">
+                        Du har vært innlogget i 2 timer, 45 minutter, 57 sekunder.
+                        </td>
+                    </tr>
+                    </tbody></table>
+                    Tilganger: 
+                    {% for tilgang in user.medlem.tilganger %}
+                        {{tilgang}}
+                    {% endfor %}
+                    </td></tr></tbody></table></td></tr></tbody></table>	    <br>
+                    
+            {% endblock %}
+        </div>
+
+        <div id="content">
+            {% block content %} [Default Content] {% endblock %}
+        </div>
+
+    </div>
+
+    {% endblock %}
+</body>
+</html>
