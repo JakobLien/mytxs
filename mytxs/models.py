@@ -1,9 +1,11 @@
+import os
 from django.conf import settings
 from django.db import models
 from datetime import datetime
+from django.db.models import F
 
 class MedlemManager(models.Manager):
-    def medlemmerMedTilgangNo(self, tilgangNavn):
+    def medlemmerMedAktivTilgang(self, tilgangNavn):
         tilgang = Tilgang.objects.get(navn=tilgangNavn)
         verv = tilgang.verv.all()
         vervInnehavelser = []
@@ -31,7 +33,20 @@ class Medlem(models.Model):
         related_name='medlem'
     )
 
-    navn = models.CharField(max_length = 100, default='Ola Nordmann')
+    fornavn = models.CharField(max_length = 50, default='Ola')
+    mellomnavn = models.CharField(max_length = 50, default='', blank=True)
+    etternavn = models.CharField(max_length = 50, default='Nordmann')
+
+    @property
+    def navn(self):
+        """
+        Returne navnet korrekt spaced (mellomnavn kan vær '')
+        """
+        if self.mellomnavn:
+            return f'{self.fornavn} {self.mellomnavn} {self.etternavn}'
+        else:
+            return f'{self.fornavn} {self.etternavn}'
+
 
     # Følgende fields er bundet av GDPR, må slettes om noen etterspør det. 
     fødselsdato = models.DateField(null=True, blank=True)
@@ -41,8 +56,23 @@ class Medlem(models.Model):
     boAdresse = models.CharField(max_length=100, blank=True)
     foreldreAdresse = models.CharField(max_length=100, blank=True)
 
+    def generateUploadTo(instance, fileName):
+        path = "sjekkhefteBilder/"
+        format = f'{instance.pk}.{fileName.split(".")[-1]}'
+        fullPath = os.path.join(path, format)
+
+        # print(f'Instance: {instance.bilde}')
+
+        # if instance.bilde:
+        #     print("GotHere")
+        #     instance.bilde.delete()
+
+        return fullPath
+
+    bilde = models.ImageField(upload_to=generateUploadTo, null=True, blank=True)
+
     def __str__(self):
-        return self.navn
+        return f'{self.fornavn} {self.mellomnavn} {self.etternavn}'
 
     # @property
     # def tattOpp(self):
@@ -135,7 +165,6 @@ class Medlem(models.Model):
         return list(sider)
 
 
-
 class Kor(models.Model):
     kortTittel = models.CharField(max_length=3) # [TSS, P, KK, C, TKS] helst i den rekkefølgen på id (0-4)
     langTittel = models.CharField(max_length=50) # Trondhjems Studentersangforening, Pirum osv
@@ -146,6 +175,9 @@ class Tilgang(models.Model):
     navn = models.CharField(max_length=50, unique=True)
     def __str__(self):
         return self.navn
+    
+    class Meta:
+        ordering = ['navn']
 
 class Verv(models.Model):
     navn = models.CharField(max_length=30)
@@ -165,6 +197,8 @@ class Verv(models.Model):
     
     class Meta:
         unique_together = ('navn', 'kor')
+        ordering = ['kor', 'navn']
+
 
 class VervInnehavelse(models.Model):
     medlem = models.ForeignKey(
@@ -184,6 +218,10 @@ class VervInnehavelse(models.Model):
     def __str__(self):
         return f'{self.medlem.__str__()} -> {self.verv.__str__()}'
     
+    class Meta:
+        ordering = ['start']
+
+
 class Dekorasjon(models.Model):
     navn = models.CharField(max_length=30)
     kor = models.ForeignKey(
@@ -197,6 +235,7 @@ class Dekorasjon(models.Model):
     
     class Meta:
         unique_together = ('navn', 'kor')
+        ordering = ['kor', 'navn']
 
 class DekorasjonInnehavelse(models.Model):
     medlem = models.ForeignKey(
@@ -214,3 +253,6 @@ class DekorasjonInnehavelse(models.Model):
     start = models.DateField(null=False)
     def __str__(self):
         return f'{self.medlem.__str__()} -> {self.dekorasjon.__str__()}'
+    
+    class Meta:
+        ordering = ['start']
