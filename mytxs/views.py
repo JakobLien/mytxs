@@ -9,12 +9,14 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 
 from mytxs.models import Dekorasjon, DekorasjonInnehavelse, Kor, Medlem, Tilgang, Verv, VervInnehavelse
 
-from .forms import MedlemsDataForm
+from .forms import MedlemListeFilterForm, MedlemsDataForm
 
 from django.forms import inlineformset_factory, modelform_factory
 
 from django import forms
 
+from django.db.models.functions import Concat
+from django.db.models import Value as V, Case, When, Min, Q
 
 
 # Create your views here.
@@ -30,7 +32,7 @@ def index(request):
 @login_required
 def sjekkheftet(request, gruppe):
     if gruppe in [kor.kortTittel for kor in Kor.objects.all()]:
-        gruppeMedlemmer = Medlem.objects.medlemmerMedTilgangNo(f'{gruppe}-aktiv')
+        gruppeMedlemmer = Medlem.objects.medlemmerMedAktivTilgang(f'{gruppe}-aktiv')
 
     return render(request, 'mytxs/sjekkheftet.html', {
         'medlemmer': gruppeMedlemmer, 
@@ -40,17 +42,44 @@ def sjekkheftet(request, gruppe):
 @login_required()
 @user_passes_test(lambda user : 'medlemListe' in user.medlem.tilgangTilSider)
 def medlemListe(request):
-    if(kor := request.GET.get('kor', '')):
-        medlemmer = Medlem.objects.medlemmerMedTilgang(f'{kor}-aktiv')
-    elif(K := request.GET.get('K', '')):
-        medlemmer = Medlem.objects.medlemmerMedTilgang(f'{kor}-aktiv')
+    stemmegruppeVerv = Verv.objects.filter(navn__in=["1S", "2S", "1A", "2A", "1T", "2T", "1B", "2B"])
+    # Filtrer hvilket kor de er i
+    if kor := request.GET.get('kor', ''):
+        stemmegruppeVerv = stemmegruppeVerv.filter(kor__kortTittel=kor)
 
+    stemmegruppeVervInnehavelser = VervInnehavelse.objects.filter(
+        verv__in=stemmegruppeVerv
+    )
+
+    # Filtrer hvilken K der er i dette koret (potensielt småkor, så litt missvisende variabelnavn)
+    if K := request.GET.get('K', ''):
+        medlemmer = Medlem.objects\
+            .annotate(firstVerv=Min("vervInnehavelse__start", filter=Q(vervInnehavelse__in=stemmegruppeVervInnehavelser)))\
+            .filter(firstVerv__year=int(K))
     else:
-        medlemmer = Medlem.objects.all()
-
+        medlemmer = Medlem.objects.filter(vervInnehavelse__in=stemmegruppeVervInnehavelser).distinct()
     
+    # Filtrer fullt navn
+    if navn := request.GET.get('navn', ''):
+        # Fiks spacing for mellomnavn
+        medlemmer = medlemmer.annotate(
+            fullt_navn=Case(
+                When(
+                    mellomnavn='',
+                    then=Concat('fornavn', V(' '), 'etternavn')
+                ),
+                default=Concat('fornavn', V(' '), 'mellomnavn', V(' '), 'etternavn')
+            )
+        ).filter(fullt_navn__icontains=navn)
 
-    return render(request, 'mytxs/medlemListe.html', {'medlemmer': medlemmer})
+        medlemmer = medlemmer.filter(fullt_navn__icontains=navn)
+
+    medlemListeFilterForm = MedlemListeFilterForm(request.GET)
+
+    return render(request, 'mytxs/medlemListe.html', {
+        'medlemListeFilterForm': medlemListeFilterForm,
+        'medlemmer': medlemmer
+    })
 
 # example URL params: http://127.0.0.1:8000/medlem/1?initialStart=2023-01-01&initialSlutt=2023-12-31
 @login_required()
@@ -70,8 +99,9 @@ def medlem(request, pk):
             'start': forms.widgets.DateInput(attrs={'type': 'date'}),
         }
     )
+
     if request.method == 'POST':
-        medlemsDataForm = MedlemsDataForm(request.POST, instance=Medlem.objects.get(pk=pk), prefix="medlemdata")
+        medlemsDataForm = MedlemsDataForm(request.POST, request.FILES, instance=Medlem.objects.get(pk=pk), prefix="medlemdata")
         vervInnehavelseFormset = VervInnehavelseFormset(request.POST, instance=Medlem.objects.get(pk=pk), prefix='vervInnehavelse')
         dekorasjonInnehavelseFormset = DekorasjonInnehavelseFormset(request.POST, instance=Medlem.objects.get(pk=pk), prefix='dekorasjonInnehavelse')
     else:
@@ -80,7 +110,10 @@ def medlem(request, pk):
         dekorasjonInnehavelseFormset = DekorasjonInnehavelseFormset(instance=Medlem.objects.get(pk=pk), prefix='dekorasjonInnehavelse')
 
     # Disable medlemsDataForm
-    if pk != request.user.medlem.pk and not request.user.medlem.harTilgang('medlemsregister'):
+    if not(
+        pk == request.user.medlem.pk or #Om det er deg selv
+        request.user.medlem.harTilgang(f'{Medlem.objects.get(pk=pk).storkor}-medlemsdata') #Om den som ser på har tilgang
+    ):
         for input in medlemsDataForm.fields.values():
             input.disabled = True
 
@@ -126,8 +159,6 @@ def medlem(request, pk):
 
         if vervInnehavelseFormset.is_valid():
             vervInnehavelseFormset.save()
-        else:
-            print(vervInnehavelseFormset.errors)
 
         if dekorasjonInnehavelseFormset.is_valid():
             dekorasjonInnehavelseFormset.save()

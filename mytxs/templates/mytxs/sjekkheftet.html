@@ -10,6 +10,8 @@
 {% endfor %}
 
 {% for medlem in medlemmer %}
+    <br>
+    <div style="display: inline-block;">
     <ul>
         <li>Navn: {{medlem.navn}}
             {% if 'medlem' in user.medlem.tilgangTilSider %} <a href="{% url 'medlem' medlem.pk %}">Rediger</a> {% endif %}
@@ -36,6 +38,10 @@
         </li>
         {% endif %}
     </ul>
+    </div>
+    {% if medlem.bilde %}
+        <img src="{{medlem.bilde.url}}" alt="BILDE!!!" style="max-width: 200px; max-height: 200px; display: inline-block;">
+    {% endif %}
 {% endfor %}
 
 {% endblock %}

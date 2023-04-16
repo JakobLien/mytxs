@@ -1,16 +1,16 @@
 {% extends "mytxs/base.html" %}
 
-{% comment %} {% block title %}My amazing blog{% endblock %} {% endcomment %}
-
-{% comment %} {% block sidebar %}
-SubSidebar
-{% for entry in blog_entries %}
-    <h2>{{ entry.title }}</h2>
-    <p>{{ entry.body }}</p>
-{% endfor %}
-{% endblock %} {% endcomment %}
-
 {% block content %}
+
+<form action="{{ request.path }}" method="get" style="display:inline-block">
+    {{ medlemListeFilterForm.as_div }}
+
+    <input type="submit" value="Filtrer">
+</form> 
+
+<form action="{{ request.path }}" method="get" style="display:inline-block;">
+    <input type="submit" value="Clear">
+</form> 
 
 <ul>
 
