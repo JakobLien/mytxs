@@ -9,39 +9,47 @@
 
 {% endfor %}
 
-{% for medlem in medlemmer %}
-    <br>
-    <div style="display: inline-block;">
-    <ul>
-        <li>Navn: {{medlem.navn}}
-            {% if 'medlem' in user.medlem.tilgangTilSider %} <a href="{% url 'medlem' medlem.pk %}">Rediger</a> {% endif %}
-        </li>
-        <li>Fødselsdato: {{medlem.fødselsdato|date:"d.m.Y"}}</li>
-        <li>Epost: {{medlem.epost}}</li>
-        <li>Telefon: {{medlem.tlf}}</li>
-        {% if medlem.vervInnehavelse.all|length > 0 %}
-        <li>Verv: 
-            <ul>
-            {% for vervInnehavelse in medlem.vervInnehavelse.all %}
-                <li> {{ vervInnehavelse.verv.navn }}({{vervInnehavelse.verv.kor.kortTittel}}): {{ vervInnehavelse.start }} - {{ vervInnehavelse.slutt }} </li>
-            {% endfor %}
-            </ul>
-        </li>
-        {% endif %}
-        {% if medlem.dekorasjonInnehavelse.all|length > 0 %}
-        <li>Dekorasjoner: 
-            <ul>
-            {% for dekorasjonInnehavelse in medlem.dekorasjonInnehavelse.all %}
-                <li> {{ dekorasjonInnehavelse.dekorasjon.navn }}({{dekorasjonInnehavelse.dekorasjon.kor.kortTittel}}): {{ dekorasjonInnehavelse.start }} </li>
-            {% endfor %}
-            </ul>
-        </li>
-        {% endif %}
-    </ul>
-    </div>
-    {% if medlem.bilde %}
-        <img src="{{medlem.bilde.url}}" alt="BILDE!!!" style="max-width: 200px; max-height: 200px; display: inline-block;">
-    {% endif %}
+{% for gruppenavn, gruppe in grupperinger.items %}
+
+    <h2>{{gruppenavn}}: </h2>
+
+    {% for medlem in gruppe %}
+        <br>
+        <div style="display: inline-block; border-bottom: black 2px solid; padding: 5px;">
+            {% if medlem.bilde %}
+                <img src="{{medlem.bilde.url}}" alt="BILDE!!!" style="display: inline-block; width: 139px; height: 169px; object-fit: cover; vertical-align: top;">
+            {% endif %}
+        <ul style="display: inline-block; margin: 0;">
+            <li>Navn: {{medlem.navn}}
+                {% if 'medlem' in user.medlem.tilgangTilSider %} <a href="{% url 'medlem' medlem.pk %}">Rediger</a> {% endif %}
+            </li>
+            <li>Fødselsdato: {{medlem.fødselsdato|date:"d.m.Y"}}</li>
+            <li>Epost: {{medlem.epost}}</li>
+            <li>Telefon: {{medlem.tlf}}</li>
+            {% if medlem.vervInnehavelse.all|length > 0 %}
+            <li>Verv: 
+                <ul>
+                {% for vervInnehavelse in medlem.vervInnehavelse.all %}
+                    {% if vervInnehavelse.aktiv %}
+                        <li> {{ vervInnehavelse.verv.navn }}({{vervInnehavelse.verv.kor.kortTittel}}): {{ vervInnehavelse.start }} - {{ vervInnehavelse.slutt }} </li>
+                    {% endif %}
+                {% endfor %}
+                </ul>
+            </li>
+            {% endif %}
+            {% if medlem.dekorasjonInnehavelse.all|length > 0 %}
+            <li>Dekorasjoner: 
+                <ul>
+                {% for dekorasjonInnehavelse in medlem.dekorasjonInnehavelse.all %}
+                    <li> {{ dekorasjonInnehavelse.dekorasjon.navn }}({{dekorasjonInnehavelse.dekorasjon.kor.kortTittel}}): {{ dekorasjonInnehavelse.start }} </li>
+                {% endfor %}
+                </ul>
+            </li>
+            {% endif %}
+        </ul>
+        </div>
+    {% endfor %}
+
 {% endfor %}
 
 {% endblock %}

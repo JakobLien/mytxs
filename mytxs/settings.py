@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-(br=&au$f30ubj!jth$b(00k4znael9m^&pq@jeztpg)e4%3$k
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['mytxs.samfundet.no', '127.0.0.1']
+ALLOWED_HOSTS = ['mytxs.samfundet.no', '127.0.0.1', '192.168.0.105']
 
 # Application definition
 
@@ -103,7 +103,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/4.1/topics/i18n/
 
-LANGUAGE_CODE = 'nb'
+LANGUAGE_CODE = 'nb-NO'
 
 TIME_ZONE = 'Europe/Oslo'
 
@@ -116,6 +116,10 @@ USE_TZ = True
 USE_L10N = False
 
 DATE_FORMAT = 'd.m.Y'
+
+# https://stackoverflow.com/questions/4876370/django-date-format-dd-mm-yyyy
+
+# DATE_INPUT_FORMATS = ('%d-%m-%Y','%Y-%m-%d')
 
 
 # Static files (CSS, JavaScript, Images)

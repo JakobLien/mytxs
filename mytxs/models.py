@@ -1,30 +1,31 @@
+from functools import cached_property
 import os
 from django.conf import settings
 from django.db import models
-from datetime import datetime
-from django.db.models import F
+import datetime
+from django.db.models import Value as V, Case, When
+from django.db.models.functions import Concat
+from django import forms
 
-class MedlemManager(models.Manager):
-    def medlemmerMedAktivTilgang(self, tilgangNavn):
-        tilgang = Tilgang.objects.get(navn=tilgangNavn)
-        verv = tilgang.verv.all()
-        vervInnehavelser = []
-        for verv in verv:
-            vervInnehavelser.extend(verv.vervInnehavelse.all())
-        return [vervInnehavelse.medlem for vervInnehavelse in vervInnehavelser
-                if vervInnehavelse.start <= datetime.now().date() <= vervInnehavelse.slutt]
-    
+class MedlemQuerySet(models.QuerySet):
     def medlemmerMedTilgang(self, tilgangNavn):
-        tilgang = Tilgang.objects.get(navn=tilgangNavn)
-        verv = tilgang.verv.all()
-        vervInnehavelser = []
-        for verv in verv:
-            vervInnehavelser.extend(verv.vervInnehavelse.all())
-        return [vervInnehavelse.medlem for vervInnehavelse in vervInnehavelser]
+        return self.filter(vervInnehavelse__verv__tilganger__navn=tilgangNavn,
+                           vervInnehavelse__start__lte=datetime.date.today(),
+                           vervInnehavelse__slutt__gte=datetime.date.today())
+    
+    def annotateFulltNavn(self):
+        return self.annotate(
+            fullt_navn=Case(
+                When(
+                    mellomnavn='',
+                    then=Concat('fornavn', V(' '), 'etternavn')
+                ),
+                default=Concat('fornavn', V(' '), 'mellomnavn', V(' '), 'etternavn')
+            )
+        )
 
-# Create your models here.
 class Medlem(models.Model):
-    objects = MedlemManager()
+    objects = MedlemQuerySet.as_manager()
     
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -33,9 +34,9 @@ class Medlem(models.Model):
         related_name='medlem'
     )
 
-    fornavn = models.CharField(max_length = 50, default='Ola')
+    fornavn = models.CharField(max_length = 50, default='Autogenerert')
     mellomnavn = models.CharField(max_length = 50, default='', blank=True)
-    etternavn = models.CharField(max_length = 50, default='Nordmann')
+    etternavn = models.CharField(max_length = 50, default='Testbruker')
 
     @property
     def navn(self):
@@ -49,7 +50,7 @@ class Medlem(models.Model):
 
 
     # Følgende fields er bundet av GDPR, må slettes om noen etterspør det. 
-    fødselsdato = models.DateField(null=True, blank=True)
+    fødselsdato = models.DateField(null=True, blank=True) # https://stackoverflow.com/questions/12370177/django-set-default-widget-in-model-definition
     epost = models.EmailField(max_length=100, blank=True)
     tlf = models.BigIntegerField(null=True, blank=True)
     studieEllerJobb = models.CharField(max_length=100, blank=True)
@@ -60,13 +61,6 @@ class Medlem(models.Model):
         path = "sjekkhefteBilder/"
         format = f'{instance.pk}.{fileName.split(".")[-1]}'
         fullPath = os.path.join(path, format)
-
-        # print(f'Instance: {instance.bilde}')
-
-        # if instance.bilde:
-        #     print("GotHere")
-        #     instance.bilde.delete()
-
         return fullPath
 
     bilde = models.ImageField(upload_to=generateUploadTo, null=True, blank=True)
@@ -74,69 +68,43 @@ class Medlem(models.Model):
     def __str__(self):
         return f'{self.fornavn} {self.mellomnavn} {self.etternavn}'
 
-    # @property
-    # def tattOpp(self):
-    #     """
-    #     Returne en date de startet i sitt første kor
-    #     """
-    #     stemmegruppeNavn = ["1S", "2S", "1A", "2A", "1T", "2T", "1B", "2B"]
-    #     firstVervInnehavelse = self.vervInnehavelse.filter(verv__navn__in=stemmegruppeNavn).order_by('start').first()
-    #     return firstVervInnehavelse.start
-
-    @property
-    def storkor(self):
-        """
-        Returne {'TSS', 'TKS' eller ''}
-        """
+    @cached_property
+    def firstStemmegruppeVervInnehavelse(self):
+        """Returne første stemmegruppeverv de hadde i et storkor"""
         stemmegruppeNavn = ["1S", "2S", "1A", "2A", "1T", "2T", "1B", "2B"]
-        firstVervInnehavelse = self.vervInnehavelse\
+        return self.vervInnehavelse\
             .filter(verv__navn__in=stemmegruppeNavn)\
             .filter(verv__kor__kortTittel__in=["TSS", "TKS"])\
             .order_by('start').first()
-        if firstVervInnehavelse:
-            return f'{firstVervInnehavelse.verv.kor.kortTittel}'
-        else:
-            return ''
+    
+    @property
+    def storkor(self):
+        """Returne {'TSS', 'TKS' eller ''}"""
+        return self.firstStemmegruppeVervInnehavelse.verv.kor
 
     @property
     def karantenekor(self):
-        """
-        Returne K{to sifret år av første storkor stemmegruppeverv}
-        """
-        stemmegruppeNavn = ["1S", "2S", "1A", "2A", "1T", "2T", "1B", "2B"]
-        firstVervInnehavelse = self.vervInnehavelse\
-            .filter(verv__navn__in=stemmegruppeNavn)\
-            .filter(verv__kor__kortTittel__in=["TSS", "TKS"])\
-            .order_by('start').first()
-        if firstVervInnehavelse:
-            return f'K{firstVervInnehavelse.start.strftime("%y")}'
+        """Returne K{to sifret år av første storkor stemmegruppeverv}, eller 4 dersom det e før år 2000"""
+        if self.firstStemmegruppeVervInnehavelse.start.year >= 2000:
+            return f'K{self.firstStemmegruppeVervInnehavelse.start.strftime("%y")}'
         else:
-            return ''
+            return f'K{self.firstStemmegruppeVervInnehavelse.start.strftime("%Y")}'
 
     @property
+    def stemmegrupper(self):
+        """Returne aktive stemmegruppeverv"""
+        return Verv.objects.filter(vervInnehavelse__medlem=self,
+                                   vervInnehavelse__start__lte=datetime.date.today(),
+                                   vervInnehavelse__slutt__gte=datetime.date.today())
+
+    @cached_property
     def tilganger(self):
-        tilganger = []
-
-        for verv in [vervInnehavelse.verv for vervInnehavelse in self.vervInnehavelse.all()
-            if vervInnehavelse.start <= datetime.now().date() <= vervInnehavelse.slutt
-        ]:
-            tilganger.extend([tilgang.navn for tilgang in verv.tilganger.all()])
-        return tilganger
-
-    def harTilgang(self, tilgangNavn):
-        for verv in [vervInnehavelse.verv for vervInnehavelse in self.vervInnehavelse.all()]:
-            if tilgangNavn in [tilgang.navn for tilgang in verv.tilganger.all()]:
-                return True
-        return False
+        return [tilgang.navn for tilgang in
+            Tilgang.objects.filter(verv__vervInnehavelse__medlem=self, 
+                                   verv__vervInnehavelse__start__lte=datetime.date.today(),
+                                   verv__vervInnehavelse__slutt__gte=datetime.date.today())]
     
-    def korForTilgang(self, tilgangNavn):
-        kor = filter(lambda tilgang : tilgang.endswith(tilgangNavn), self.tilganger)
-        return list(map(lambda kor : kor.split("-")[0], kor))
-    
-    def iKor(self, kor):
-        return self.harTilgang(kor+"-aktiv")
-    
-    @property
+    @cached_property
     def tilgangTilSider(self):
         sider = set()
         tilganger = self.tilganger
@@ -144,19 +112,19 @@ class Medlem(models.Model):
             sider.add('medlem')
             sider.add('medlemListe')
 
-        if len(self.korForTilgang('vervInnehavelse')) > 0:
+        if [tilgang for tilgang in tilganger if tilgang.endswith("vervInnehavelse")]:
             sider.add('medlem')
             sider.add('medlemListe')
             sider.add('verv')
             sider.add('vervListe')
 
-        if self.harTilgang('tilgang'):
+        if 'tilgang' in tilganger:
             sider.add('verv')
             sider.add('vervListe')
             sider.add('tilgangListe')
             sider.add('tilgang')
 
-        if len(self.korForTilgang('dekorasjonInnehavelse')) > 0:
+        if [tilgang for tilgang in tilganger if tilgang.endswith("vervInnehavelse")]:
             sider.add('medlem')
             sider.add('medlemListe')
             sider.add('dekorasjon')
@@ -170,6 +138,12 @@ class Kor(models.Model):
     langTittel = models.CharField(max_length=50) # Trondhjems Studentersangforening, Pirum osv
     def __str__(self):
         return self.kortTittel
+    
+    @property
+    def stemmegruppeVerv(self):
+        stemmegrupper = ["1S", "2S", "1A", "2A", "1T", "2T", "1B", "2B"]
+        return Verv.objects.filter(navn__in=stemmegrupper, kor=self)
+
 
 class Tilgang(models.Model):
     navn = models.CharField(max_length=50, unique=True)
@@ -197,7 +171,17 @@ class Verv(models.Model):
     
     class Meta:
         unique_together = ('navn', 'kor')
-        ordering = ['kor', 'navn']
+        ordering = ['kor', Case(
+                When(navn='1S', then=0),
+                When(navn='2S', then=1),
+                When(navn='1A', then=2),
+                When(navn='2A', then=3),
+                When(navn='1T', then=4),
+                When(navn='2T', then=5),
+                When(navn='1B', then=6),
+                When(navn='2B', then=7),
+                default=8
+            ), 'navn']
 
 
 class VervInnehavelse(models.Model):
@@ -220,6 +204,10 @@ class VervInnehavelse(models.Model):
     
     class Meta:
         ordering = ['start']
+    
+    @cached_property
+    def aktiv(self):
+        return self.start <= datetime.date.today() <= self.slutt
 
 
 class Dekorasjon(models.Model):
