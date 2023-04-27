@@ -1,7 +1,7 @@
 {% extends "mytxs/base.html" %}
 
 
-{% block content %} Sjekkheftet
+{% block content %}
 
 {% for gruppe in grupper %}
 
@@ -11,7 +11,9 @@
 
 {% for gruppenavn, gruppe in grupperinger.items %}
 
-    <h2>{{gruppenavn}}: </h2>
+    {% if gruppenavn %}
+        <h2>{{gruppenavn}}: </h2>
+    {% endif %}
 
     {% for medlem in gruppe %}
         <br>

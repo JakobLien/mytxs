@@ -7,6 +7,8 @@ from django.db.models import Value as V, Case, When
 from django.db.models.functions import Concat
 from django import forms
 
+from mytxs.fields import MyDateField
+
 class MedlemQuerySet(models.QuerySet):
     def medlemmerMedTilgang(self, tilgangNavn):
         return self.filter(vervInnehavelse__verv__tilganger__navn=tilgangNavn,
@@ -50,7 +52,7 @@ class Medlem(models.Model):
 
 
     # Følgende fields er bundet av GDPR, må slettes om noen etterspør det. 
-    fødselsdato = models.DateField(null=True, blank=True) # https://stackoverflow.com/questions/12370177/django-set-default-widget-in-model-definition
+    fødselsdato = MyDateField(null=True, blank=True) # https://stackoverflow.com/questions/12370177/django-set-default-widget-in-model-definition
     epost = models.EmailField(max_length=100, blank=True)
     tlf = models.BigIntegerField(null=True, blank=True)
     studieEllerJobb = models.CharField(max_length=100, blank=True)
@@ -197,8 +199,8 @@ class VervInnehavelse(models.Model):
         null=False,
         related_name='vervInnehavelse'
     )
-    start = models.DateField(blank=False)
-    slutt = models.DateField(blank=False)
+    start = MyDateField(blank=False)
+    slutt = MyDateField(blank=False)
     def __str__(self):
         return f'{self.medlem.__str__()} -> {self.verv.__str__()}'
     
@@ -238,7 +240,7 @@ class DekorasjonInnehavelse(models.Model):
         null=False,
         related_name='dekorasjonInnehavelse'
     )
-    start = models.DateField(null=False)
+    start = MyDateField(null=False)
     def __str__(self):
         return f'{self.medlem.__str__()} -> {self.dekorasjon.__str__()}'
     
