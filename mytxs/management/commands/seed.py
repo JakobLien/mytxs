@@ -52,14 +52,19 @@ def run_seed(self):
 
             stemmeGruppeVerv.tilganger.add(aktivTilgang)
         
+        dirrVerv, dirrVervCreated = kor.verv.get_or_create(navn='dirigent')
+        dirrVerv.tilganger.add(aktivTilgang)
+        if(dirrVervCreated):
+            self.stdout.write("Created verv " + dirrVerv.navn + " for kor " + kor.kortTittel + " at id " + str(dirrVerv.pk))
+
         # Opprett vervInnehavelse tilgangen
         vervInnehavelseTilgang, vervInnehavelseTilgangCreated = Tilgang.objects.get_or_create(navn=kor.kortTittel+"-vervInnehavelse")
         if vervInnehavelseTilgangCreated:
             print("Created tilgang " + vervInnehavelseTilgang.navn)
 
-        # Opprett daljeInnehavelse tilgangen
-        daljeInnehavelseTilgang, daljeInnehavelseTilgangCreated = Tilgang.objects.get_or_create(navn=kor.kortTittel+"-daljeInnehavelse")
-        if daljeInnehavelseTilgangCreated:
-            print("Created tilgang " + daljeInnehavelseTilgang.navn)
+        # Opprett dekorasjonInnehavelse tilgangen
+        dekorasjonInnehavelseTilgang, dekorasjonInnehavelseTilgangCreated = Tilgang.objects.get_or_create(navn=kor.kortTittel+"-dekorasjonInnehavelse")
+        if dekorasjonInnehavelseTilgangCreated:
+            print("Created tilgang " + dekorasjonInnehavelseTilgang.navn)
 
         

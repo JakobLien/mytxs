@@ -1,7 +1,8 @@
 from datetime import date
+import datetime
 from django.conf import settings
-from django.http import HttpResponse, HttpResponseNotFound, HttpResponseRedirect, HttpResponseForbidden
-from django.shortcuts import get_object_or_404, render, redirect
+from django.http import HttpResponseRedirect
+from django.shortcuts import render
 from django.urls import reverse
 
 from django.contrib.auth import authenticate, login, logout
@@ -9,19 +10,19 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 
 from mytxs.models import Dekorasjon, DekorasjonInnehavelse, Kor, Medlem, Tilgang, Verv, VervInnehavelse
 
-from .forms import MedlemsDataForm
+from .forms import MedlemListeFilterForm, MedlemsDataForm
 
 from django.forms import inlineformset_factory, modelform_factory
 
-from django import forms
+from django.db.models import Min, Q, F
 
+from .utils import disableForm, vervInnehavelseAktiv
 
 
 # Create your views here.
 
 def loginView(request):
-    #question = get_object_or_404(Question, pk=question_id)
-    return render(request, 'mytxs/login.html', {})
+    return render(request, 'mytxs/login.html')
 
 @login_required
 def index(request):
@@ -29,28 +30,101 @@ def index(request):
 
 @login_required
 def sjekkheftet(request, gruppe):
-    if gruppe in [kor.kortTittel for kor in Kor.objects.all()]:
-        gruppeMedlemmer = Medlem.objects.medlemmerMedTilgangNo(f'{gruppe}-aktiv')
+    grupperinger = {}
+    # Gruperinger er visuelle grupperinger i sjekkheftet, oftest stemmegrupper
+    # gruppe argumentet og grupper under refererer til sider på denne siden, altså en for hvert kor
 
+    if gruppe in ["TSS", "P", "KK", "C", "TKS"]:
+        kor = Kor.objects.get(kortTittel=gruppe)
+
+        for stemmegruppe in kor.stemmegruppeVerv:
+            grupperinger[stemmegruppe.navn] = stemmegruppe.aktiveInnehavere
+
+    # if gruppe in ["TSS"]:
+    #     print(Medlem.objects.aktiveVerv().all())
+
+    elif gruppe == "Jubileum":
+        # Måten dette funke e at for å produser en index med tilsvarende sortering som
+        # date_of_year (som ikke finnes i Django), gange vi måneden med 31, og legger på dagen.
+        # Så må vi bare ta modulus 403 (den maksimale 12*31+31), også har vi det:)
+        today = datetime.date.today()
+        today = today.month*31 + today.day
+        
+        grupperinger = {"":
+            Medlem.objects.distinct()
+            .filter(vervInnehavelseAktiv(), vervInnehavelse__verv__tilganger__navn__endswith='-aktiv')
+            .order_by((F('fødselsdato__month') * 31 + F('fødselsdato__day') - today + 403) % 403).all()
+        }
+    
     return render(request, 'mytxs/sjekkheftet.html', {
-        'medlemmer': gruppeMedlemmer, 
-        'grupper': [kor.kortTittel for kor in Kor.objects.all()],
+        'grupperinger': grupperinger, 
+        'grupper': [kor.kortTittel for kor in Kor.objects.all()] + ["Jubileum"],
     })
 
 @login_required()
 @user_passes_test(lambda user : 'medlemListe' in user.medlem.tilgangTilSider)
 def medlemListe(request):
-    if(kor := request.GET.get('kor', '')):
-        medlemmer = Medlem.objects.medlemmerMedTilgang(f'{kor}-aktiv')
-    elif(K := request.GET.get('K', '')):
-        medlemmer = Medlem.objects.medlemmerMedTilgang(f'{kor}-aktiv')
+    # GET forms skal tydeligvis ikkje ha 'or None' for å få is_valid() uten url params ¯\_(ツ)_/¯
+    medlemListeFilterForm = MedlemListeFilterForm(request.GET)
 
+    stemmegruppeVerv = Verv.objects.stemmegruppeVervMedDir()
+
+    if not medlemListeFilterForm.is_valid():
+        raise Exception("Søkeformet var ugyldig!!! ouf")
+
+    # Filtrer stemmegruppeVerv hvilket kor de er i
+    if kor := medlemListeFilterForm.cleaned_data['kor']:
+        stemmegruppeVerv = stemmegruppeVerv.filter(tilganger__navn=f'{kor}-aktiv')
+
+        KVerv=Kor.objects.get(kortTittel=kor).stemmegruppeVervMedDir.all()
     else:
-        medlemmer = Medlem.objects.all()
-
+        KVerv=Verv.objects.stemmegruppeVervMedDir()
     
+    medlemmer = Medlem.objects
 
-    return render(request, 'mytxs/medlemListe.html', {'medlemmer': medlemmer})
+    # Annotating må skje oppi her, FØR vi filtrere bort stemmegruppeVerv (som kan inneholde deres første verv)
+    # se https://docs.djangoproject.com/en/4.2/topics/db/aggregation/#order-of-annotate-and-filter-clauses
+    if medlemListeFilterForm.cleaned_data['K']:
+        medlemmer = medlemmer.annotate(
+            firstKVerv=Min(
+                "vervInnehavelse__start", 
+                filter=Q(vervInnehavelse__verv__in=KVerv)
+            )
+        )        
+
+    # Filtrer dem som e i en spesifik stemmegruppe (pr no når som helst i det koret)
+    if stemmegruppe := medlemListeFilterForm.cleaned_data['stemmegruppe']:
+        stemmegruppeVerv = stemmegruppeVerv.filter(
+            navn=stemmegruppe,
+        )
+
+    # Skaff alle tilsvarende stemmegruppeVervInnehavelser
+    stemmegruppeVervInnehavelser = VervInnehavelse.objects.filter(
+        verv__in=stemmegruppeVerv
+    )
+
+    # Filtrer hvilken dato vi ser på
+    if dato := medlemListeFilterForm.cleaned_data['dato']:
+        stemmegruppeVervInnehavelser = stemmegruppeVervInnehavelser.filter(
+            start__lte=dato,
+            slutt__gte=dato
+        )
+
+    # Skaff alle tilsvarende medlemmer gitt disse stemmegruppevervene
+    medlemmer = medlemmer.filter(vervInnehavelse__in=stemmegruppeVervInnehavelser).distinct()
+
+    # Filtrer hvilken K der er i dette koret (potensielt småkor, så litt missvisende variabelnavn)
+    if K := medlemListeFilterForm.cleaned_data['K']:
+        medlemmer = medlemmer.filter(firstKVerv__year=K)
+    
+    # Filtrer fullt navn
+    if navn := medlemListeFilterForm.cleaned_data['navn']:
+        medlemmer = medlemmer.annotateFulltNavn().filter(fullt_navn__icontains=navn)
+
+    return render(request, 'mytxs/medlemListe.html', {
+        'medlemListeFilterForm': medlemListeFilterForm,
+        'medlemmer': medlemmer
+    })
 
 # example URL params: http://127.0.0.1:8000/medlem/1?initialStart=2023-01-01&initialSlutt=2023-12-31
 @login_required()
@@ -58,63 +132,46 @@ def medlem(request, pk):
     if pk != request.user.medlem.pk and 'medlem' not in request.user.medlem.tilgangTilSider:
         return HttpResponseRedirect(reverse('index'))
     
-    VervInnehavelseFormset = inlineformset_factory(Medlem, VervInnehavelse, exclude=[], extra=1, 
-        widgets = {
-            'start': forms.widgets.DateInput(attrs={'type': 'date'}),
-            'slutt': forms.widgets.DateInput(attrs={'type': 'date'}),
-        }
-    )
+    # Lag FormsetFactories
+    VervInnehavelseFormset = inlineformset_factory(Medlem, VervInnehavelse, exclude=[], extra=1)
+    DekorasjonInnehavelseFormset = inlineformset_factory(Medlem, DekorasjonInnehavelse, exclude=[], extra=1)
 
-    DekorasjonInnehavelseFormset = inlineformset_factory(Medlem, DekorasjonInnehavelse, exclude=[], extra=1, 
-        widgets = {
-            'start': forms.widgets.DateInput(attrs={'type': 'date'}),
-        }
-    )
-    if request.method == 'POST':
-        medlemsDataForm = MedlemsDataForm(request.POST, instance=Medlem.objects.get(pk=pk), prefix="medlemdata")
-        vervInnehavelseFormset = VervInnehavelseFormset(request.POST, instance=Medlem.objects.get(pk=pk), prefix='vervInnehavelse')
-        dekorasjonInnehavelseFormset = DekorasjonInnehavelseFormset(request.POST, instance=Medlem.objects.get(pk=pk), prefix='dekorasjonInnehavelse')
-    else:
-        medlemsDataForm = MedlemsDataForm(instance=Medlem.objects.get(pk=pk), prefix='medlemdata')
-        vervInnehavelseFormset = VervInnehavelseFormset(instance=Medlem.objects.get(pk=pk), prefix='vervInnehavelse')
-        dekorasjonInnehavelseFormset = DekorasjonInnehavelseFormset(instance=Medlem.objects.get(pk=pk), prefix='dekorasjonInnehavelse')
+    # Lag forms (og formsets)
+    medlemsDataForm = MedlemsDataForm(request.POST or None, request.FILES or None, instance=Medlem.objects.get(pk=pk), prefix="medlemdata")
+    vervInnehavelseFormset = VervInnehavelseFormset(request.POST or None, instance=Medlem.objects.get(pk=pk), prefix='vervInnehavelse')
+    dekorasjonInnehavelseFormset = DekorasjonInnehavelseFormset(request.POST or None, instance=Medlem.objects.get(pk=pk), prefix='dekorasjonInnehavelse')
 
     # Disable medlemsDataForm
-    if pk != request.user.medlem.pk and not request.user.medlem.harTilgang('medlemsregister'):
-        for input in medlemsDataForm.fields.values():
-            input.disabled = True
+    if not(
+        pk == request.user.medlem.pk or #Om det er deg selv
+        f'{Medlem.objects.get(pk=pk).storkor}-medlemsdata' in request.user.medlem.tilganger #Om den som ser på har tilgang
+    ):
+        disableForm(medlemsDataForm)
 
     # Disable vervInnehavelser de ikke skal kunne endre på
-    dekorasjonOptions = Verv.objects.filter(kor__kortTittel__in=request.user.medlem.korForTilgang("vervInnehavelse"))
-    for formet in vervInnehavelseFormset.forms:
+    korForTilgang = [kor.kortTittel for kor in Kor.objects.all() if (kor.kortTittel + "-vervInnehavelse" in request.user.medlem.tilganger)]
+    vervAlternativ = Verv.objects.filter(kor__kortTittel__in=korForTilgang)
+    for form in vervInnehavelseFormset.forms:
         # if det ikkje e et nytt felt, og det e en vervinnehavelse brukeren ikke har lov til å endre på
-        if formet.instance.pk is not None and not formet.instance.verv.kor.kortTittel in \
-                request.user.medlem.korForTilgang("vervInnehavelse"):
+        if form.instance.pk is not None and not form.instance.verv.kor.kortTittel in korForTilgang:
             # Det eneste alternativet skal være det vervet som er der
-            formet.fields['verv'].queryset = Verv.objects.filter(pk=formet.instance.verv.pk)
+            form.fields['verv'].queryset = Verv.objects.filter(pk=form.instance.verv.pk)
 
             # Disable det aktuelle formet i formsettet
-            formet.fields['verv'].disabled = True
-            formet.fields['start'].disabled = True
-            formet.fields['slutt'].disabled = True
-            formet.fields['DELETE'].disabled = True
+            disableForm(form)
         else:
-            # Bare la brukeren velge blant verv de har kan endre på
-            formet.fields['verv'].queryset = dekorasjonOptions
+            # Bare la brukeren velge blant verv de har tilgang til å kan endre på
+            form.fields['verv'].queryset = vervAlternativ
     
-    # Disable dekorasjoninnehavelser
-    dekorasjonOptions = Dekorasjon.objects.filter(kor__kortTittel__in=request.user.medlem.korForTilgang("dekorasjonInnehavelse"))
-    for formet in dekorasjonInnehavelseFormset.forms:
-        if formet.instance.pk is not None and not formet.instance.dekorasjon.kor.kortTittel in \
-                request.user.medlem.korForTilgang("dekorasjonInnehavelse"):
-            formet.fields['dekorasjon'].queryset = Dekorasjon.objects.filter(pk=formet.instance.dekorasjon.pk)
-
-            formet.fields['dekorasjon'].disabled = True
-            formet.fields['start'].disabled = True
-            formet.fields['DELETE'].disabled = True
+    # Disable dekorasjoninnehavelser, ellers samme måte som over
+    korForTilgang = [kor.kortTittel for kor in Kor.objects.all() if kor.kortTittel + "-dekorasjonInnehavelse" in request.user.medlem.tilganger]
+    dekorasjonAlternativ = Dekorasjon.objects.filter(kor__kortTittel__in=korForTilgang)
+    for form in dekorasjonInnehavelseFormset.forms:
+        if form.instance.pk is not None and not form.instance.dekorasjon.kor.kortTittel in korForTilgang:
+            form.fields['dekorasjon'].queryset = Dekorasjon.objects.filter(pk=form.instance.dekorasjon.pk)
+            disableForm(form)
         else:
-            # Sett alternativan
-            formet.fields['dekorasjon'].queryset = dekorasjonOptions
+            form.fields['dekorasjon'].queryset = dekorasjonAlternativ
 
     # Denne må være her nede for å takle fraksjonelle tilganger, 
     # altså om fields er disabled må det vær det på POST requesten også, 
@@ -126,8 +183,6 @@ def medlem(request, pk):
 
         if vervInnehavelseFormset.is_valid():
             vervInnehavelseFormset.save()
-        else:
-            print(vervInnehavelseFormset.errors)
 
         if dekorasjonInnehavelseFormset.is_valid():
             dekorasjonInnehavelseFormset.save()
@@ -146,22 +201,20 @@ def medlem(request, pk):
 def vervListe(request):
     NyttVervForm = modelform_factory(Verv, exclude=['tilganger'])
 
+    nyttVervForm = NyttVervForm(request.POST or None)
+
+    if not 'verv-create' in request.user.medlem.tilganger:
+        disableForm(nyttVervForm)
+
     if request.method == 'POST':
-        nyttVervForm = NyttVervForm(request.POST)
         if nyttVervForm.is_valid():
             nyttVervForm.save()
         return HttpResponseRedirect(reverse('vervListe'))
 
-    nyttVervForm = NyttVervForm()
-
-    if not request.user.medlem.harTilgang('verv-create'):
-        for input in nyttVervForm.fields.values():
-            input.disabled = True
-
+    korForTilgang = [kor.kortTittel for kor in Kor.objects.all() if kor.kortTittel + "-vervInnehavelse" in request.user.medlem.tilganger]
 
     return render(request, 'mytxs/vervListe.html', {
-        'verv': Verv.objects.filter(kor__kortTittel__in=
-            request.user.medlem.korForTilgang("vervInnehavelse")).all(),
+        'verv': Verv.objects.filter(kor__kortTittel__in=korForTilgang).all(),
         'nyttVervForm': nyttVervForm
     })
 
@@ -169,25 +222,13 @@ def vervListe(request):
 @user_passes_test(lambda user : 'verv' in user.medlem.tilgangTilSider)
 def verv(request, kor, vervNavn):
 
-    VervInnehavelseFormset = inlineformset_factory(Verv, VervInnehavelse, exclude=[], extra=1, widgets = {
-            'start': forms.widgets.DateInput(attrs={'type': 'date'}),
-            'slutt': forms.widgets.DateInput(attrs={'type': 'date'})
-    })
-
+    VervInnehavelseFormset = inlineformset_factory(Verv, VervInnehavelse, exclude=[], extra=1)
     VervTilgangFormset = inlineformset_factory(Verv, Tilgang.verv.through, exclude=[], extra=1)
 
     instance=Verv.objects.get(kor=Kor.objects.get(kortTittel=kor), navn=vervNavn)
 
-    if request.method == 'POST':
-        innehavelseFormset = VervInnehavelseFormset(request.POST, instance=instance, prefix='vervInnehavelse')
-        tilgangFormset = VervTilgangFormset(request.POST, instance=instance, prefix='tilgangInnehavelse')
-
-        if innehavelseFormset.is_valid():
-            innehavelseFormset.save()
-        if tilgangFormset.is_valid():
-            tilgangFormset.save()
-        return HttpResponseRedirect(reverse('verv', kwargs={'kor': kor, 'vervNavn': vervNavn}))
-
+    innehavelseFormset = VervInnehavelseFormset(request.POST or None, instance=instance, prefix='vervInnehavelse')
+    tilgangFormset = VervTilgangFormset(request.POST or None, instance=instance, prefix='tilgangInnehavelse')
 
     # # Sette initial values for datoer fra url
     # initialPeriode = {}
@@ -196,18 +237,19 @@ def verv(request, kor, vervNavn):
     # if slutt := request.GET.get('initialSlutt', ''):
     #     initialPeriode['slutt'] = slutt
 
-    innehavelseFormset = VervInnehavelseFormset(instance=instance, prefix='vervInnehavelse')#, initial=[initialPeriode])
-    tilgangFormset = VervTilgangFormset(instance=instance, prefix='tilgangInnehavelse')
+    if not f'{kor}-vervInnehavelse' in request.user.medlem.tilganger:
+        for form in innehavelseFormset.forms:
+            disableForm(form)
+    if not 'tilgang' in request.user.medlem.tilganger:
+        for form in tilgangFormset.forms:
+            disableForm(form)
 
-    if not request.user.medlem.harTilgang(f'{kor}-vervInnehavelse'):
-        for formet in innehavelseFormset.forms:
-            for input in formet.fields.values():
-                input.disabled = True
-    if not request.user.medlem.harTilgang('tilgang'):
-        for formet in tilgangFormset.forms:
-            for input in formet.fields.values():
-                input.disabled = True
-
+    if request.method == 'POST':
+        if innehavelseFormset.is_valid():
+            innehavelseFormset.save()
+        if tilgangFormset.is_valid():
+            tilgangFormset.save()
+        return HttpResponseRedirect(reverse('verv', kwargs={'kor': kor, 'vervNavn': vervNavn}))
 
     return render(request, 'mytxs/verv.html', {'innehavelseFormset': innehavelseFormset, 'tilgangFormset': tilgangFormset})
 
@@ -222,25 +264,16 @@ def tilgangListe(request):
 def tilgang(request, tilgangNavn):
     TilgangVervFormset = inlineformset_factory(Tilgang, Verv.tilganger.through, exclude=[], extra=1)
 
-    instance=Tilgang.objects.get(navn=tilgangNavn)
+    formset = TilgangVervFormset(request.POST or None, instance=Tilgang.objects.get(navn=tilgangNavn))
+
+    if not 'tilgang' in request.user.medlem.tilganger:
+        for form in formset.forms:
+            disableForm(form)
 
     if request.method == 'POST':
-        formset = TilgangVervFormset(request.POST, instance=instance)
-
-        # check whether it's valid:
         if formset.is_valid():
-
-            #print(formset)
             formset.save()
-            
             return HttpResponseRedirect(reverse('tilgang', kwargs={'tilgangNavn': tilgangNavn}))
-
-    formset = TilgangVervFormset(instance=instance)
-
-    if not request.user.medlem.harTilgang('tilgang'):
-        for formet in formset.forms:
-            for input in formet.fields.values():
-                input.disabled = True
 
     return render(request, 'mytxs/tilgang.html', {'formset': formset})
 
@@ -250,22 +283,20 @@ def tilgang(request, tilgangNavn):
 def dekorasjonListe(request):
     NyDekorasjonForm = modelform_factory(Dekorasjon, exclude=[])
 
+    nyDekorasjonForm = NyDekorasjonForm(request.POST or None)
+
+    if not 'dekorasjon-create' in request.user.medlem.tilganger:
+        disableForm(nyDekorasjonForm)
+    
     if request.method == 'POST':
-        nyDekorasjonForm = NyDekorasjonForm(request.POST)
         if nyDekorasjonForm.is_valid():
             nyDekorasjonForm.save()
         return HttpResponseRedirect(reverse('dekorasjonListe'))
 
-    nyDekorasjonForm = NyDekorasjonForm()
-
-    if not request.user.medlem.harTilgang('dekorasjon-create'):
-        for input in nyDekorasjonForm.fields.values():
-            input.disabled = True
-
+    korForTilgang = [kor.kortTittel for kor in Kor.objects.all() if kor.kortTittel + "-dekorasjonInnehavelse" in request.user.medlem.tilganger]
 
     return render(request, 'mytxs/dekorasjonListe.html', {
-        'dekorasjoner': Dekorasjon.objects.filter(kor__kortTittel__in=
-            request.user.medlem.korForTilgang("dekorasjonInnehavelse")).all(),
+        'dekorasjoner': Dekorasjon.objects.filter(kor__kortTittel__in=korForTilgang).all(),
         'nyDekorasjonForm': nyDekorasjonForm
     })
 
@@ -274,26 +305,20 @@ def dekorasjonListe(request):
 @user_passes_test(lambda user : 'dekorasjon' in user.medlem.tilgangTilSider)
 def dekorasjon(request, kor, dekorasjonNavn):
 
-    DekorasjonInnehavelseFormset = inlineformset_factory(Dekorasjon, DekorasjonInnehavelse, exclude=[], extra=1, widgets = {
-            'start': forms.widgets.DateInput(attrs={'type': 'date'}),
-            'slutt': forms.widgets.DateInput(attrs={'type': 'date'})
-    })
+    DekorasjonInnehavelseFormset = inlineformset_factory(Dekorasjon, DekorasjonInnehavelse, exclude=[], extra=1)
 
-    instance=Dekorasjon.objects.get(kor=Kor.objects.get(kortTittel=kor), navn=dekorasjonNavn)
+    instance = Dekorasjon.objects.get(kor=Kor.objects.get(kortTittel=kor), navn=dekorasjonNavn)
+
+    innehavelseFormset = DekorasjonInnehavelseFormset(request.POST or None, instance=instance, prefix='dekorasjonInnehavelse')
+
+    if not f'{kor}-dekorasjonInnehavelse' in request.user.medlem.tilganger:
+        for form in innehavelseFormset.forms:
+            disableForm(form)
 
     if request.method == 'POST':
-        innehavelseFormset = DekorasjonInnehavelseFormset(request.POST, instance=instance, prefix='dekorasjonInnehavelse')
-
         if innehavelseFormset.is_valid():
             innehavelseFormset.save()
         return HttpResponseRedirect(reverse('dekorasjon', kwargs={'kor': kor, 'dekorasjonNavn': dekorasjonNavn}))
-
-    innehavelseFormset = DekorasjonInnehavelseFormset(instance=instance, prefix='dekorasjonInnehavelse')
-
-    if not request.user.medlem.harTilgang(f'{kor}-dekorasjonInnehavelse'):
-        for formet in innehavelseFormset.forms:
-            for input in formet.fields.values():
-                input.disabled = True
 
     return render(request, 'mytxs/dekorasjon.html', {'innehavelseFormset': innehavelseFormset})
 

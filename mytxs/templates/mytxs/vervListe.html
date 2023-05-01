@@ -4,7 +4,7 @@
 {% block content %}
     <ul>
     {% for verv in verv %}
-        <li><a href="{% url 'mytxs:verv' verv.kor.kortTittel verv.navn %}">{{verv.navn}} ({{verv.kor.kortTittel}})</a></li>
+        <li><a href="{% url 'verv' verv.kor.kortTittel verv.navn %}">{{verv.navn}} ({{verv.kor.kortTittel}})</a></li>
     {% endfor %}
     </ul>
 
