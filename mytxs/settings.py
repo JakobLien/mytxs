@@ -13,6 +13,8 @@ https://docs.djangoproject.com/en/4.1/ref/settings/
 import os
 from pathlib import Path
 
+import dotenv
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -141,3 +143,16 @@ INTERNAL_IPS = [
 # Media files, uploaded by user
 MEDIA_ROOT = os.path.join(BASE_DIR, 'uploads')
 MEDIA_URL = '/uploads/'
+
+dotenv.load_dotenv(dotenv.find_dotenv())
+
+DATABASES = {
+    "default": {
+        "ENGINE": os.environ['DATABASE_ENGINE'],
+        "NAME": os.environ['DATABASE_NAME'],
+        "USER": os.environ['DATABASE_USER'],
+        "PASSWORD": os.environ['DATABASE_PASSWORD'],
+        "HOST": os.environ['DATABASE_HOST'],
+        "PORT": os.environ['DATABASE_PORT'],
+    }
+}
