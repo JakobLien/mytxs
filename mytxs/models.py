@@ -3,18 +3,15 @@ import os
 from django.conf import settings
 from django.db import models
 import datetime
-from django.db.models import Value as V, Case, When
+from django.db.models import Value as V, Case, When, Q, F
 from django.db.models.functions import Concat
 from django import forms
 
 from mytxs.fields import MyDateField
 
+from mytxs.utils import vervInnehavelseAktiv
+
 class MedlemQuerySet(models.QuerySet):
-    def medlemmerMedTilgang(self, tilgangNavn):
-        return self.filter(vervInnehavelse__verv__tilganger__navn=tilgangNavn,
-                           vervInnehavelse__start__lte=datetime.date.today(),
-                           vervInnehavelse__slutt__gte=datetime.date.today())
-    
     def annotateFulltNavn(self):
         return self.annotate(
             fullt_navn=Case(
@@ -25,7 +22,7 @@ class MedlemQuerySet(models.QuerySet):
                 default=Concat('fornavn', V(' '), 'mellomnavn', V(' '), 'etternavn')
             )
         )
-
+    
 class Medlem(models.Model):
     objects = MedlemQuerySet.as_manager()
     
@@ -33,7 +30,8 @@ class Medlem(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
-        related_name='medlem'
+        related_name='medlem',
+        blank=True
     )
 
     fornavn = models.CharField(max_length = 50, default='Autogenerert')
@@ -51,7 +49,7 @@ class Medlem(models.Model):
             return f'{self.fornavn} {self.etternavn}'
 
 
-    # Følgende fields er bundet av GDPR, må slettes om noen etterspør det. 
+    # Følgende fields er bundet av GDPR, vi må ha godkjennelse fra medlemmet for å lagre de. 
     fødselsdato = MyDateField(null=True, blank=True) # https://stackoverflow.com/questions/12370177/django-set-default-widget-in-model-definition
     epost = models.EmailField(max_length=100, blank=True)
     tlf = models.BigIntegerField(null=True, blank=True)
@@ -82,7 +80,9 @@ class Medlem(models.Model):
     @property
     def storkor(self):
         """Returne {'TSS', 'TKS' eller ''}"""
-        return self.firstStemmegruppeVervInnehavelse.verv.kor
+        if self.firstStemmegruppeVervInnehavelse:
+            return self.firstStemmegruppeVervInnehavelse.verv.kor
+        return ''
 
     @property
     def karantenekor(self):
@@ -95,16 +95,13 @@ class Medlem(models.Model):
     @property
     def stemmegrupper(self):
         """Returne aktive stemmegruppeverv"""
-        return Verv.objects.filter(vervInnehavelse__medlem=self,
-                                   vervInnehavelse__start__lte=datetime.date.today(),
-                                   vervInnehavelse__slutt__gte=datetime.date.today())
+        return Verv.objects.filter(vervInnehavelseAktiv(), vervInnehavelse__medlem=self)
 
     @cached_property
     def tilganger(self):
+        """Returne aktive tilganger"""
         return [tilgang.navn for tilgang in
-            Tilgang.objects.filter(verv__vervInnehavelse__medlem=self, 
-                                   verv__vervInnehavelse__start__lte=datetime.date.today(),
-                                   verv__vervInnehavelse__slutt__gte=datetime.date.today())]
+            Tilgang.objects.filter(vervInnehavelseAktiv('verv__vervInnehavelse'), verv__vervInnehavelse__medlem=self).distinct()]
     
     @cached_property
     def tilgangTilSider(self):
@@ -145,6 +142,11 @@ class Kor(models.Model):
     def stemmegruppeVerv(self):
         stemmegrupper = ["1S", "2S", "1A", "2A", "1T", "2T", "1B", "2B"]
         return Verv.objects.filter(navn__in=stemmegrupper, kor=self)
+    
+    @property
+    def stemmegruppeVervMedDir(self):
+        stemmegrupper = ["dirigent", "1S", "2S", "1A", "2A", "1T", "2T", "1B", "2B"]
+        return Verv.objects.filter(navn__in=stemmegrupper, kor=self)
 
 
 class Tilgang(models.Model):
@@ -155,7 +157,19 @@ class Tilgang(models.Model):
     class Meta:
         ordering = ['navn']
 
+
+
+class VervQuerySet(models.QuerySet):
+    def stemmegruppeVerv(self):
+        stemmegrupper = ["1S", "2S", "1A", "2A", "1T", "2T", "1B", "2B"]
+        return self.filter(navn__in=stemmegrupper)
+    
+    def stemmegruppeVervMedDir(self):
+        return self.filter(navn__in=["dirigent", "1S", "2S", "1A", "2A", "1T", "2T", "1B", "2B"])
+    
 class Verv(models.Model):
+    objects = VervQuerySet.as_manager()
+
     navn = models.CharField(max_length=30)
     tilganger = models.ManyToManyField(
         Tilgang,
@@ -185,22 +199,30 @@ class Verv(models.Model):
                 default=8
             ), 'navn']
 
+    @property
+    def aktiveInnehavere(self):
+        """
+        Returne nåværende aktive innehavere av dette vervet
+        """
+        return Medlem.objects.filter(vervInnehavelseAktiv(),
+                                     vervInnehavelse__verv=self)
+
 
 class VervInnehavelse(models.Model):
     medlem = models.ForeignKey(
         Medlem,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         null=False,
         related_name='vervInnehavelse'
     )
     verv = models.ForeignKey(
         Verv,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         null=False,
         related_name='vervInnehavelse'
     )
     start = MyDateField(blank=False)
-    slutt = MyDateField(blank=False)
+    slutt = MyDateField(blank=True, null=True)
     def __str__(self):
         return f'{self.medlem.__str__()} -> {self.verv.__str__()}'
     
@@ -209,7 +231,7 @@ class VervInnehavelse(models.Model):
     
     @cached_property
     def aktiv(self):
-        return self.start <= datetime.date.today() <= self.slutt
+        VervInnehavelse.objects.filter(vervInnehavelseAktiv(''), pk=self.pk).exists()
 
 
 class Dekorasjon(models.Model):
@@ -230,13 +252,13 @@ class Dekorasjon(models.Model):
 class DekorasjonInnehavelse(models.Model):
     medlem = models.ForeignKey(
         Medlem,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         null=False,
         related_name='dekorasjonInnehavelse'
     )
     dekorasjon = models.ForeignKey(
         Dekorasjon,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         null=False,
         related_name='dekorasjonInnehavelse'
     )

@@ -62,9 +62,9 @@ def run_seed(self):
         if vervInnehavelseTilgangCreated:
             print("Created tilgang " + vervInnehavelseTilgang.navn)
 
-        # Opprett daljeInnehavelse tilgangen
-        daljeInnehavelseTilgang, daljeInnehavelseTilgangCreated = Tilgang.objects.get_or_create(navn=kor.kortTittel+"-daljeInnehavelse")
-        if daljeInnehavelseTilgangCreated:
-            print("Created tilgang " + daljeInnehavelseTilgang.navn)
+        # Opprett dekorasjonInnehavelse tilgangen
+        dekorasjonInnehavelseTilgang, dekorasjonInnehavelseTilgangCreated = Tilgang.objects.get_or_create(navn=kor.kortTittel+"-dekorasjonInnehavelse")
+        if dekorasjonInnehavelseTilgangCreated:
+            print("Created tilgang " + dekorasjonInnehavelseTilgang.navn)
 
         

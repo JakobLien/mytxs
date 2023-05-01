@@ -14,11 +14,9 @@ from .forms import MedlemListeFilterForm, MedlemsDataForm
 
 from django.forms import inlineformset_factory, modelform_factory
 
-from django import forms
-
 from django.db.models import Min, Q, F
 
-from .utils import disableForm
+from .utils import disableForm, vervInnehavelseAktiv
 
 
 # Create your views here.
@@ -36,29 +34,26 @@ def sjekkheftet(request, gruppe):
     # Gruperinger er visuelle grupperinger i sjekkheftet, oftest stemmegrupper
     # gruppe argumentet og grupper under refererer til sider på denne siden, altså en for hvert kor
 
-    if gruppe in [kor.kortTittel for kor in Kor.objects.all()]:
+    if gruppe in ["TSS", "P", "KK", "C", "TKS"]:
         kor = Kor.objects.get(kortTittel=gruppe)
 
         for stemmegruppe in kor.stemmegruppeVerv:
-            grupperinger[stemmegruppe.navn] = Medlem.objects.filter(
-                vervInnehavelse__start__lte=datetime.date.today(),
-                vervInnehavelse__slutt__gte=datetime.date.today(),
-                vervInnehavelse__verv=stemmegruppe
-            ).all()
-    
+            grupperinger[stemmegruppe.navn] = stemmegruppe.aktiveInnehavere
+
+    # if gruppe in ["TSS"]:
+    #     print(Medlem.objects.aktiveVerv().all())
+
     elif gruppe == "Jubileum":
         # Måten dette funke e at for å produser en index med tilsvarende sortering som
         # date_of_year (som ikke finnes i Django), gange vi måneden med 31, og legger på dagen.
         # Så må vi bare ta modulus 403 (den maksimale 12*31+31), også har vi det:)
         today = datetime.date.today()
         today = today.month*31 + today.day
-
+        
         grupperinger = {"":
-            Medlem.objects.distinct().filter(
-                vervInnehavelse__verv__tilganger__navn__endswith='-aktiv',
-                vervInnehavelse__start__lte=datetime.date.today(),
-                vervInnehavelse__slutt__gte=datetime.date.today()
-            ).order_by((F('fødselsdato__month') * 31 + F('fødselsdato__day') - today + 403) % 403).all()
+            Medlem.objects.distinct()
+            .filter(vervInnehavelseAktiv(), vervInnehavelse__verv__tilganger__navn__endswith='-aktiv')
+            .order_by((F('fødselsdato__month') * 31 + F('fødselsdato__day') - today + 403) % 403).all()
         }
     
     return render(request, 'mytxs/sjekkheftet.html', {
@@ -69,41 +64,62 @@ def sjekkheftet(request, gruppe):
 @login_required()
 @user_passes_test(lambda user : 'medlemListe' in user.medlem.tilgangTilSider)
 def medlemListe(request):
+    # GET forms skal tydeligvis ikkje ha 'or None' for å få is_valid() uten url params ¯\_(ツ)_/¯
     medlemListeFilterForm = MedlemListeFilterForm(request.GET)
 
-    stemmegruppeVerv = Verv.objects.filter(navn__in=["dirigent", "1S", "2S", "1A", "2A", "1T", "2T", "1B", "2B"])
+    stemmegruppeVerv = Verv.objects.stemmegruppeVervMedDir()
+
+    if not medlemListeFilterForm.is_valid():
+        raise Exception("Søkeformet var ugyldig!!! ouf")
 
     # Filtrer stemmegruppeVerv hvilket kor de er i
-    if kor := request.GET.get('kor', ''):
+    if kor := medlemListeFilterForm.cleaned_data['kor']:
         stemmegruppeVerv = stemmegruppeVerv.filter(tilganger__navn=f'{kor}-aktiv')
+
+        KVerv=Kor.objects.get(kortTittel=kor).stemmegruppeVervMedDir.all()
+    else:
+        KVerv=Verv.objects.stemmegruppeVervMedDir()
+    
+    medlemmer = Medlem.objects
+
+    # Annotating må skje oppi her, FØR vi filtrere bort stemmegruppeVerv (som kan inneholde deres første verv)
+    # se https://docs.djangoproject.com/en/4.2/topics/db/aggregation/#order-of-annotate-and-filter-clauses
+    if medlemListeFilterForm.cleaned_data['K']:
+        medlemmer = medlemmer.annotate(
+            firstKVerv=Min(
+                "vervInnehavelse__start", 
+                filter=Q(vervInnehavelse__verv__in=KVerv)
+            )
+        )        
+
+    # Filtrer dem som e i en spesifik stemmegruppe (pr no når som helst i det koret)
+    if stemmegruppe := medlemListeFilterForm.cleaned_data['stemmegruppe']:
+        stemmegruppeVerv = stemmegruppeVerv.filter(
+            navn=stemmegruppe,
+        )
 
     # Skaff alle tilsvarende stemmegruppeVervInnehavelser
     stemmegruppeVervInnehavelser = VervInnehavelse.objects.filter(
         verv__in=stemmegruppeVerv
     )
 
+    # Filtrer hvilken dato vi ser på
+    if dato := medlemListeFilterForm.cleaned_data['dato']:
+        stemmegruppeVervInnehavelser = stemmegruppeVervInnehavelser.filter(
+            start__lte=dato,
+            slutt__gte=dato
+        )
+
+    # Skaff alle tilsvarende medlemmer gitt disse stemmegruppevervene
+    medlemmer = medlemmer.filter(vervInnehavelse__in=stemmegruppeVervInnehavelser).distinct()
+
     # Filtrer hvilken K der er i dette koret (potensielt småkor, så litt missvisende variabelnavn)
-    if K := request.GET.get('K', ''):
-        medlemmer = Medlem.objects\
-            .annotate(firstVerv=Min("vervInnehavelse__start", filter=Q(vervInnehavelse__in=stemmegruppeVervInnehavelser)))\
-            .filter(firstVerv__year=int(K))
-    else:
-        medlemmer = Medlem.objects.filter(vervInnehavelse__in=stemmegruppeVervInnehavelser).distinct()
+    if K := medlemListeFilterForm.cleaned_data['K']:
+        medlemmer = medlemmer.filter(firstKVerv__year=K)
     
     # Filtrer fullt navn
-    if navn := request.GET.get('navn', ''):
+    if navn := medlemListeFilterForm.cleaned_data['navn']:
         medlemmer = medlemmer.annotateFulltNavn().filter(fullt_navn__icontains=navn)
-
-    # Filtrer dem som fortsatt e aktive
-    if aktiv := request.GET.get('aktiv', ''):
-        medlemmer = medlemmer.filter(vervInnehavelse__start__lte=datetime.date.today(),
-                                    vervInnehavelse__slutt__gte=datetime.date.today(),
-                                    vervInnehavelse__verv__in=stemmegruppeVerv)
-
-    # Filtrer dem som e i en spesifik stemmegruppe (pr no når som helst i det koret)
-    if stemmegruppe := request.GET.get('stemmegruppe', ''):
-        medlemmer = medlemmer.filter(vervInnehavelse__verv__navn=stemmegruppe,
-                                     vervInnehavelse__in=stemmegruppeVervInnehavelser)
 
     return render(request, 'mytxs/medlemListe.html', {
         'medlemListeFilterForm': medlemListeFilterForm,
