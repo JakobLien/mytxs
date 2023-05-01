@@ -79,8 +79,8 @@ WSGI_APPLICATION = 'mytxs.wsgi.application'
 
 DATABASES = {
     "default": {
-        "ENGINE": os.environ['DATABASE_ENGINE'],
-        "NAME": os.environ['DATABASE_NAME'],
+        "ENGINE": os.environ['DATABASE_ENGINE'] or 'django.db.backends.sqlite3',
+        "NAME": os.environ['DATABASE_NAME'] or BASE_DIR / 'db.sqlite3',
         "USER": os.environ['DATABASE_USER'],
         "PASSWORD": os.environ['DATABASE_PASSWORD'],
         "HOST": os.environ['DATABASE_HOST'],
