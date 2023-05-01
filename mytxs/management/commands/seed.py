@@ -39,7 +39,7 @@ def run_seed(self):
         # Opprett korene
         kor, korCreated = Kor.objects.get_or_create(pk=i, defaults={"kortTittel":kortTittel[i], "langTittel":langTittel[i]})
         if(korCreated):
-            self.stdout.write("Created kor " + kor.kortTittel + " at id " + kor.pk)
+            self.stdout.write("Created kor " + kor.kortTittel + " at id " + str(kor.pk))
 
         # Opprett aktiv-tilgangen
         aktivTilgang, aktivTilgangCreated = Tilgang.objects.get_or_create(navn=kor.kortTittel+"-aktiv")
