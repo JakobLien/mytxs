@@ -206,7 +206,7 @@ def runSeed(self):
         # Opprett storkor-tilganger
         if kor.kortTittel in ['TSS', 'TKS']:
             for t in range(len(storkorTilganger)):
-                tilgang, tilgangCreated = Tilgang.objects.get_or_create(navn=tilganger[t], kor=kor, brukt=True, beskrivelse=tilgangBeskrivelser[t])
+                tilgang, tilgangCreated = Tilgang.objects.get_or_create(navn=storkorTilganger[t], kor=kor, brukt=True, beskrivelse=storkorTilgangBeskrivelser[t])
                 if tilgangCreated:
                     print(f'Created tilgang {tilgang}')
 
