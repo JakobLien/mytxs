@@ -1,0 +1,33 @@
+{% extends "mytxs/base.html" %}
+
+{% block content %}
+
+{% if filterForm %}
+    <form action="{{ request.path }}" method="get" onChange="this.submit()">
+        {{ filterForm.as_p }}
+    </form>
+
+    <form action="{{ request.path }}" method="get">
+        <input type="submit" value="Clear">
+    </form> 
+{% endif %}
+
+{% for instance in instanceListe %}
+
+    <p><a href="{{instance.get_absolute_url}}">{{instance}}</a></p>
+
+{% endfor %}
+
+{% if newForm %}
+    {% if newForm.prefix %}
+        <h2 class="text-xl mt-4">{{ newForm.prefix|capfirst }}</h2>
+    {% endif %}
+    <form action="{{ request.get_full_path }}" method="post" class="creationForm">
+        {% csrf_token %}
+
+        {{ newForm.as_p }}
+        
+        <input type="submit" value="Lagre"></input>
+    </form>
+{% endif %}
+{% endblock %}

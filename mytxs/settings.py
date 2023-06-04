@@ -77,16 +77,24 @@ WSGI_APPLICATION = 'mytxs.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases
 
-DATABASES = {
-    "default": {
-        "ENGINE": os.environ['DATABASE_ENGINE'] or 'django.db.backends.sqlite3',
-        "NAME": os.environ['DATABASE_NAME'] or BASE_DIR / 'db.sqlite3',
-        "USER": os.environ['DATABASE_USER'],
-        "PASSWORD": os.environ['DATABASE_PASSWORD'],
-        "HOST": os.environ['DATABASE_HOST'],
-        "PORT": os.environ['DATABASE_PORT'],
+if 'DATABASE_ENGINE' in os.environ:
+    DATABASES = {
+        "default": {
+            "ENGINE": os.environ['DATABASE_ENGINE'],
+            "NAME": os.environ['DATABASE_NAME'],
+            "USER": os.environ['DATABASE_USER'],
+            "PASSWORD": os.environ['DATABASE_PASSWORD'],
+            "HOST": os.environ['DATABASE_HOST'],
+            "PORT": os.environ['DATABASE_PORT'],
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': 'mytxs',
+        }
+    }
 
 
 # Password validation
@@ -141,7 +149,7 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-LOGIN_URL = '/login'
+LOGIN_URL = '/'
 
 INTERNAL_IPS = [
     "127.0.0.1",

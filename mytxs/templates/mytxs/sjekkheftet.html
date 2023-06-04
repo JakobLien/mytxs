@@ -9,46 +9,60 @@
 
 {% endfor %}
 
+
+{% if grupperinger|length > 1%}
+    <div id="sjekkheftetNavigator" class="my-2 flex flex-row justify-between w-[40rem]">
+    {% for gruppenavn, gruppe in grupperinger.items %}
+        <div>
+            <h2 class="text-3xl">{{gruppenavn}}</h2>
+        {% for medlem in gruppe %}
+            <a href="#m_{{medlem.pk}}">{{medlem.navn}}</a>
+        {% endfor %}
+        </div>
+    {% endfor %}
+    </div>
+{% endif %}
+
 {% for gruppenavn, gruppe in grupperinger.items %}
 
     {% if gruppenavn %}
-        <h2>{{gruppenavn}}: </h2>
+        <h2 class="text-3xl">{{gruppenavn}}: </h2>
     {% endif %}
 
     {% for medlem in gruppe %}
         <br>
-        <div style="display: inline-block; border-bottom: black 2px solid; padding: 5px;">
+        <div id="m_{{medlem.pk}}" class="flex flex-row space-x-2 w-[30rem] p-1">
             {% if medlem.bilde %}
-                <img src="{{medlem.bilde.url}}" alt="BILDE!!!" style="display: inline-block; width: 139px; height: 169px; object-fit: cover; vertical-align: top;">
+                <img src="{{medlem.bilde.url}}" class="w-[139px] h-[169px] object-cover align-top">
             {% endif %}
-        <ul style="display: inline-block; margin: 0;">
-            <li>Navn: {{medlem.navn}}
-                {% if 'medlem' in user.medlem.tilgangTilSider %} <a href="{% url 'medlem' medlem.pk %}">Rediger</a> {% endif %}
-            </li>
-            <li>Fødselsdato: {{medlem.fødselsdato|date:"d.m.Y"}}</li>
-            <li>Epost: {{medlem.epost}}</li>
-            <li>Telefon: {{medlem.tlf}}</li>
-            {% if medlem.vervInnehavelse.all|length > 0 %}
-            <li>Verv: 
-                <ul>
-                {% for vervInnehavelse in medlem.vervInnehavelse.all %}
-                    {% if vervInnehavelse.aktiv %}
-                        <li> {{ vervInnehavelse.verv.navn }}({{vervInnehavelse.verv.kor.kortTittel}}): {{ vervInnehavelse.start }} - {{ vervInnehavelse.slutt }} </li>
-                    {% endif %}
-                {% endfor %}
-                </ul>
-            </li>
-            {% endif %}
-            {% if medlem.dekorasjonInnehavelse.all|length > 0 %}
-            <li>Dekorasjoner: 
-                <ul>
-                {% for dekorasjonInnehavelse in medlem.dekorasjonInnehavelse.all %}
-                    <li> {{ dekorasjonInnehavelse.dekorasjon.navn }}({{dekorasjonInnehavelse.dekorasjon.kor.kortTittel}}): {{ dekorasjonInnehavelse.start }} </li>
-                {% endfor %}
-                </ul>
-            </li>
-            {% endif %}
-        </ul>
+            <ul>
+                <li>Navn: {{medlem.navn}}
+                    {% if 'medlemListe' in user.medlem.navBarTilgang %} <a href="{% url 'medlem' medlem.pk %}">Rediger</a> {% endif %}
+                </li>
+                <li>Fødselsdato: {{medlem.fødselsdato|date:"d.m.Y"}}</li>
+                <li>Epost: {{medlem.epost}}</li>
+                <li>Telefon: {{medlem.tlf}}</li>
+                {% if medlem.vervInnehavelse.all|length > 0 %}
+                <li>Verv: 
+                    <ul>
+                    {% for vervInnehavelse in medlem.vervInnehavelse.all %}
+                        {% if vervInnehavelse.aktiv %}
+                            <li> {{ vervInnehavelse.verv.navn }}({{vervInnehavelse.verv.kor.kortTittel}}): {{ vervInnehavelse.start }} - {{ vervInnehavelse.slutt }} </li>
+                        {% endif %}
+                    {% endfor %}
+                    </ul>
+                </li>
+                {% endif %}
+                {% if medlem.dekorasjonInnehavelse.all|length > 0 %}
+                <li>Dekorasjoner: 
+                    <ul>
+                    {% for dekorasjonInnehavelse in medlem.dekorasjonInnehavelse.all %}
+                        <li> {{ dekorasjonInnehavelse.dekorasjon.navn }}({{dekorasjonInnehavelse.dekorasjon.kor.kortTittel}}): {{ dekorasjonInnehavelse.start }} </li>
+                    {% endfor %}
+                    </ul>
+                </li>
+                {% endif %}
+            </ul>
         </div>
     {% endfor %}
 

@@ -1,10 +1,11 @@
-
 import os
 from django.dispatch import receiver
 from django.db.models.signals import post_delete, pre_save
 
 from mytxs.models import Medlem
 
+# Håndtering av opplastning og overskriving av bilder
+# Gjør at ImageField lagres som nr i rett mappe
 # https://stackoverflow.com/a/16041527
 @receiver(post_delete, sender=Medlem)
 def auto_delete_file_on_delete(sender, instance, **kwargs):
@@ -12,6 +13,8 @@ def auto_delete_file_on_delete(sender, instance, **kwargs):
     Deletes file from filesystem
     when corresponding `MediaFile` object is deleted.
     """
+
+    print("Delete Ran")
 
     if instance.bilde:
         if os.path.isfile(instance.bilde.path):

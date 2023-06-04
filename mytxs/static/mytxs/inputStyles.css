@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Make links look like links */
+a {
+   @apply underline
+}
+
+ /* Make buttons and submit look like buttons */
+input[type=submit], input[type=button] {
+    @apply bg-gray-200 rounded border border-gray-600 px-1
+}
+
+input, select {
+    @apply disabled:opacity-40
+}
+
+/* overall styling of form elements */
+input, select {
+    @apply !py-0 pl-1 pr-10 my-1 !text-sm
+}
+
+select {
+    @apply pr-10
+}
+
+label {
+    /* Gjør at hover ikke triggere på labels */
+    pointer-events:none;
+}
+
+option:checked {
+    @apply bg-gray-300
+}

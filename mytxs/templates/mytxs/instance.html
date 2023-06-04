@@ -1,0 +1,34 @@
+{% extends "mytxs/base.html" %}
+
+{% block content %}
+
+    {% for form in forms %}
+        <form action="{{ request.get_full_path }}" method="post" class="managedForm">
+            {% csrf_token %}
+            {{ form.as_p }}
+
+            <div class='changes'></div>
+            <input type="button" value="Angre" onclick="resetForm(this.form)">
+            <input type="submit" value="Lagre"></input>
+        </form>
+    
+    {% endfor %}
+
+    {% for formset in formsets %}
+        <h2 class="text-xl mt-4">{{ formset.prefix|capfirst }}</h2>
+        <form action="{{ request.get_full_path }}" method="post" class="managedForm">
+            {% csrf_token %}
+
+            {{ formset.management_form }}
+
+            {% for form in formset %}
+                {{ form }} <br>
+            {% endfor %}
+
+            <div class='changes'></div>
+            <input type="button" value="Angre" onclick="resetForm(this.form)">
+            <input type="submit" value="Lagre"></input>
+        </form>
+
+    {% endfor %}
+{% endblock %}

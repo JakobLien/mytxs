@@ -5,122 +5,200 @@
 <head>
     <link rel="stylesheet" href={% static 'mytxs/styles.css' %}>
     <title>{% block title %}MyTXS 2.0{% endblock %}</title>
-    <style>
-    body {
-        display: flex;
-        flex-direction: row;
-    }
-    body > * {
-        margin: 10px;
-    }
-    </style>
+    
+    <script src="{% static 'mytxs/formSafety.js' %}" defer></script>
+    <script src="{% static 'mytxs/searchDropdown.js' %}" defer></script>
 </head>
 
-<body>
+<body class="bg-customPurple h-screen">
+    {% block messages %}
+        {% if messages %}
+            <div class="fixed inset-x-0 top-4 text-center" onclick="this.classList.add('hidden');">
+                {% for message in messages %}
+                    <span class="
+                        {% if message.tags %}{{ message.tags }}{% endif %}
+                        {% if 'error' in message.tags %}bg-red-400{% else %}bg-green-400{% endif %}
+                         rounded-md p-2">{{message.tags|capfirst}}: {{ message }}</span> <br>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endblock %}
+
     {% block body %}
 
-    <div id="sidebar">
-        {% block sidebar %}
-        {% comment %} [Default Sidebar] {% endcomment %}
+    <div class="flex flex-row [&>*]:flex-none space-x-6 m-4">
 
-        <td valign="top"><table class="mainmenuwindowframe" width="100" cellspacing="0" cellpadding="1"><tbody><tr><td class="mainmenuwindowframe" align="center">M E N Y</td></tr><tr><td><table class="mainmenuwindow" width="100%" cellspacing="0" cellpadding="5"><tbody><tr><td align="center">
-            {% comment %} <a href="https://mytss.mannskor.no/index.php?cgi_module=news" class="menulink"><img src="Min%20TSS%20side_files/news_section.png" border="0"></a><br>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=news" class="menulink">Siste nytt</a><br><br> {% endcomment %}
-            <a href="{% url 'medlem' user.medlem.pk %}" class="menulink"><img src="{% static 'mytxs/bok.png' %}" border="0"><br>
-            Medlems-<br>registerdata</a><br><br>
-            {% comment %} <a href="https://mytss.mannskor.no/index.php?cgi_module=sangern" class="menulink"><img src="Min%20TSS%20side_files/beer01.gif" border="0"></a><br>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=sangern" class="menulink">Sangern</a><br><br>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=arkiv" class="menulink"><img src="Min%20TSS%20side_files/arkiv.png" border="0"></a><br>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=arkiv" class="menulink">Arkiv</a><br><br>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=notearkiv" class="menulink"><img src="Min%20TSS%20side_files/notearkiv.png" border="0"></a><br>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=notearkiv" class="menulink">Notearkivet</a><br><br>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=statistikk" class="menulink"><img src="Min%20TSS%20side_files/edutainment_mathematics.png" border="0"></a><br>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=statistikk" class="menulink">Passiv kontingent-<br>statistikk</a><br><br> {% endcomment %}
-            <a href="{% url 'sjekkheftet' 'TSS' %}" class="menulink"><img src="{% static 'mytxs/sjekkheftet.png' %}" border="0"><br>
-            Sjekkheftet</a><br><br>
+        <div class="bg-gray-800 border border-yellow-300 w-24
+        text-white text-xs text-center flex flex-col
+        [&>*]:py-2 [&>*>*]:mx-auto [&>*>p]:font-bold">
+            {% block sidebar %}
+            {% comment %} [Default Sidebar] {% endcomment %}
+
+            {% comment %} <a href="https://mytss.mannskor.no/index.php?cgi_module=news" class="menulink"><img src="Min%20TSS%20side_files/news_section.png" border="0"></a>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=news" class="menulink">Siste nytt</a> {% endcomment %}
+            <a href="{{user.medlem.get_absolute_url}}">
+                <img src="{% static 'mytxs/bok.png' %}">
+                <p>Medlems-registerdata</p>
+            </a>
+
+            <a href="{% url 'endrePassord' %}" class="menulink">
+                <img src="{% static 'mytxs/lock.png' %}" border="0">
+                <p>Endre passord</p>
+            </a>
+            {% comment %} <a href="https://mytss.mannskor.no/index.php?cgi_module=sangern" class="menulink"><img src="Min%20TSS%20side_files/beer01.gif" border="0"></a>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=sangern" class="menulink">Sangern</a>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=arkiv" class="menulink"><img src="Min%20TSS%20side_files/arkiv.png" border="0"></a>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=arkiv" class="menulink">Arkiv</a>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=notearkiv" class="menulink"><img src="Min%20TSS%20side_files/notearkiv.png" border="0"></a>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=notearkiv" class="menulink">Notearkivet</a>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=statistikk" class="menulink"><img src="Min%20TSS%20side_files/edutainment_mathematics.png" border="0"></a>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=statistikk" class="menulink">Passiv kontingent-statistikk</a> {% endcomment %}
+            <a href="{% url 'sjekkheftet' %}" class="menulink">
+                <img src="{% static 'mytxs/sjekkheftet.png' %}" border="0">
+                <p>Sjekkheftet</p>
+            </a>
             
-            {% if 'medlemListe' in user.medlem.tilgangTilSider %}
-                <a href="{% url 'medlemListe' %}" class="menulink"><img src="{% static 'mytxs/arkiv.png' %}" border="0"><br>
-                Medlemmer</a><br><br>
+            {% if 'medlemListe' in user.medlem.navBarTilgang %}
+                <a href="{% url 'medlemListe' %}" class="menulink">
+                    <img src="{% static 'mytxs/arkiv.png' %}" border="0">
+                    <p>Medlemmer</p>
+                </a>
             {% endif %}
 
-            {% if 'dekorasjonListe' in user.medlem.tilgangTilSider %}
-                <a href="{% url 'dekorasjonListe' %}" class="menulink"><img src="https://www.svgrepo.com/download/7725/gold-medal.svg" width=50 border="0"><br>
-                Dekorasjoner</a><br><br>
+            {% if 'dekorasjonListe' in user.medlem.navBarTilgang %}
+                <a href="{% url 'dekorasjonListe' %}" class="menulink">
+                    <svg class="w-4/6 fill-gray-400" version="1.0" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 64 64" xml:space="preserve">
+                        <g>
+                            <path d="M54,22C54,9.869,44.131,0,32,0S10,9.869,10,22c0,6.816,3.117,12.92,8,16.958V62   c0,0.758,0.428,1.45,1.105,1.789C19.388,63.931,19.694,64,19.998,64c0.426,0,0.848-0.136,1.202-0.4L32,55.5l10.8,8.1   c0.354,0.265,0.775,0.4,1.2,0.4c0.305,0,0.611-0.069,0.895-0.211C45.572,63.45,46,62.758,46,62V38.958   C50.883,34.92,54,28.816,54,22z M20,62V40.425c0.645,0.421,1.312,0.809,2,1.161V60.5L20,62z M32,53l-8,6V42.487   C26.481,43.46,29.178,44,32,44s5.519-0.54,8-1.513V59L32,53z M44,62l-2-1.5V41.586c0.688-0.353,1.355-0.74,2-1.161V62z M32,42   c-11.028,0-20-8.972-20-20S20.972,2,32,2s20,8.972,20,20S43.028,42,32,42z"/>
+                            <path d="M32,4c-9.925,0-18,8.075-18,18s8.075,18,18,18s18-8.075,18-18S41.925,4,32,4z M32,38   c-8.822,0-16-7.178-16-16S23.178,6,32,6s16,7.178,16,16S40.822,38,32,38z"/>
+                            <path d="M39.147,19.361l-4.309-0.658l-1.936-4.123c-0.165-0.352-0.518-0.575-0.905-0.575s-0.74,0.224-0.905,0.575   l-1.936,4.123l-4.309,0.658c-0.37,0.057-0.678,0.315-0.797,0.671s-0.029,0.747,0.232,1.016l3.146,3.227l-0.745,4.564   c-0.062,0.378,0.099,0.758,0.411,0.979s0.725,0.243,1.061,0.058l3.841-2.124l3.841,2.124C35.99,29.959,36.157,30,36.323,30   c0.202,0,0.404-0.062,0.576-0.183c0.312-0.221,0.473-0.601,0.411-0.979l-0.745-4.564l3.146-3.227   c0.262-0.269,0.352-0.66,0.232-1.016S39.518,19.418,39.147,19.361z M34.781,23.239c-0.222,0.228-0.322,0.546-0.271,0.859   l0.495,3.029l-2.522-1.395c-0.151-0.083-0.317-0.125-0.484-0.125s-0.333,0.042-0.484,0.125l-2.522,1.395l0.495-3.029   c0.051-0.313-0.05-0.632-0.271-0.859l-2.141-2.194l2.913-0.445c0.329-0.05,0.612-0.261,0.754-0.563l1.257-2.678l1.257,2.678   c0.142,0.303,0.425,0.514,0.754,0.563l2.913,0.445L34.781,23.239z"/>
+                        </g>
+                    </svg>
+                    <p>Dekorasjoner</p>
+                </a>
             {% endif %}
 
-            {% if 'vervListe' in user.medlem.tilgangTilSider %}
-                <a href="{% url 'vervListe' %}" class="menulink"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/Simple_crown_icon.svg/1200px-Simple_crown_icon.svg.png" width=50 border="0"><br>
-                Verv</a><br><br>
+            {% if 'vervListe' in user.medlem.navBarTilgang %}
+                <a href="{% url 'vervListe' %}" class="menulink">
+                    <svg class="w-2/3 fill-transparent stroke-gray-400" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M4 16V5L8 9L12 5L16 9L20 5V16H4Z"/>
+                        <path d="M4 19H20M4 5V16H20V5L16 9L12 5L8 9L4 5Z" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <p>Verv</p>
+                </a>
             {% endif %}
 
-            {% if 'tilgangListe' in user.medlem.tilgangTilSider %}
-                <a href="{% url 'tilgangListe' %}" class="menulink"><img src="https://www.kindpng.com/picc/m/169-1691767_keys-transparent-simple-key-icon-hd-png-download.png" width=50 border="0"><br>
-                Tilganger</a><br><br>
+            {% if 'tilgangListe' in user.medlem.navBarTilgang %}
+                <a href="{% url 'tilgangListe' %}" class="menulink">
+                    <svg class="w-2/3 fill-transparent stroke-gray-400 stroke-1" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M21 9L9.59309 9C9.59309 9 8.5 7 6 7C3.5 7 2 8.79086 2 11C2 13.2091 3.5 15 6 15C8.5 15 9.59309 13 9.59309 13L15 13L15 17L19 17L19 13L21 13L21 9Z" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M6 12.5C5.17157 12.5 4.5 11.8284 4.5 11C4.5 10.1716 5.17157 9.5 6 9.5C6.82843 9.5 7.5 10.1716 7.5 11C7.5 11.8284 6.82843 12.5 6 12.5Z"/>
+                        </svg>
+                    <p>Tilganger</p>
+                </a>
             {% endif %}
 
+            {% if 'loggListe' in user.medlem.navBarTilgang %}
+                <a href="{% url 'loggListe' %}" class="menulink">
+                    <svg class="w-4/5 fill-gray-400" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 511 511" xml:space="preserve">
+                        <g>
+                            <path d="M447.5,160h-160c-0.301,0-0.596,0.022-0.888,0.057l-22.27-40.085c-2.732-4.917-7.924-7.972-13.549-7.972h-26.355   c-4.403,0-8.613,1.882-11.549,5.163s-4.342,7.672-3.856,12.049L212.454,160H63.5C27.893,160,0,212.491,0,279.5S27.893,399,63.5,399   h384c35.607,0,63.5-52.491,63.5-119.5S483.107,160,447.5,160z M30.61,355.342C20.544,335.209,15,308.274,15,279.5   s5.544-55.709,15.61-75.842C39.717,185.445,51.705,175,63.5,175s23.783,10.445,32.89,28.658C106.456,223.791,112,250.726,112,279.5   s-5.544,55.709-15.61,75.842C87.283,373.555,75.295,384,63.5,384S39.717,373.555,30.61,355.342z M447.5,384H94.757   C114.147,363.769,127,324.982,127,279.5S114.147,195.231,94.757,175H214.12l1.925,17.328c0.458,4.117,4.161,7.084,8.282,6.626   c4.117-0.458,7.083-4.166,6.626-8.282l-7.013-63.116c-0.007-0.061-0.024-0.223,0.125-0.389s0.312-0.167,0.373-0.167h26.355   c0.182,0,0.349,0.099,0.437,0.257l37.714,67.886c1.371,2.467,3.927,3.859,6.563,3.859c1.232,0,2.482-0.304,3.635-0.945   c3.621-2.011,4.926-6.578,2.914-10.199L294.913,175H447.5c11.795,0,23.783,10.445,32.89,28.658   C490.456,223.791,496,250.726,496,279.5s-5.544,55.709-15.61,75.842C471.283,373.555,459.295,384,447.5,384z"/>
+                            <path d="M48.313,302.621C47.442,295.221,47,287.442,47,279.5c0-44.395,12.657-64.5,16.5-64.5c4.142,0,7.5-3.358,7.5-7.5   s-3.358-7.5-7.5-7.5c-7.001,0-16.863,4.548-24.086,26.217C34.633,240.56,32,259.483,32,279.5c0,8.526,0.477,16.896,1.417,24.875   c0.449,3.816,3.688,6.624,7.439,6.624c0.292,0,0.589-0.018,0.887-0.053C45.856,310.462,48.798,306.734,48.313,302.621z"/>
+                            <path d="M87.586,332.783C92.367,318.439,95,299.517,95,279.5c0-11.649-0.873-22.828-2.596-33.225   c-0.677-4.087-4.542-6.849-8.625-6.174c-4.086,0.677-6.851,4.538-6.174,8.625C79.195,258.316,80,268.67,80,279.5   c0,44.395-12.657,64.5-16.5,64.5c-0.736,0-4.279-1.935-8.17-11.401c-1.575-3.832-5.958-5.66-9.788-4.086   c-3.831,1.574-5.661,5.957-4.086,9.788C48.487,355.409,57.325,359,63.5,359C70.501,359,80.363,354.452,87.586,332.783z"/>
+                            <path d="M415.5,232h-23.996c-4.142,0-7.5,3.358-7.5,7.5s3.358,7.5,7.5,7.5H415.5c4.142,0,7.5-3.358,7.5-7.5S419.642,232,415.5,232z   "/>
+                            <path d="M215.501,247h144c4.142,0,7.5-3.358,7.5-7.5s-3.358-7.5-7.5-7.5h-144c-4.142,0-7.5,3.358-7.5,7.5S211.359,247,215.501,247z   "/>
+                            <path d="M159.5,247h24.002c4.142,0,7.5-3.358,7.5-7.5s-3.358-7.5-7.5-7.5H159.5c-4.142,0-7.5,3.358-7.5,7.5S155.358,247,159.5,247z   "/>
+                            <path d="M455.5,272h-23.998c-4.142,0-7.5,3.358-7.5,7.5s3.358,7.5,7.5,7.5H455.5c4.142,0,7.5-3.358,7.5-7.5S459.642,272,455.5,272z   "/>
+                            <path d="M399.501,272h-16.004c-4.142,0-7.5,3.358-7.5,7.5s3.358,7.5,7.5,7.5h16.004c4.142,0,7.5-3.358,7.5-7.5   S403.644,272,399.501,272z"/>
+                            <path d="M167.5,272c-4.142,0-7.5,3.358-7.5,7.5s3.358,7.5,7.5,7.5h184.003c4.142,0,7.5-3.358,7.5-7.5s-3.358-7.5-7.5-7.5H167.5z"/>
+                            <path d="M383.5,312h-104c-4.142,0-7.5,3.358-7.5,7.5s3.358,7.5,7.5,7.5h104c4.142,0,7.5-3.358,7.5-7.5S387.642,312,383.5,312z"/>
+                            <path d="M247.5,312h-15.997c-4.142,0-7.5,3.358-7.5,7.5s3.358,7.5,7.5,7.5H247.5c4.142,0,7.5-3.358,7.5-7.5S251.643,312,247.5,312z   "/>
+                            <path d="M191.5,312h-40c-4.142,0-7.5,3.358-7.5,7.5s3.358,7.5,7.5,7.5h40c4.142,0,7.5-3.358,7.5-7.5S195.642,312,191.5,312z"/>
+                        </g>
+                    </svg>
+                    <p>Logg</p>
+                </a>
+            {% endif %}
 
-
+            {% comment %} <svg class= "w-4/5 stroke-gray-400 bg-transparent" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M8.18185 10.7027H6.00004C5.44776 10.7027 5.00005 11.1485 5.00004 11.7008C5.00001 13.3483 4.99996 16.6772 5.00006 18.9189C5.00018 21.4317 8.88614 22 12 22C15.1139 22 18.9999 21.4317 18.9999 18.9189C19 16.6773 19 13.3483 18.9999 11.7008C18.9999 11.1485 18.5522 10.7027 17.9999 10.7027H15.8181H8.18185ZM8.18185 10.7027C8.18185 10.7027 8.18189 8.13513 8.18185 6.59459C8.18181 4.74571 9.70882 3 12 3C14.2912 3 15.8181 4.74571 15.8181 6.59459" stroke-linecap="round" stroke-linejoin="round"/>
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M13 16.6181V18C13 18.5523 12.5523 19 12 19C11.4477 19 11 18.5523 11 18V16.6181C10.6931 16.3434 10.5 15.9442 10.5 15.5C10.5 14.6716 11.1716 14 12 14C12.8284 14 13.5 14.6716 13.5 15.5C13.5 15.9442 13.3069 16.3434 13 16.6181Z"/>
+            </svg> {% endcomment %}
 
 
             
             
-            {% comment %} <a href="https://mytss.mannskor.no/index.php?cgi_module=semesterplan" class="menulink"><img src="Min%20TSS%20side_files/spreadsheet_section.png" border="0"></a><br>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=semesterplan" class="menulink">Semesterplan</a><br><br>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=permisjoner" class="menulink"><img src="Min%20TSS%20side_files/gnome-ghostview.png" border="0"></a><br>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=permisjoner" class="menulink">Søke permisjon</a><br><br>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=knaus" class="menulink"><img src="Min%20TSS%20side_files/knaus.png" border="0"></a><br>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=knaus" class="menulink">Knauskoret</a><br><br>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=passord" class="menulink"><img src="Min%20TSS%20side_files/lock.png" border="0"></a><br>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=passord" class="menulink">Skifte passord</a><br><br> {% endcomment %}
-            <a href="/logoutEndpoint" class="menulink"><img src="{% static 'mytxs/lock.png' %}" border="0"><br>
-            Logg ut</a>
-        <br><br></td></tr></tbody></table></td></tr></tbody></table></td>
+            {% comment %} <a href="https://mytss.mannskor.no/index.php?cgi_module=semesterplan" class="menulink"><img src="Min%20TSS%20side_files/spreadsheet_section.png" border="0"></a>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=semesterplan" class="menulink">Semesterplan</a>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=permisjoner" class="menulink"><img src="Min%20TSS%20side_files/gnome-ghostview.png" border="0"></a>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=permisjoner" class="menulink">Søke permisjon</a>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=knaus" class="menulink"><img src="Min%20TSS%20side_files/knaus.png" border="0"></a>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=knaus" class="menulink">Knauskoret</a>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=passord" class="menulink"><img src="Min%20TSS%20side_files/lock.png" border="0"></a>
+            <a href="https://mytss.mannskor.no/index.php?cgi_module=passord" class="menulink">Skifte passord</a> {% endcomment %}
+            <a href="{% url 'logout' %}" class="menulink">
+                <svg class="w-3/5 fill-gray-400" viewBox="-2 0 19 19" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M7.498 17.1a7.128 7.128 0 0 1-.98-.068 7.455 7.455 0 0 1-1.795-.483 7.26 7.26 0 0 1-3.028-2.332A7.188 7.188 0 0 1 .73 12.52a7.304 7.304 0 0 1 .972-7.128 7.221 7.221 0 0 1 1.387-1.385 1.03 1.03 0 0 1 1.247 1.638 5.176 5.176 0 0 0-.993.989 5.313 5.313 0 0 0-.678 1.181 5.23 5.23 0 0 0-.348 1.292 5.22 5.22 0 0 0 .326 2.653 5.139 5.139 0 0 0 .69 1.212 5.205 5.205 0 0 0 .992.996 5.257 5.257 0 0 0 1.178.677 5.37 5.37 0 0 0 1.297.35 5.075 5.075 0 0 0 1.332.008 5.406 5.406 0 0 0 1.32-.343 5.289 5.289 0 0 0 2.211-1.682 5.18 5.18 0 0 0 1.02-2.465 5.2 5.2 0 0 0 .01-1.336 5.315 5.315 0 0 0-.343-1.318 5.195 5.195 0 0 0-.695-1.222 5.134 5.134 0 0 0-.987-.989 1.03 1.03 0 1 1 1.24-1.643 7.186 7.186 0 0 1 1.384 1.386 7.259 7.259 0 0 1 .97 1.706 7.413 7.413 0 0 1 .473 1.827 7.296 7.296 0 0 1-4.522 7.65 7.476 7.476 0 0 1-1.825.471 7.203 7.203 0 0 1-.89.056zM7.5 9.613a1.03 1.03 0 0 1-1.03-1.029V2.522a1.03 1.03 0 0 1 2.06 0v6.062a1.03 1.03 0 0 1-1.03 1.03z"/>
+                </svg>
+                <p>Logg ut</p>
+            </a>
 
 
-        {% comment %} <ul>
-            <li><a href="{% url 'index' %}">Index</a></li>
-            <li><a href="{% url 'sjekkheftet' %}">Sjekkheftet</a></li>
-            <li><a href="{% url 'medlemsdata' %}">Medlemsdata</a></li>
-        </ul> {% endcomment %}
+            {% comment %} <ul>
+                <li><a href="{% url 'index' %}">Index</a></li>
+                <li><a href="{% url 'sjekkheftet' %}">Sjekkheftet</a></li>
+                <li><a href="{% url 'medlemsdata' %}">Medlemsdata</a></li>
+            </ul> {% endcomment %}
+            
+            {% endblock %}
+        </div>
         
-        {% endblock %}
-    </div>
-    
-    <div>
-
-        <div id="topbar">
-            {% block topbar %}
-                {% comment %} [Default Topbar] {% endcomment %}
-                {% comment %} <p>Yo {{user.medlem.navn}}</p>
-                <a href="/logoutEndpoint">Log out</a> {% endcomment %}
-
-                <table class="statuswindowframe" width="800" cellspacing="0" cellpadding="1"><tbody><tr><td class="statuswindowframe" align="right">{% now "l d. F Y H:i" %}</td></tr><tr><td><table class="statuswindow" width="100%" cellspacing="0" cellpadding="5"><tbody><tr><td align="left">	    <table width="100%" border="0">
-                    <tbody><tr>
-                        <td class="monospace" valign="top" nowrap="nowrap">
-                        <b>Hei {{ user.medlem.navn }}!</b><br>
-                        Dette er din 847. innlogging.<br>
-                        Du logget sist inn {% now "l d. F Y H:i" %}		    </td>
-                        <td class="dato" valign="top" align="right">
-                        Du har vært innlogget i 2 timer, 45 minutter, 57 sekunder.
-                        </td>
-                    </tr>
-                    </tbody></table>
+        <div class="flex flex-col space-y-4">
+            <div id="topbar" class="bg-white border-black border-2 px-2">
+                {% block topbar %}
+                    <div class="flex space-x-10 ">
+                        <b>Hei {{ user.medlem.navn }}!</b>
+                        <span class="ml-auto">Siste login: {{user.last_login|date:"G:i d.m.Y"}}</span>
+                    </div>
+                    <div>
                     Tilganger: 
                     {% for tilgang in user.medlem.tilganger %}
                         {{tilgang}}
                     {% endfor %}
-                    </td></tr></tbody></table></td></tr></tbody></table>	    <br>
-                    
-            {% endblock %}
-        </div>
+                    </div>
 
-        <div id="content">
-            {% block content %} [Default Content] {% endblock %}
-        </div>
+                {% endblock %}
+            </div>
 
+            <div id="content">
+                {% block heading %}
+                    <div class="[&>*]:inline">
+                        <h1 class="text-2xl">
+                            {% if heading %}
+                                {{heading}}
+                            {% elif request.instance %}
+                                {{request.instance|capfirst}}
+                                {% if request.instance.logg_url and 'loggListe' in user.medlem.navBarTilgang %}
+                                    <a class="text-sm" href="{{request.instance.logg_url}}">(Logg)</a>
+                                {% endif %}
+                            {% endif %}
+                        </h1>
+                    </div>
+                {% endblock %}
+
+                {% block content %} [Default Content] {% endblock %}
+            </div>
+        </div>
     </div>
 
     {% endblock %}
+
+    {% if optionForm %}
+        <div class="fixed right-6 bottom-6 p-2 rounded-md bg-gray-400 border-2 border-red-700 group">
+            <form class="hidden group-hover:block" action="{{ request.get_full_path }}" method="get" onChange="this.submit()">
+                {{ optionForm.as_p }}
+            </form>
+        </div>
+    {% endif %}
 </body>
 </html>

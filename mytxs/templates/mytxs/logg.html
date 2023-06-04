@@ -1,0 +1,26 @@
+{% extends "mytxs/base.html" %}
+
+{% block content %}
+    <div>
+        {% if lastLog %}
+            <a href="{{lastLog.get_absolute_url}}">Last log</a>
+        {% endif %}
+
+        {% if nextLog %}
+            <a href="{{nextLog.get_absolute_url}}">Next log</a>
+        {% endif %}
+
+        {% if actual and actual.get_absolute_url %}
+            <a href="{{actual.get_absolute_url}}">Actual object</a>
+        {% endif %}
+
+    </div>
+
+
+    <form action="{{ request.path }}" method="post" enctype='multipart/form-data'>
+        {% csrf_token %}
+        {{ loggForm.as_p }}
+    </form>
+
+    <pre class="bg-white">{{value}}</pre>
+{% endblock %}
