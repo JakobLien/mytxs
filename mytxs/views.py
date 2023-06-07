@@ -7,8 +7,8 @@ from django.contrib import messages
 from django.contrib.auth import login as auth_login, logout as auth_logout
 from django.contrib.auth.forms import AuthenticationForm, SetPasswordForm, UserCreationForm
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.db.models import Q, F
-from django.db.models.functions import Mod
+from django.db.models import Q, F, IntegerField
+from django.db.models.functions import Mod, Cast
 from django.forms import inlineformset_factory, modelform_factory, modelformset_factory
 from django.shortcuts import redirect, render, get_object_or_404
 
@@ -125,8 +125,9 @@ def sjekkheftet(request, gruppe="TSS"):
         today = today.month*31 + today.day
         
         grupperinger = {"":
-            request.queryset.order_by(Mod((F('fødselsdato__month') * 31 + F('fødselsdato__day') - today + 403), 403)).all()
+            request.queryset.order_by(Cast((F('fødselsdato__month') * 31 + F('fødselsdato__day') - today + 403), output_field=IntegerField()) % 403).all()
         }
+        # Gud veit koffor serveren ikke ønske å tolke enten day eller month som en integer i utgangspunktet. Har ikke det problemet lokalt...
 
     # Håndter vcard for de på denne siden dersom det var det
     if request.GET.get('vcard'):
