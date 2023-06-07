@@ -8,7 +8,7 @@ from django.contrib.auth import login as auth_login, logout as auth_logout
 from django.contrib.auth.forms import AuthenticationForm, SetPasswordForm, UserCreationForm
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Q, F
-from django.db.models.functions import Floor
+from django.db.models.functions import Mod
 from django.forms import inlineformset_factory, modelform_factory, modelformset_factory
 from django.shortcuts import redirect, render, get_object_or_404
 
@@ -125,10 +125,8 @@ def sjekkheftet(request, gruppe="TSS"):
         today = today.month*31 + today.day
         
         grupperinger = {"":
-            request.queryset.order_by(Floor(F('fødselsdato__month') * 31 + F('fødselsdato__day') - today + 403) % 403).all()
+            request.queryset.order_by(Mod((F('fødselsdato__month') * 31 + F('fødselsdato__day') - today + 403), 403)).all()
         }
-        # Gud veit koffor det ^ må floores når vi bare bruke gange, pluss og minus på det 
-        # som burde vær integers, men på server klage den på at det alt før '%' er en double...
 
     # Håndter vcard for de på denne siden dersom det var det
     if request.GET.get('vcard'):
