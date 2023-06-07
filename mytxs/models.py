@@ -1,25 +1,20 @@
 from functools import cached_property
 import os
-from django.conf import settings
-from django.db import models
-from django.db.models import Value as V, Q, F, Case, When
-from django.db.models.functions import Concat
-from django.forms import ValidationError
-from django.urls import reverse
-
-from mytxs.fields import MyDateField, MyManyToManyField
-
-from mytxs.utils.modelUtils import orderStemmegruppeVerv, toolTip, vervInnehavelseAktiv, hovedStemmeGruppeVerv, stemmeGruppeVerv
-
-from django.utils.translation import gettext_lazy as _
-
-from django.core import serializers
-
 import json
 
-from django.template import defaultfilters
-
 from django.apps import apps
+from django.conf import settings
+from django.core import serializers
+from django.db import models
+from django.db.models import Value as V, Q, F, Case, When, Min
+from django.db.models.functions import Concat
+from django.forms import ValidationError
+from django.template import defaultfilters
+from django.urls import reverse
+from django.utils.translation import gettext_lazy as _
+
+from mytxs.fields import MyDateField, MyManyToManyField
+from mytxs.utils.modelUtils import orderStemmegruppeVerv, toolTip, vervInnehavelseAktiv, hovedStemmeGruppeVerv, stemmeGruppeVerv
 
 class LoggQueryset(models.QuerySet):
     def getLoggLinkFor(self, instance):
@@ -112,14 +107,26 @@ class LoggM2M(models.Model):
 
 class MedlemQuerySet(models.QuerySet):
     def annotateFulltNavn(self):
-        "Annotate fullt navn med korrekt mellomrom, viktig for søk på medlemmer"
+        'Annotate feltet "fulltNavn" med deres navn med korrekt mellomrom, viktig for søk på medlemmer'
         return self.annotate(
-            fullt_navn=Case(
+            fulltNavn=Case(
                 When(
                     mellomnavn='',
                     then=Concat('fornavn', V(' '), 'etternavn')
                 ),
                 default=Concat('fornavn', V(' '), 'mellomnavn', V(' '), 'etternavn')
+            )
+        )
+
+    def annotateKarantenekor(self, kor=None):
+        'Annotate feltet "K" med int året de startet i sitt storkor'
+        kVerv = Verv.objects.filter(stemmeGruppeVerv('vervInnehavelse__verv') | Q(vervInnehavelse__verv__navn='dirigent'))
+        if kor:
+            kVerv = kVerv.filter(kor=kor)
+        return self.annotate(
+            K=Min(
+                "vervInnehavelse__start__year", 
+                filter=Q(vervInnehavelse__verv__in=kVerv)
             )
         )
 
@@ -152,7 +159,7 @@ class Medlem(models.Model):
     # Følgende fields er bundet av GDPR, vi må ha godkjennelse fra medlemmet for å lagre de. 
     fødselsdato = MyDateField(null=True, blank=True) # https://stackoverflow.com/questions/12370177/django-set-default-widget-in-model-definition
     epost = models.EmailField(max_length=100, blank=True)
-    tlf = models.BigIntegerField(null=True, blank=True)
+    tlf = models.CharField(max_length=20, default='', blank=True)
     studieEllerJobb = models.CharField(max_length=100, blank=True)
     boAdresse = models.CharField(max_length=100, blank=True)
     foreldreAdresse = models.CharField(max_length=100, blank=True)
@@ -210,24 +217,30 @@ class Medlem(models.Model):
         tilganger = self.tilganger
         if self.tilganger.filter(navn='medlemsdata').exists():
             sider.add('medlemListe')
+            sider.add('loggListe')
 
         if self.tilganger.filter(navn='vervInnehavelse').exists():
             sider.add('medlemListe')
             sider.add('vervListe')
+            sider.add('loggListe')
 
         if self.tilganger.filter(navn='dekorasjonInnehavelse').exists():
             sider.add('medlemListe')
             sider.add('dekorasjonListe')
+            sider.add('loggListe')
 
         if self.tilganger.filter(navn='verv').exists():
             sider.add('vervListe')
+            sider.add('loggListe')
 
         if self.tilganger.filter(navn='dekorasjon').exists():
             sider.add('dekorasjonListe')
+            sider.add('loggListe')
 
         if self.tilganger.filter(navn='tilgang').exists():
             sider.add('vervListe')
             sider.add('tilgangListe')
+            sider.add('loggListe')
 
         if self.tilganger.filter(navn='logg').exists():
             sider.add('loggListe')
@@ -248,37 +261,35 @@ class Medlem(models.Model):
         if model == Medlem: # For Medlem siden
             medlemmer = Medlem.objects.distinct().filter(pk=self.pk)
             if self.tilganger.filter(navn='medlemsdata').exists():
-                if extended: # Om extended, også ha med inaktive korister, og folk uten kor
-                    medlemmer |= Medlem.objects.filter(
-                        stemmeGruppeVerv('vervInnehavelse__verv'),
-                        Q(vervInnehavelse__verv__kor__tilganger__in=self.tilganger.filter(navn='medlemsdata')) | 
-                        Q(vervInnehavelse__verv__kor__isnull=True)
-                    ).distinct()
-                else: # Om ikke extended, ha inn aktive korister i det koret
-                    medlemmer |= Medlem.objects.filter(
-                        vervInnehavelseAktiv(),
-                        stemmeGruppeVerv('vervInnehavelse__verv'),
-                        vervInnehavelse__verv__kor__tilganger__in=self.tilganger.filter(navn='medlemsdata')
-                    ).distinct()
-                
+                # Uavhengig av extended, ha inn folk fra det koret, og folk uten kor
+                medlemmer |= Medlem.objects.distinct().filter(
+                    (stemmeGruppeVerv('vervInnehavelse__verv') &
+                    Q(vervInnehavelse__verv__kor__tilganger__in=self.tilganger.filter(navn='medlemsdata'))) | 
+                    ~stemmeGruppeVerv('vervInnehavelse__verv')
+                )
+
             if self.tilganger.filter(navn='vervInnehavelse').exists():
-                if extended: # Om extended, ha med alle potensielle vervInnehavere
-                    return Medlem.objects
-                else: # Om ikke, bare ha med aktive i det samme koret
-                    medlemmer |= Medlem.objects.filter(
-                        vervInnehavelseAktiv(),
-                        stemmeGruppeVerv('vervInnehavelse__verv'),
-                        vervInnehavelse__verv__kor__tilganger__in=self.tilganger.filter(navn='vervInnehavelse')
+                if extended:
+                    # Om extended, ha med alle potensielle vervInnehavere
+                    return Medlem.objects.distinct()
+                else:
+                    # Om ikke, bare ha med aktive i det samme koret som tilgangen, og folk uten kor
+                    medlemmer |= Medlem.objects.distinct().filter(
+                        stemmeGruppeVerv('vervInnehavelse__verv') &
+                        Q(vervInnehavelse__verv__kor__tilganger__in=self.tilganger.filter(navn='vervInnehavelse')) | 
+                        ~stemmeGruppeVerv('vervInnehavelse__verv')
                     )
             
             if self.tilganger.filter(navn='dekorasjonInnehavelse').exists():
-                if extended: # Om extended, ha med alle vervInnehavere
-                    return Medlem.objects
-                else: # Om ikke, bare ha med aktive i det samme koret
-                    medlemmer |= Medlem.objects.filter(
-                        vervInnehavelseAktiv(),
-                        stemmeGruppeVerv('vervInnehavelse__verv'),
-                        vervInnehavelse__verv__kor__tilganger__in=self.tilganger.filter(navn='dekorasjonInnehavelse')
+                if extended:
+                    # Om extended, ha med alle vervInnehavere
+                    return Medlem.objects.distinct()
+                else:
+                    # Om ikke, bare ha med aktive i det samme koret som tilgangen, og folk uten kor
+                    medlemmer |= Medlem.objects.distinct().filter(
+                        stemmeGruppeVerv('vervInnehavelse__verv') &
+                        Q(vervInnehavelse__verv__kor__tilganger__in=self.tilganger.filter(navn='dekorasjonInnehavelse')) | 
+                        ~stemmeGruppeVerv('vervInnehavelse__verv')
                     )
             
             return medlemmer
@@ -308,12 +319,26 @@ class Medlem(models.Model):
             ).distinct()
         
         if model == Logg: # For Logg siden
-            return Logg.objects.filter(kor__tilganger__in=self.tilganger.filter(navn='logg'))
+            # return Logg.objects.filter(kor__tilganger__in=self.tilganger.filter(navn='logg'))
+
+            loggs = Logg.objects.distinct().none()
+
+            models = [Medlem, Verv, Dekorasjon, Tilgang]
+
+            for model in models:
+                qs = self.tilgangQueryset(model)
+                loggs |= Logg.objects.filter(model=model.__name__, instancePK__in=qs.values_list("pk", flat=True)).distinct()
+
+                # TODO: Pr no har vi ikke tilgang til VervInnehavelser og DekorasjonInnehavelser, ettersom de også ikke er noe vi har separate sider til.
+                # Altså funke det no for å linke til loggen av alle objekt, men det må fikses før eller siden. Tror vi tar det som del av logg restruktureringa tho. 
+
+            return loggs
 
     def get_absolute_url(self):
         return reverse('medlem', args=[self.pk])
     
     class Meta:
+        ordering = ['fornavn', 'mellomnavn', 'etternavn']
         verbose_name_plural = "medlemmer"
 
 

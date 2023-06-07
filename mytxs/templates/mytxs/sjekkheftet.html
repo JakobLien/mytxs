@@ -1,5 +1,5 @@
 {% extends "mytxs/base.html" %}
-
+{% load customTags %}
 
 {% block content %}
 
@@ -9,14 +9,18 @@
 
 {% endfor %}
 
+<br><a href="{% setURLParams vcard='true' %}">Last ned vCard for alle på siden</a>
+<span title="For å laste ned alle på iphone, trykk del knappen på popupen, og åpne i kontakter. 
+Da får du opp en liste av vcards der du kan importere alle.">(?)</span>
+
 
 {% if grupperinger|length > 1%}
     <div id="sjekkheftetNavigator" class="my-2 flex flex-row justify-between w-[40rem]">
     {% for gruppenavn, gruppe in grupperinger.items %}
         <div>
-            <h2 class="text-3xl">{{gruppenavn}}</h2>
+            <h2 class="text-3xl">{{ gruppenavn }}</h2>
         {% for medlem in gruppe %}
-            <a href="#m_{{medlem.pk}}">{{medlem.navn}}</a>
+            <a href="#m_{{ medlem.pk }}">{{ medlem.navn }}</a>
         {% endfor %}
         </div>
     {% endfor %}
@@ -26,28 +30,28 @@
 {% for gruppenavn, gruppe in grupperinger.items %}
 
     {% if gruppenavn %}
-        <h2 class="text-3xl">{{gruppenavn}}: </h2>
+        <h2 class="text-3xl">{{ gruppenavn }}: </h2>
     {% endif %}
 
     {% for medlem in gruppe %}
         <br>
-        <div id="m_{{medlem.pk}}" class="flex flex-row space-x-2 w-[30rem] p-1">
+        <div id="m_{{ medlem.pk }}" class="flex flex-row space-x-2 w-[30rem] p-1">
             {% if medlem.bilde %}
-                <img src="{{medlem.bilde.url}}" class="w-[139px] h-[169px] object-cover align-top">
+                <img src="{{ medlem.bilde.url }}" class="w-[139px] h-[169px] object-cover align-top">
             {% endif %}
             <ul>
-                <li>Navn: {{medlem.navn}}
+                <li>Navn: {{ medlem.navn }}
                     {% if 'medlemListe' in user.medlem.navBarTilgang %} <a href="{% url 'medlem' medlem.pk %}">Rediger</a> {% endif %}
                 </li>
-                <li>Fødselsdato: {{medlem.fødselsdato|date:"d.m.Y"}}</li>
-                <li>Epost: {{medlem.epost}}</li>
-                <li>Telefon: {{medlem.tlf}}</li>
+                <li>Fødselsdato: {{ medlem.fødselsdato|date:"d.m.Y" }}</li>
+                <li>Epost: <a href="mailto:{{ medlem.epost }}">{{ medlem.epost }}</a></li>
+                <li>Telefon: <a href="tel:{{ medlem.tlf|cut:' ' }}">{{ medlem.tlf }}</a></li>
                 {% if medlem.vervInnehavelse.all|length > 0 %}
                 <li>Verv: 
                     <ul>
                     {% for vervInnehavelse in medlem.vervInnehavelse.all %}
                         {% if vervInnehavelse.aktiv %}
-                            <li> {{ vervInnehavelse.verv.navn }}({{vervInnehavelse.verv.kor.kortTittel}}): {{ vervInnehavelse.start }} - {{ vervInnehavelse.slutt }} </li>
+                            <li> {{ vervInnehavelse.verv.navn }}({{ vervInnehavelse.verv.kor.kortTittel }}): {{ vervInnehavelse.start }} - {{ vervInnehavelse.slutt }} </li>
                         {% endif %}
                     {% endfor %}
                     </ul>
@@ -57,7 +61,7 @@
                 <li>Dekorasjoner: 
                     <ul>
                     {% for dekorasjonInnehavelse in medlem.dekorasjonInnehavelse.all %}
-                        <li> {{ dekorasjonInnehavelse.dekorasjon.navn }}({{dekorasjonInnehavelse.dekorasjon.kor.kortTittel}}): {{ dekorasjonInnehavelse.start }} </li>
+                        <li> {{ dekorasjonInnehavelse.dekorasjon.navn }}({{ dekorasjonInnehavelse.dekorasjon.kor.kortTittel }}): {{ dekorasjonInnehavelse.start }} </li>
                     {% endfor %}
                     </ul>
                 </li>

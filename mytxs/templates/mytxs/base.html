@@ -36,10 +36,12 @@
 
             {% comment %} <a href="https://mytss.mannskor.no/index.php?cgi_module=news" class="menulink"><img src="Min%20TSS%20side_files/news_section.png" border="0"></a>
             <a href="https://mytss.mannskor.no/index.php?cgi_module=news" class="menulink">Siste nytt</a> {% endcomment %}
-            <a href="{{user.medlem.get_absolute_url}}">
-                <img src="{% static 'mytxs/bok.png' %}">
-                <p>Medlems-registerdata</p>
-            </a>
+            {% if user.medlem %}
+                <a href="{{user.medlem.get_absolute_url}}">
+                    <img src="{% static 'mytxs/bok.png' %}">
+                    <p>Medlems-registerdata</p>
+                </a>
+            {% endif %}
 
             <a href="{% url 'endrePassord' %}" class="menulink">
                 <img src="{% static 'mytxs/lock.png' %}" border="0">
@@ -125,9 +127,6 @@
                 <path fill-rule="evenodd" clip-rule="evenodd" d="M13 16.6181V18C13 18.5523 12.5523 19 12 19C11.4477 19 11 18.5523 11 18V16.6181C10.6931 16.3434 10.5 15.9442 10.5 15.5C10.5 14.6716 11.1716 14 12 14C12.8284 14 13.5 14.6716 13.5 15.5C13.5 15.9442 13.3069 16.3434 13 16.6181Z"/>
             </svg> {% endcomment %}
 
-
-            
-            
             {% comment %} <a href="https://mytss.mannskor.no/index.php?cgi_module=semesterplan" class="menulink"><img src="Min%20TSS%20side_files/spreadsheet_section.png" border="0"></a>
             <a href="https://mytss.mannskor.no/index.php?cgi_module=semesterplan" class="menulink">Semesterplan</a>
             <a href="https://mytss.mannskor.no/index.php?cgi_module=permisjoner" class="menulink"><img src="Min%20TSS%20side_files/gnome-ghostview.png" border="0"></a>
@@ -156,9 +155,9 @@
         <div class="flex flex-col space-y-4">
             <div id="topbar" class="bg-white border-black border-2 px-2">
                 {% block topbar %}
-                    <div class="flex space-x-10 ">
+                    <div class="flex justify-between">
                         <b>Hei {{ user.medlem.navn }}!</b>
-                        <span class="ml-auto">Siste login: {{user.last_login|date:"G:i d.m.Y"}}</span>
+                        <span class="ml-10">Siste login: {{user.last_login|date:"G:i d.m.Y"}}</span>
                     </div>
                     <div>
                     Tilganger: 
@@ -178,7 +177,7 @@
                                 {{heading}}
                             {% elif request.instance %}
                                 {{request.instance|capfirst}}
-                                {% if request.instance.logg_url and 'loggListe' in user.medlem.navBarTilgang %}
+                                {% if request.instance.logg_url %}
                                     <a class="text-sm" href="{{request.instance.logg_url}}">(Logg)</a>
                                 {% endif %}
                             {% endif %}

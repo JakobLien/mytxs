@@ -145,7 +145,7 @@ function resetForm(form){
 function evaluateCreationForm(form){
     const changes = getFormChanges(form);
 
-    if(getActualElements(form).every(elem => elem.value)){
+    if(getActualElements(form).filter(elem => elem.hasAttribute('required')).every(elem => elem.value)){
         form.querySelector("[type=submit]").disabled = false;
     }else{
         form.querySelector("[type=submit]").disabled = true;

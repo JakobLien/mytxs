@@ -1,28 +1,22 @@
-from datetime import date
 import datetime
+from itertools import chain
 import json
-from django.shortcuts import redirect, render, get_object_or_404
-from django.urls import reverse
-
-from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
-from django.contrib.auth.forms import AuthenticationForm, SetPasswordForm
-from django.contrib.auth.decorators import login_required, user_passes_test
-
-from mytxs.models import Dekorasjon, DekorasjonInnehavelse, Kor, Logg, Medlem, Tilgang, Verv, VervInnehavelse
-
-from .forms import BaseOptionForm, LoggFilterForm, MedlemFilterForm, OptionForm
-
-from django.forms import inlineformset_factory, modelform_factory, modelformset_factory
-
-from django.db.models import Min, Q, F
-
-from mytxs.utils.formUtils import disableForm, disableFormField, partiallyDisableFormset, addReverseM2M, prefixPresent, addDeleteCheckbox, setRequiredDropdownOptions
-from mytxs.utils.modelUtils import vervInnehavelseAktiv, hovedStemmeGruppeVerv, stemmeGruppeVerv, stemmeGruppeVervRegex
-from mytxs.utils.logAuthor import logAuthorAndSave
+import re
 
 from django.contrib import messages
+from django.contrib.auth import login as auth_login, logout as auth_logout
+from django.contrib.auth.forms import AuthenticationForm, SetPasswordForm, UserCreationForm
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.db.models import Q, F
+from django.forms import inlineformset_factory, modelform_factory, modelformset_factory
+from django.shortcuts import redirect, render, get_object_or_404
 
-import re
+from mytxs.forms import BaseOptionForm, LoggFilterForm, MedlemFilterForm, OptionForm
+from mytxs.models import Dekorasjon, DekorasjonInnehavelse, Kor, Logg, Medlem, Tilgang, Verv, VervInnehavelse
+from mytxs.utils.formUtils import disableForm, disableFormField, partiallyDisableFormset, addReverseM2M, prefixPresent, addDeleteCheckbox, setRequiredDropdownOptions
+from mytxs.utils.logAuthorUtils import logAuthorAndSave
+from mytxs.utils.modelUtils import vervInnehavelseAktiv, hovedStemmeGruppeVerv, stemmeGruppeVerv, stemmeGruppeVervRegex
+from mytxs.utils.utils import downloadFile, getPaginatorPage, generateVCard
 
 # Create your views here.
 
@@ -58,6 +52,26 @@ def login(request):
 def logout(request):
     auth_logout(request)
     return redirect('login')
+
+def registrer(request, medlemPK):
+    medlem = get_object_or_404(Medlem, pk=medlemPK, user=None)
+
+    userCreationForm = UserCreationForm(request.POST or None)
+
+    if request.method == 'POST':
+        if userCreationForm.is_valid():
+            user = userCreationForm.save()
+            auth_login(request, user)
+
+            medlem.user = user
+            medlem.save()
+            messages.info(request, f'Opprettet bruker for {medlem}!')
+            return redirect(medlem)
+
+    return render(request, 'mytxs/register.html', {
+        'registerForm': userCreationForm,
+        'heading': 'MedlemPK: ' + str(medlemPK)
+    })
 
 @login_required
 def endrePassord(request):
@@ -105,9 +119,19 @@ def sjekkheftet(request, gruppe="TSS"):
         grupperinger = {"":
             Medlem.objects.distinct()
             .filter(vervInnehavelseAktiv(), fødselsdato__isnull=False, vervInnehavelse__verv__tilganger__navn='aktiv')
-            .order_by((F('fødselsdato__month') * 31 + F('fødselsdato__day') - today + 403) % 403).all()
+            .order_by(round(F('fødselsdato__month') * 31 + F('fødselsdato__day') - today + 403) % 403).all()
         }
-    
+        # Gud veit koffor det ^ må rundes av når vi bare bruke gange, pluss og minus på det 
+        # som burde vær integers, men på server klage den på at det alt før '%' er en double...
+
+    # Håndter vcard dersom det var det
+    if request.GET.get('vcard'):
+        medlemLister = [medlem for k, medlem in grupperinger.items()]
+        medlemmer = medlemLister[0].union(*medlemLister[1:]) if len(medlemLister) > 1 else medlemLister[0]
+        medlemmer = medlemmer.exclude(tlf='')
+        file_data = generateVCard(medlemmer)
+        return downloadFile(f'{gruppe}.vcf', file_data)
+            
     return render(request, 'mytxs/sjekkheftet.html', {
         'grupperinger': grupperinger, 
         'grupper': [kor.kortTittel for kor in Kor.objects.all()] + ["Jubileum"],
@@ -117,68 +141,66 @@ def sjekkheftet(request, gruppe="TSS"):
 @login_required()
 @user_passes_test(lambda user : 'medlemListe' in user.medlem.navBarTilgang, redirect_field_name=None)
 def medlemListe(request):
-    medlemFilterForm = MedlemFilterForm(request.GET)
+    request.queryset = request.user.medlem.tilgangQueryset(Medlem)
 
-    stemmegruppeVerv = Verv.objects.filter(stemmeGruppeVerv('') | Q(navn='dirigent'))
+    medlemFilterForm = MedlemFilterForm(request.GET)
 
     if not medlemFilterForm.is_valid():
         raise Exception("Søkeformet var ugyldig, ouf")
-
-    # Filtrer stemmegruppeVerv hvilket kor de er i
-    if kor := medlemFilterForm.cleaned_data['kor']:
-        stemmegruppeVerv = stemmegruppeVerv.filter(tilganger__navn='aktiv', tilganger__kor=kor)
-
-        KVerv=Verv.objects.filter(kor__kortTittel=kor).filter(stemmeGruppeVerv('') | Q(navn='dirigent'))
-    else:
-        KVerv=Verv.objects.filter(stemmeGruppeVerv('') | Q(navn='dirigent'))
     
-    medlemmer = Medlem.objects.distinct()
-
-    # Annotating må skje oppi her, FØR vi filtrere bort stemmegruppeVerv (som kan inneholde deres første verv)
-    # se https://docs.djangoproject.com/en/4.2/topics/db/aggregation/#order-of-annotate-and-filter-clauses
-    if medlemFilterForm.cleaned_data['K']:
-        medlemmer = medlemmer.annotate(
-            firstKVerv=Min(
-                "vervInnehavelse__start", 
-                filter=Q(vervInnehavelse__verv__in=KVerv)
-            )
-        )
-
-    # Filtrer dem som e i en spesifik stemmegruppe
-    if stemmegruppe := medlemFilterForm.cleaned_data['stemmegruppe']:
-        print(stemmegruppe)
-
-        stemmegruppeVerv = stemmegruppeVerv.filter(
-            navn__endswith=stemmegruppe,
-        )
-
-    # Skaff alle tilsvarende stemmegruppeVervInnehavelser
-    stemmegruppeVervInnehavelser = VervInnehavelse.objects.filter(
-        verv__in=stemmegruppeVerv
-    )
-
-    # Filtrer hvilken dato vi ser på
-    if dato := medlemFilterForm.cleaned_data['dato']:
-        stemmegruppeVervInnehavelser = stemmegruppeVervInnehavelser.filter(
-            start__lte=dato,
-            slutt__gte=dato
-        )
-
-    # Skaff alle tilsvarende medlemmer gitt disse stemmegruppevervene
-    medlemmer = medlemmer.filter(vervInnehavelse__in=stemmegruppeVervInnehavelser)
-
-    # Filtrer hvilken K der er i dette koret (potensielt småkor, så litt missvisende variabelnavn)
+    # Filtrer på karantenekor
     if K := medlemFilterForm.cleaned_data['K']:
-        medlemmer = medlemmer.filter(firstKVerv__year=K)
+        request.queryset = request.queryset.annotateKarantenekor(
+            kor=medlemFilterForm.cleaned_data['kor'] or None
+        )
+        request.queryset = request.queryset.filter(K=K)
     
+    # Filtrer på kor
+    sgVerv = Verv.objects.filter(stemmeGruppeVerv(''))
+    if kor := medlemFilterForm.cleaned_data['kor']:
+        sgVerv = sgVerv.filter(kor=kor)
+    
+    # Filtrer på stemmegruppe
+    if stemmegruppe := medlemFilterForm.cleaned_data['stemmegruppe']:
+        sgVerv = sgVerv.filter(navn__iendswith=stemmegruppe)
+
+    # Filtrer på dato de hadde dette vervet
+    if dato := medlemFilterForm.cleaned_data['dato']:
+        request.queryset = request.queryset.filter(
+            vervInnehavelseAktiv(dato=dato),
+            vervInnehavelse__verv__in=sgVerv
+        )
+    elif kor or stemmegruppe or K:
+        # Denne elif-en er nødvendig for å få med folk som ikke har et kor
+        request.queryset = request.queryset.filter(
+            Q(vervInnehavelse__verv__in=sgVerv)
+        )
+
     # Filtrer fullt navn
     if navn := medlemFilterForm.cleaned_data['navn']:
-        medlemmer = medlemmer.annotateFulltNavn().filter(fullt_navn__icontains=navn)
+        request.queryset = request.queryset.annotateFulltNavn()
+        request.queryset = request.queryset.filter(fulltNavn__icontains=navn)
 
+    NyttMedlemForm = modelform_factory(Medlem, fields=['fornavn', 'mellomnavn', 'etternavn'])
+
+    nyttMedlemForm = NyttMedlemForm(request.POST or None, prefix="nyttMedlem", initial={
+        'fornavn': '', 'mellomnavn': '', 'etternavn': ''
+    })
+
+    if not request.user.medlem.tilganger.filter(navn='medlemsdata'):
+        disableForm(nyttMedlemForm)
+
+    if request.method == 'POST':
+        if nyttMedlemForm.is_valid():
+            logAuthorAndSave(nyttMedlemForm, request.user.medlem)
+            messages.info(request, f'{nyttMedlemForm.instance} opprettet!')
+            return redirect(nyttMedlemForm.instance)
+    
     return render(request, 'mytxs/instanceListe.html', {
         'filterForm': medlemFilterForm,
-        'instanceListe': medlemmer,
-        'heading': 'Medlemliste'
+        'paginatorPage': getPaginatorPage(request),
+        'heading': 'Medlemliste',
+        'newForm': nyttMedlemForm
     })
 
 
@@ -219,8 +241,8 @@ def medlem(request, pk):
     # Disable medlemsDataForm: Om det ikkje e deg sjølv, eller noen du har tilgang til 
     # (alle med medlemsdata tilgangen kan redigere folk som ikke har et storkor)
     if  not (request.instance == request.user.medlem or
-        request.user.medlem.tilganger.filter(navn='medlemsdata', kor=request.instance.storkor).exists() or
-        (request.user.medlem.tilganger.filter(navn='medlemsdata').exists() and not request.instance.storkor)):
+        request.user.medlem.tilganger.filter(navn='medlemsdata', kor=request.instance.storkor or None).exists() or
+        request.user.medlem.tilganger.filter(navn='medlemsdata').exists() and not request.instance.storkor):
         disableForm(medlemsDataForm)
 
     # Disable vervInnehavelser
@@ -249,7 +271,7 @@ def medlem(request, pk):
             logAuthorAndSave(dekorasjonInnehavelseFormset, request.user.medlem)
             return redirect(request.instance)
 
-    return render(request, 'mytxs/instance.html', {
+    return render(request, 'mytxs/medlem.html', {
         'forms': [medlemsDataForm], 
         'formsets': [vervInnehavelseFormset, dekorasjonInnehavelseFormset]
     })
@@ -283,7 +305,7 @@ def vervListe(request):
     
     return render(request, 'mytxs/instanceListe.html', {
         'newForm': nyttVervForm,
-        'instanceListe': request.queryset,
+        'paginatorPage': getPaginatorPage(request),
         'heading': 'Vervliste',
         'optionForm': optionForm
     })
@@ -365,7 +387,7 @@ def dekorasjonListe(request):
             return redirect(nyDekorasjonForm.instance)
 
     return render(request, 'mytxs/instanceListe.html', {
-        'instanceListe': request.queryset,
+        'paginatorPage': getPaginatorPage(request),
         'newForm': nyDekorasjonForm,
         'heading': 'Dekorasjonliste'
     })
@@ -435,7 +457,7 @@ def tilgangListe(request):
             return redirect(nyTilgangForm.instance)
 
     return render(request, 'mytxs/instanceListe.html', {
-        'instanceListe': request.queryset,
+        'paginatorPage': getPaginatorPage(request),
         'newForm': nyTilgangForm,
         'heading': 'Tilgangliste'
     })
@@ -500,35 +522,35 @@ def loggListe(request):
     loggFilterForm = LoggFilterForm(request.GET) #TODO
 
     loggFilterForm.fields['model'].choices = loggFilterForm.fields['model'].choices + [(i, i) for i in [
-        'VervInnehavelse', 'Verv', 'DekorasjonInnehavelse', 'Dekorasjon', 'Tilgang'
+        'VervInnehavelse', 'Verv', 'DekorasjonInnehavelse', 'Dekorasjon', 'Tilgang', 'Logg'
     ]]
 
     if not loggFilterForm.is_valid():
         raise Exception("Søkeformet var ugyldig, ouf")
     
-    logg = Logg.objects.all()
+    request.queryset = request.queryset = request.user.medlem.tilgangQueryset(Logg)
 
     if kor := loggFilterForm.cleaned_data['kor']:
-        logg = logg.filter(kor=kor)
+        request.queryset = request.queryset.filter(kor=kor)
 
     if model := loggFilterForm.cleaned_data['model']:
-        logg = logg.filter(model=model)
+        request.queryset = request.queryset.filter(model=model)
 
     if author := loggFilterForm.cleaned_data['author']:
-        logg = logg.filter(author=author)
+        request.queryset = request.queryset.filter(author=author)
 
     if pk := loggFilterForm.cleaned_data['pk']:
-        logg = logg.filter(instancePK=pk)
+        request.queryset = request.queryset.filter(instancePK=pk)
 
     if start := loggFilterForm.cleaned_data['start']:
-        logg = logg.filter(timeStamp__date__gte=start)
+        request.queryset = request.queryset.filter(timeStamp__date__gte=start)
 
     if slutt := loggFilterForm.cleaned_data['slutt']:
-        logg = logg.filter(timeStamp__date__lte=slutt)
+        request.queryset = request.queryset.filter(timeStamp__date__lte=slutt)
     
     return render(request, 'mytxs/instanceListe.html', {
         'filterForm': loggFilterForm,
-        'instanceListe': logg,
+        'paginatorPage': getPaginatorPage(request),
         'heading': 'Loggliste'
     })
 
@@ -562,7 +584,7 @@ def logg(request, pk):
     return render(request, 'mytxs/logg.html', {
         'lastLog': lastLog,
         'nextLog': nextLog,
-        'loggForm': loggForm,
+        'forms': [loggForm],
         'value': json.dumps(request.instance.value, indent=4),
         'actual': request.instance.getActual()
     })

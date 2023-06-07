@@ -13,6 +13,25 @@ class Command(BaseCommand):
         # parser.add_argument('poll_ids', nargs='+', type=int)
 
         # Named (optional) arguments
+
+        parser.add_argument(
+            '--clear',
+            action='store_true',
+            help='Clear all database contents except loggs and django.users',
+        )
+
+        parser.add_argument(
+            '--clearLogs',
+            action='store_true',
+            help='Clear Logg and LoggM2M models',
+        )
+
+        parser.add_argument(
+            '--dont',
+            action='store_true',
+            help='Don\'t actually seed',
+        )
+
         parser.add_argument(
             '--createStorkorAdmin',
             action='store_true',
@@ -25,23 +44,14 @@ class Command(BaseCommand):
             help='Create user user and admin admin',
         )
 
-        parser.add_argument(
-            '--clear',
-            action='store_true',
-            help='Clear all database contents except Logg and django.users',
-        )
-
-        parser.add_argument(
-            '--dont',
-            action='store_true',
-            help='Don\'t actually seed',
-        )
-
     def handle(self, *args, **options):
-
         if options['clear']:
             print('Clearing Data...')
             clearData(self)
+
+        if options['clearLogs']:
+            print('Clearing Logs...')
+            clearLogs(self)
         
         if not options['dont']:
             print('Seeding Data...')
@@ -76,6 +86,12 @@ def clearData(self):
     Kor.objects.all().delete()
     print('Delete Medlem instances')
     Medlem.objects.all().delete()
+
+def clearLogs(self):
+    print('Delete Logg instances')
+    Logg.objects.all().delete()
+    print('Delete LoggM2M instances')
+    LoggM2M.objects.all().delete()
 
 def createUserAdmin(self):
     medlemmer = []
@@ -174,15 +190,14 @@ def runSeed(self):
     korTilStemmeFordeling = [0, 0, 1, 2, 2]
     stemmeFordeling = ['TB', 'SATB', 'SA']
 
-    tilganger = ['aktiv', 'dekorasjon', 'dekorasjonInnehavelse', 'verv', 'vervInnehavelse', 'tilgang', 'logg']
+    tilganger = ['aktiv', 'dekorasjon', 'dekorasjonInnehavelse', 'verv', 'vervInnehavelse', 'tilgang']
     tilgangBeskrivelser = [
         'Gitt til stemmegruppeverv og dirigent i koret. De som har tilgangen er altså de som er aktive i koret.',
         'For å opprette og slette dekorasjoner, samt endre på eksisterende dekorasjoner.',
         'For å opprette og slette dekorasjonInnehavelser, altså hvem som fikk hvilken dekorasjon når.',
         'For å opprette og slette verv, samt endre på eksisterende verv.',
         'For å opprette og slette vervInnehavelser, altså hvem som hadde hvilket verv når. Dette inkluderer stemmegrupper.',
-        'For å opprette og slette tilganger, samt endre på hvilket verv som medfører disse tilgangene.',
-        'For å kunne lese logger, altså endringer av verv, dekorasjoner, tilganger og deres innehavelser.'
+        'For å opprette og slette tilganger, samt endre på hvilket verv som medfører disse tilgangene.'
     ]
     
     storkorTilganger = ['medlemsdata']

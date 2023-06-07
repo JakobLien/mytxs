@@ -2,7 +2,7 @@ import datetime
 from itertools import chain
 from django.db.models import Q, Case, When
 
-def vervInnehavelseAktiv(pathToVervInnehavelse='vervInnehavelse'):
+def vervInnehavelseAktiv(pathToVervInnehavelse='vervInnehavelse', dato=None):
     """Produsere et Q object som querye for aktive vervInnehavelser. Siden man 
     ikke kan si Tilganger.objects.filter(verv__vervInnehavelse=Q(...)) er dette en funksjon.
 
@@ -17,20 +17,26 @@ def vervInnehavelseAktiv(pathToVervInnehavelse='vervInnehavelse'):
     - VervInnehavelse.objects.filter(vervInnehavelseAktiv(''))
     - Tilgang.objects.filter(vervInnehavelseAktiv('verv__vervInnehavelse'))
     """
-    # Hadd åpenbart foretrukket en syntax ala Tilgang.objects.filter(verv__vervInnehavelse=vervInnehavelseAktiv), 
-    # Men verden er ikke så perfekt:/
+    
+
+    # Må skriv dette fordi default parameters bare evalueres når funksjonen defineres. 
+    # Altså om sørvern hadd kjørt meir enn en dag, og noen sende request, hadd de fått gårsdagens resultat.
+    # I dette tilfellet kunne det vært merkbart. 
+    if dato == None:
+        dato = datetime.date.today()
+
     if not pathToVervInnehavelse:
-        return (Q(slutt=None) | Q(slutt__gte=datetime.date.today())) & Q(start__lte=datetime.date.today())
+        return (Q(slutt=None) | Q(slutt__gte=dato)) & Q(start__lte=dato)
     else:
         return ((Q(**{f'{pathToVervInnehavelse}__slutt':None}) |
-                Q(**{f'{pathToVervInnehavelse}__slutt__gte':datetime.date.today()})) &
-                Q(**{f'{pathToVervInnehavelse}__start__lte':datetime.date.today()}))
+                 Q(**{f'{pathToVervInnehavelse}__slutt__gte':dato})) &
+                 Q(**{f'{pathToVervInnehavelse}__start__lte':dato}))
 
 stemmeGruppeVervRegex = '^[12][12]?[SATB]$'
 hovedStemmegruppeVervRegex = '^[12][SATB]$'
 
 def stemmeGruppeVerv(pathToStemmGruppeVerv='verv'):
-    """Produsere et Q objekt som querye for stmemegruppeverv
+    """Produsere et Q objekt som querye for stemmegruppeverv
     
     Eksempel:
     - Verv.objects.filter(stemmeGruppeVerv(''))
