@@ -69,8 +69,9 @@ Merk at man må få tilgang av ITK til mytxs mappen på sørveren for å kunne p
     - La det forbli slik at main er den eneste branchen på serveren, alt annet hadde fort blitt herk og vanskelig å debugge. 
 1. Skriv `source venv/bin/activate` for å aktivere [venvet](https://docs.python.org/3/library/venv.html), som kort sagt sikrer at dependencies som django er på samme sted, og at ikke flere prosjekter blir avhengige av samme biblioteker, som hadde gjort at det er vanskeligere å styre hvilken versjon man bruker. Dette kan jeg ikke nok om ennå, så lykke til:) 
 1. Skriv `python3 -m pip install -r requirements.txt` for å installere rette versjoner av bibliotekene som brukes. 
+1. Kjør `python3 manage.py migrate` for å kjøre migrasjoner på databasen, dersom det er noen. Ikke kjør makemigrations kommandoen på server, det bli bare herk å rydd opp i. 
 1. Skriv `python3 manage.py collectstatic` for å samle [statiske filer](https://docs.djangoproject.com/en/4.2/ref/contrib/staticfiles) (fra [static mappa](mytxs/static)) til der serveren vil serve de fra.
-1. Skriv `touch reload` for å få serveren til å starte på nytt. Gi den et minutt eller to for å ha startet på nytt. 
+1. Skriv `rm reload;touch reload` for å få serveren til å starte på nytt. Gi den et minutt eller to for å ha startet på nytt. 
     - Om det ikke fungerer, kjør gjerne `python3 manage.py runserver` på serveren. Ane ikkje koffor, men det hjalp me ihvertfall. 
 
 ### Lesing av loggs
