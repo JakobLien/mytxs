@@ -8,6 +8,7 @@ from django.contrib.auth import login as auth_login, logout as auth_logout
 from django.contrib.auth.forms import AuthenticationForm, SetPasswordForm, UserCreationForm
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Q, F
+from django.db.models.functions import Floor
 from django.forms import inlineformset_factory, modelform_factory, modelformset_factory
 from django.shortcuts import redirect, render, get_object_or_404
 
@@ -17,6 +18,7 @@ from mytxs.utils.formUtils import disableForm, disableFormField, partiallyDisabl
 from mytxs.utils.logAuthorUtils import logAuthorAndSave
 from mytxs.utils.modelUtils import vervInnehavelseAktiv, hovedStemmeGruppeVerv, stemmeGruppeVerv, stemmeGruppeVervRegex
 from mytxs.utils.utils import downloadFile, getPaginatorPage, generateVCard
+
 
 # Create your views here.
 
@@ -94,22 +96,28 @@ def sjekkheftet(request, gruppe="TSS"):
     # gruppe argumentet og grupper under refererer til sider på denne siden, altså en for hvert kor
 
     if kor := Kor.objects.filter(kortTittel=gruppe).first():
+        request.queryset = Medlem.objects.distinct().filter(
+            vervInnehavelseAktiv(),
+            vervInnehavelse__verv__kor=kor
+        ).all()
         if kor.kortTittel != 'KK':
             for stemmegruppe in Verv.objects.filter(hovedStemmeGruppeVerv(''), kor=kor):
-                grupperinger[stemmegruppe.navn] = Medlem.objects.filter(
-                    vervInnehavelseAktiv(),
-                    vervInnehavelse__verv__kor=kor, 
+                grupperinger[stemmegruppe.navn] = request.queryset.filter(
                     vervInnehavelse__verv__navn__endswith=stemmegruppe.navn
                 ).all()
         else:
             for stemmegruppe in 'SATB':
-                grupperinger[stemmegruppe] = Medlem.objects.filter(
-                    vervInnehavelseAktiv(),
-                    vervInnehavelse__verv__kor=kor, 
+                grupperinger[stemmegruppe] = request.queryset.filter(
                     vervInnehavelse__verv__navn__endswith=stemmegruppe
                 ).all()
 
     elif gruppe == "Jubileum":
+        request.queryset = Medlem.objects.distinct().filter(
+            vervInnehavelseAktiv(), 
+            vervInnehavelse__verv__tilganger__navn='aktiv', 
+            fødselsdato__isnull=False
+        ).all()
+
         # Måten dette funke e at for å produser en index med tilsvarende sortering som
         # date_of_year (som ikke finnes i Django), gange vi måneden med 31, og legger på dagen.
         # Så må vi bare ta modulus 403 (den maksimale 12*31+31), også har vi det:)
@@ -117,19 +125,14 @@ def sjekkheftet(request, gruppe="TSS"):
         today = today.month*31 + today.day
         
         grupperinger = {"":
-            Medlem.objects.distinct()
-            .filter(vervInnehavelseAktiv(), fødselsdato__isnull=False, vervInnehavelse__verv__tilganger__navn='aktiv')
-            .order_by(round(F('fødselsdato__month') * 31 + F('fødselsdato__day') - today + 403) % 403).all()
+            request.queryset.order_by(Floor(F('fødselsdato__month') * 31 + F('fødselsdato__day') - today + 403) % 403).all()
         }
-        # Gud veit koffor det ^ må rundes av når vi bare bruke gange, pluss og minus på det 
+        # Gud veit koffor det ^ må floores når vi bare bruke gange, pluss og minus på det 
         # som burde vær integers, men på server klage den på at det alt før '%' er en double...
 
-    # Håndter vcard dersom det var det
+    # Håndter vcard for de på denne siden dersom det var det
     if request.GET.get('vcard'):
-        medlemLister = [medlem for k, medlem in grupperinger.items()]
-        medlemmer = medlemLister[0].union(*medlemLister[1:]) if len(medlemLister) > 1 else medlemLister[0]
-        medlemmer = medlemmer.exclude(tlf='')
-        file_data = generateVCard(medlemmer)
+        file_data = generateVCard(request.queryset.exclude(tlf=''))
         return downloadFile(f'{gruppe}.vcf', file_data)
             
     return render(request, 'mytxs/sjekkheftet.html', {
