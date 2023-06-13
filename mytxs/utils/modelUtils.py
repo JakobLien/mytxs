@@ -1,6 +1,9 @@
 import datetime
-from itertools import chain
+import random
+import re
 from django.db.models import Q, Case, When
+
+# Utils for modeller
 
 def vervInnehavelseAktiv(pathToVervInnehavelse='vervInnehavelse', dato=None):
     """Produsere et Q object som querye for aktive vervInnehavelser. Siden man 
@@ -32,29 +35,32 @@ def vervInnehavelseAktiv(pathToVervInnehavelse='vervInnehavelse', dato=None):
                  Q(**{f'{pathToVervInnehavelse}__slutt__gte':dato})) &
                  Q(**{f'{pathToVervInnehavelse}__start__lte':dato}))
 
-stemmeGruppeVervRegex = '^[12][12]?[SATB]$'
+stemmegruppeVervRegex = '^[12][12]?[SATB]$'
 hovedStemmegruppeVervRegex = '^[12][SATB]$'
 
-def stemmeGruppeVerv(pathToStemmGruppeVerv='verv'):
+def stemmegruppeVerv(pathToStemmGruppeVerv='verv'):
     """Produsere et Q objekt som querye for stemmegruppeverv
     
     Eksempel:
-    - Verv.objects.filter(stemmeGruppeVerv(''))
-    - Medlem.objects.filter(stemmeGruppeVerv('vervInnehavelse__verv'))
-    - VervInnehavelse.objects.filter(stemmeGruppeVerv())
+    - Verv.objects.filter(stemmegruppeVerv(''))
+    - Medlem.objects.filter(stemmegruppeVerv('vervInnehavelse__verv'))
+    - VervInnehavelse.objects.filter(stemmegruppeVerv())
     - Kor.objects.filter(vervInnehavelseAktiv())
     """
     if not pathToStemmGruppeVerv:
-        return Q(navn__regex=stemmeGruppeVervRegex)
+        return Q(navn__regex=stemmegruppeVervRegex)
     else:
-        return Q(**{f'{pathToStemmGruppeVerv}__navn__regex': stemmeGruppeVervRegex})
+        return Q(**{f'{pathToStemmGruppeVerv}__navn__regex': stemmegruppeVervRegex})
 
 def hovedStemmeGruppeVerv(pathToStemmGruppeVerv='verv'):
-    """Produsere et Q objekt som querye for hoved stemmegruppeverv, se stemmeGruppeVerv like over"""
+    """Produsere et Q objekt som querye for hoved stemmegruppeverv, se stemmegruppeVerv like over"""
     if not pathToStemmGruppeVerv:
         return Q(navn__regex=hovedStemmegruppeVervRegex)
     else:
         return Q(**{f'{pathToStemmGruppeVerv}__navn__regex': hovedStemmegruppeVervRegex})
+
+def isStemmegruppeVervNavn(navn):
+    return re.match(stemmegruppeVervRegex, navn)
 
 def orderStemmegruppeVerv():
     ordering = []
@@ -72,3 +78,37 @@ def orderStemmegruppeVerv():
 
 def toolTip(helpText):
     return f'<span title="{helpText}">(?)</span>'
+
+def groupBy(queryset, prop):
+    ''' Enkel metode for å konverter et queryset til en dict med liste-verdier,
+        gruppert på en property. 
+
+        TODO: Forbedre denne så den funke på remote felt
+    '''
+    groups = dict()
+    for obj in queryset.all():
+        groups.setdefault(str(getattr(obj, prop)), []).append(obj)
+    return groups
+
+def randomDistinct(queryset, n=1):
+    """ Hjelpemetode for å skaffe en liste av tilfeldig sorterte subset av queryset argumentet. 
+        Om n=1 (som er default), returne den objektet istedet for querysettet. 
+
+        Denne hjelpefunksjonen finnes fordi:
+        - Kan ikke order_by('?') og distinct samtidig: https://docs.djangoproject.com/en/4.2/ref/models/querysets/#distinct
+        - Burda ikkje order_by('?') generelt: https://stackoverflow.com/a/6405601/6709450
+    """
+    pks = list(set(queryset.values_list('pk', flat=True)))
+
+    # Shuffle pks for at vi skal få n tilfeldige elementer
+    random.shuffle(pks)
+    pks = pks[:n]
+
+    if n == 1:
+        return queryset.model.objects.filter(pk__in=pks).first()
+    else:
+        qs = list(queryset.model.objects.filter(pk__in=pks).all())
+
+        # Shuffle resultatet for at vi skal få tilfeldig sortering på elementan
+        random.shuffle(qs)
+        return qs

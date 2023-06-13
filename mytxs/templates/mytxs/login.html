@@ -1,21 +1,20 @@
 {% extends "mytxs/base.html" %}
 
-{% block title%} Innlogging til {{ block.super }} {% endblock %}
+{% block title%}Innlogging til {{ block.super }}{% endblock %}
 
 {% block body %}
 
-    <div class="text-center mx-auto bg-white border border-black p-4 w-fit my-20"> 
-        <h1 class="text-white bg-black rounded-lg mb-4">Innlogging</h1>
-        <p class="">
-            Du har kommet til innloggingssiden for MyTXS 2.0!<br>
-            Skriv inn brukernavn og passordet ditt i <br> feltene nedenfor for å logge inn.
-        </p>
-        <form  action="{{ request.get_full_path }}" method="post">
-            {% csrf_token %}
-
-            {{loginForm.as_p}}
-            <input type="submit" value="Logg inn">
-        </form>
-    <div>
+<div class="text-center mx-auto bg-white border border-black p-4 w-fit my-20"> 
+    <h1 class="text-white bg-black rounded-lg mb-4">Innlogging</h1>
+    <p class="">
+        Du har kommet til innloggingssiden for MyTXS 2.0!<br>
+        Skriv inn brukernavn og passordet ditt i <br> feltene nedenfor for å logge inn.
+    </p>
+    <form  action="{{ request.get_full_path }}" method="post">
+        {% csrf_token %}
+        {{loginForm.as_p}}
+        <input type="submit" value="Logg inn">
+    </form>
+<div>
 
 {% endblock %}

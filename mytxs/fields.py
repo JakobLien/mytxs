@@ -1,21 +1,20 @@
 from django import forms
 from django.db import models
-from django.apps import apps
 
-# Definer et formfield med input type="date" widget
 class MyDateFormField(forms.DateField):
+    "Et formField som gir input[type=date]"
     widget = forms.widgets.DateInput(attrs={'type': 'date'})
 
-# Definer et model field som bruke det form-fieldet
 class MyDateField(models.DateField):
+    "Et model field som gir et widget med input[type=date]"
     def formfield(self, **kwargs):
         defaults = {'form_class': MyDateFormField}
         defaults.update(kwargs)
         return super().formfield(**defaults)
 
 
-# Definer et widget som disable options basert på enableQueryset
 class MySelectMultiple(forms.widgets.SelectMultiple):
+    "Et widget som bare displaye de som er i enableQueryset (om det er satt)"
     enableQueryset = False
 
     def create_option(self, *args, **kwargs):
@@ -27,8 +26,8 @@ class MySelectMultiple(forms.widgets.SelectMultiple):
 
         return options_dict
 
-# Definer et formField som man kan bruk .enableQueryset(...) på for å disable andre options
 class MyModelMultipleChoiceField(forms.ModelMultipleChoiceField):
+    "Et form field som har setEnableQueryset og setEnableQuerysetKor metodene"
     widget = MySelectMultiple
 
     initialValue = False
@@ -73,10 +72,8 @@ class MyModelMultipleChoiceField(forms.ModelMultipleChoiceField):
             
         return returnValue
 
-
-# Definer et modelfield som bruke det formfieldet by default
 class MyManyToManyField(models.ManyToManyField):
-    "Et standard M2M model field med et form field som kan disable options på seg:)"
+    "Et model field med et form field som kan disable m2m options på seg:)"
     def formfield(self, **kwargs):
         defaults = {'form_class': MyModelMultipleChoiceField}
         defaults.update(kwargs)

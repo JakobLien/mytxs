@@ -1,11 +1,10 @@
 
 from django.core.management.base import BaseCommand
-
 from django.core import mail
-from django.core.mail import send_mail
+
+from django.db.models import Q
 
 from mytxs.models import Medlem
-from django.db.models import Q
 
 
 class Command(BaseCommand):
@@ -78,7 +77,7 @@ Jakob Lien'''
 
         with mail.get_connection(backend=backend) as connection:
             for recipient, message in messages.items():
-                send_mail(
+                mail.send_mail(
                     "Registrering på MyTXS 2.0",
                     message,
                     "mytxs@samfundet.no",

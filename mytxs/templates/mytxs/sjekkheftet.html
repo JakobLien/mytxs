@@ -1,11 +1,84 @@
 {% extends "mytxs/base.html" %}
-{% load customTags %}
+{% load mytxsTags %}
 
 {% block content %}
 
 {% for gruppe in grupper %}
+<a href="{% url 'sjekkheftet' gruppe %}">{{ gruppe|capfirst }}</a> 
+{% endfor %}
 
-    <a href="{% url 'sjekkheftet' gruppe %}">{{gruppe}}</a> 
+{% block sjekkheftetContent %}
+
+{% if request.undergrupper %}
+<br>
+{% for undergruppe in request.undergrupper %}
+<a href="{% url 'sjekkheftet' gruppe undergruppe %}">{{ undergruppe|capfirst }}</a> 
+{% endfor %}
+{% endif %}
+
+{% if grupperinger|length > 1%}
+<div id="sjekkheftetNavigator" class="my-2 flex flex-row justify-between w-[40rem]">
+    {% for gruppenavn, gruppe in grupperinger.items %}
+    <div>
+        <h2 class="text-3xl">{{ gruppenavn|capfirst }}</h2>
+
+        {% for medlem in gruppe %}
+        <a href="#m_{{ medlem.pk }}">{{ medlem.navn }}</a><br>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% for gruppenavn, gruppering in grupperinger.items %}
+
+{% if gruppenavn %}
+<h2 class="text-3xl">{{ gruppenavn|capfirst }}: </h2>
+{% endif %}
+
+{% for medlem in gruppering %}
+<br>
+<div id="m_{{ medlem.pk }}" class="flex flex-row space-x-2 w-[40rem] p-2 backdrop-brightness-110 rounded-xl">
+    {% if medlem.bilde %}
+    <img src="{{ medlem.bilde.url }}" class="h-44 aspect-[139/169] object-cover align-top border-2 border-black">
+    {% else %}
+    <div class="h-44 aspect-[139/169] object-cover align-top border-2 border-black"></div>
+    {% endif %}
+
+    <ul>
+        <li>Navn: {{ medlem.navn }}
+            {% if 'medlemListe' in user.medlem.navBarTilgang %} <a href="{% url 'medlem' medlem.pk %}">Rediger</a> {% endif %}
+        </li>
+        <li>Karantenekor: {{ medlem.karantenekor }}</li>
+        <li>Fødselsdato: {{ medlem.fødselsdato|date }}</li>
+        <li>Epost: <a href="mailto:{{ medlem.epost }}">{{ medlem.epost }}</a></li>
+        <li>Telefon: <a href="tel:{{ medlem.tlf|cut:' ' }}">{{ medlem.tlf }}</a></li>
+        <li>Stemmegruppe: 
+            {% for vervInnehavelse in medlem.vervInnehavelse.all %}
+            {% comment %} and vervInnehavelse.verv.kor.kortTittel == gruppe {% endcomment %}
+            {% if vervInnehavelse.aktiv and vervInnehavelse.verv.stemmegruppeVerv %} 
+            <span>{{ vervInnehavelse.verv }}</span>
+            {% endif %}
+            {% endfor %}
+        </li>
+        <li>Verv: 
+            {% for vervInnehavelse in medlem.vervInnehavelse.all %}
+            {% comment %} and vervInnehavelse.verv.kor.kortTittel == gruppe {% endcomment %}
+            {% if vervInnehavelse.aktiv and not vervInnehavelse.verv.stemmegruppeVerv %} 
+            <span>{{ vervInnehavelse.verv }}</span>
+            {% endif %}
+            {% endfor %}
+        </li>
+        {% if medlem.dekorasjonInnehavelse.all|length > 0 %}
+        <li>Dekorasjoner: 
+            {% for dekorasjonInnehavelse in medlem.dekorasjonInnehavelse.all %}
+            <span> {{ dekorasjonInnehavelse.dekorasjon }}</span>
+            {% endfor %}
+        </li>
+        {% endif %}
+    </ul>
+</div>
+{% endfor %}
 
 {% endfor %}
 
@@ -13,63 +86,6 @@
 <span title="For å laste ned alle på iphone, trykk del knappen på popupen, og åpne i kontakter. 
 Da får du opp en liste av vcards der du kan importere alle.">(?)</span>
 
-
-{% if grupperinger|length > 1%}
-    <div id="sjekkheftetNavigator" class="my-2 flex flex-row justify-between w-[40rem]">
-    {% for gruppenavn, gruppe in grupperinger.items %}
-        <div>
-            <h2 class="text-3xl">{{ gruppenavn }}</h2>
-        {% for medlem in gruppe %}
-            <a href="#m_{{ medlem.pk }}">{{ medlem.navn }}</a>
-        {% endfor %}
-        </div>
-    {% endfor %}
-    </div>
-{% endif %}
-
-{% for gruppenavn, gruppe in grupperinger.items %}
-
-    {% if gruppenavn %}
-        <h2 class="text-3xl">{{ gruppenavn }}: </h2>
-    {% endif %}
-
-    {% for medlem in gruppe %}
-        <br>
-        <div id="m_{{ medlem.pk }}" class="flex flex-row space-x-2 w-[30rem] p-1">
-            {% if medlem.bilde %}
-                <img src="{{ medlem.bilde.url }}" class="w-[139px] h-[169px] object-cover align-top">
-            {% endif %}
-            <ul>
-                <li>Navn: {{ medlem.navn }}
-                    {% if 'medlemListe' in user.medlem.navBarTilgang %} <a href="{% url 'medlem' medlem.pk %}">Rediger</a> {% endif %}
-                </li>
-                <li>Fødselsdato: {{ medlem.fødselsdato|date:"d.m.Y" }}</li>
-                <li>Epost: <a href="mailto:{{ medlem.epost }}">{{ medlem.epost }}</a></li>
-                <li>Telefon: <a href="tel:{{ medlem.tlf|cut:' ' }}">{{ medlem.tlf }}</a></li>
-                {% if medlem.vervInnehavelse.all|length > 0 %}
-                <li>Verv: 
-                    <ul>
-                    {% for vervInnehavelse in medlem.vervInnehavelse.all %}
-                        {% if vervInnehavelse.aktiv %}
-                            <li> {{ vervInnehavelse.verv.navn }}({{ vervInnehavelse.verv.kor.kortTittel }}): {{ vervInnehavelse.start }} - {{ vervInnehavelse.slutt }} </li>
-                        {% endif %}
-                    {% endfor %}
-                    </ul>
-                </li>
-                {% endif %}
-                {% if medlem.dekorasjonInnehavelse.all|length > 0 %}
-                <li>Dekorasjoner: 
-                    <ul>
-                    {% for dekorasjonInnehavelse in medlem.dekorasjonInnehavelse.all %}
-                        <li> {{ dekorasjonInnehavelse.dekorasjon.navn }}({{ dekorasjonInnehavelse.dekorasjon.kor.kortTittel }}): {{ dekorasjonInnehavelse.start }} </li>
-                    {% endfor %}
-                    </ul>
-                </li>
-                {% endif %}
-            </ul>
-        </div>
-    {% endfor %}
-
-{% endfor %}
+{% endblock%}
 
 {% endblock %}

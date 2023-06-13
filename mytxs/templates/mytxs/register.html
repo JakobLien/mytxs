@@ -1,17 +1,16 @@
 {% extends "mytxs/base.html" %}
 
-{% block title%} Registrering til {{ block.super }} {% endblock %}
+{% block title%}Registrering til {{ block.super }}{% endblock %}
 
 {% block body %}
 
-    <div class="text-center mx-auto bg-white border border-black p-4 w-fit my-20"> 
-        <h1 class="text-white bg-black rounded-lg mb-4">Innlogging</h1>
-        <form class="text-sm [&>*>input]:block [&>*>input]:mx-auto" action="{{ request.get_full_path }}" method="post">
-            {% csrf_token %}
-
-            {{registerForm.as_p}}
-            <input type="submit" value="Logg inn">
-        </form>
-    <div>
+<div class="text-center mx-auto bg-white border border-black p-4 w-fit my-20"> 
+    <h1 class="text-white bg-black rounded-lg mb-4">Innlogging</h1>
+    <form class="text-sm [&>*>input]:block [&>*>input]:mx-auto" action="{{ request.get_full_path }}" method="post">
+        {% csrf_token %}
+        {{registerForm.as_p}}
+        <input type="submit" value="Logg inn">
+    </form>
+<div>
 
 {% endblock %}

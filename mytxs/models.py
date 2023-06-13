@@ -4,26 +4,38 @@ import json
 
 from django.apps import apps
 from django.conf import settings
-from django.core import serializers
 from django.db import models
 from django.db.models import Value as V, Q, F, Case, When, Min
 from django.db.models.functions import Concat
 from django.forms import ValidationError
-from django.template import defaultfilters
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
 from mytxs.fields import MyDateField, MyManyToManyField
-from mytxs.utils.modelUtils import orderStemmegruppeVerv, toolTip, vervInnehavelseAktiv, hovedStemmeGruppeVerv, stemmeGruppeVerv
+from mytxs.utils.modelUtils import groupBy, orderStemmegruppeVerv, toolTip, vervInnehavelseAktiv, stemmegruppeVerv
 
 class LoggQueryset(models.QuerySet):
+    def getLoggFor(self, instance):
+        'Gets the logg corresponding to the instance'
+        if logg := self.getLoggForModelPK(type(instance), instance.pk):
+            return logg
+
     def getLoggLinkFor(self, instance):
-        if logg := Logg.objects.filter(model=type(instance).__name__, instancePK=instance.pk).order_by('-timeStamp').first():
-            return logg.get_absolute_url
+        'get_absolute_url for the logg correpsonding to the instance'
+        if logg := self.getLoggFor(instance):
+            return logg.get_absolute_url()
+        
+    def getLoggForModelPK(self, model, pk):
+        'Gets a logg given a model (which may be a string or an actual model) and a pk'
+        if type(model) == str:
+            model = apps.get_model('mytxs', model)
+        if logg := Logg.objects.filter(model=model.__name__, instancePK=pk).order_by('-timeStamp').first():
+            return logg
+
 
 class Logg(models.Model):
     objects = LoggQueryset.as_manager()
-    timeStamp = models.DateTimeField(auto_now_add=True, editable=True)
+    timeStamp = models.DateTimeField(auto_now_add=True)
 
     kor = models.ForeignKey(
         'Kor',
@@ -39,8 +51,8 @@ class Logg(models.Model):
         related_name='logger'
     )
 
-    CREATE_CHANGE, UPDATE_CHANGE, DELETE_CHANGE = 1, 0, -1
-    CHANGE_CHOICES = ((CREATE_CHANGE, 'Create'), (UPDATE_CHANGE, 'Update'), (DELETE_CHANGE, 'Delete'))
+    CREATE, UPDATE, DELETE = 1, 0, -1
+    CHANGE_CHOICES = ((CREATE, 'Create'), (UPDATE, 'Update'), (DELETE, 'Delete'))
     change = models.SmallIntegerField(choices=CHANGE_CHOICES, null=False)
     
     model = models.CharField(
@@ -52,20 +64,87 @@ class Logg(models.Model):
     )
 
     value = models.JSONField(null=False)
+    'Se to_dict i mytxs/signals/logSignals.py'
 
-    def deserialize(self):
-        for obj in serializers.deserialize("jsonl", json.dumps(self.value)):
-            return obj.object
+    strRep = models.CharField(null=False, max_length=100)
+    'String representasjon av objektet loggen anngår, altså resultatet av str(obj)'
+
+    def getModel(self):
+        return apps.get_model('mytxs', self.model)
+
+    def formatValue(self):
+        ''' Returne oversiktlig json representasjon av objektet, med <a> lenker
+            satt inn der det e foreign keys til andre Logg objekt, slik at dette
+            fint kan settes inn i en <pre> tag.'''
+        jsonRepresentation = json.dumps(self.value, indent=4)
+
+        foreignKeyFields = list(filter(lambda field: isinstance(field, models.ForeignKey), self.getModel()._meta.get_fields()))
+
+        lines = jsonRepresentation.split('\n')
+
+        def getLineKey(line):
+            return line.split(":")[0].strip().replace('"', '')
+
+        for l in range(len(lines)):
+            for foreignKeyField in foreignKeyFields:
+                if foreignKeyField.name == getLineKey(lines[l]) and type(self.value[foreignKeyField.name]) == int:
+                    relatedLogg = Logg.objects.filter(pk=self.value[foreignKeyField.name]).first()
+
+                    lines[l] = lines[l].replace(f'{self.value[foreignKeyField.name]}', 
+                        f'<a href={relatedLogg.get_absolute_url()}>{relatedLogg.strRep}</a>')
+
+        jsonRepresentation = '\n'.join(lines)
+
+        return jsonRepresentation
+
+    def getReverseRelated(self):
+        "Returne en liste av logger som referere (via 1:1 eller n:1) til denne loggen"
+        reverseForeignKeyRels = list(filter(lambda field: isinstance(field, models.ManyToOneRel), self.getModel()._meta.get_fields()))
+        foreignKeyFields = list(map(lambda rel: rel.remote_field, reverseForeignKeyRels))
         
+        qs = Logg.objects.none()
+
+        for foreignKeyField in foreignKeyFields:
+            qs |= Logg.objects.filter(
+                Q(**{f'value__{foreignKeyField.name}': self.pk}),
+                model=foreignKeyField.model.__name__,
+            )
+
+        return qs
+    
+    def getM2MRelated(self):
+        "Skaffe alle m2m logger for denne loggen"
+        return groupBy(self.forwardM2Ms.all() | self.backwardM2Ms.all(), 'm2mName')
+
     def getActual(self):
-        obj = self.deserialize()
-        return type(obj).objects.filter(pk=obj.pk).first()
+        "Get the object this Logg is a log of, if it exists"
+        return self.getModel().objects.filter(pk=self.instancePK).first()
+    
+    def getActualUrl(self):
+        "get_absolute_url for the object this Logg is a log of, if it exists"
+        if actual := self.getActual():
+            if hasattr(actual, 'get_absolute_url'):
+                return actual.get_absolute_url()
+
+    def nextLogg(self):
+        return Logg.objects.filter(
+            model=self.model,
+            instancePK=self.instancePK,
+            timeStamp__gt=self.timeStamp
+        ).order_by("timeStamp").first()
+    
+    def lastLogg(self):
+        return Logg.objects.filter(
+            model=self.model,
+            instancePK=self.instancePK,
+            timeStamp__lt=self.timeStamp
+        ).order_by("-timeStamp").first()
 
     def get_absolute_url(self):
         return reverse('logg', args=[self.pk])
 
     def __str__(self):
-        return f'{self.model}{"-*+"[self.change+1]} ({defaultfilters.date(self.timeStamp, "Y-m-d H:i:s")})'#.strftime("%Y-%m-%d %H:%M:%S")
+        return f'{self.model}{"-*+"[self.change+1]} {self.strRep}'
 
     class Meta:
         ordering = ['-timeStamp']
@@ -73,33 +152,56 @@ class Logg(models.Model):
 
 
 class LoggM2M(models.Model):
-    timeStamp = models.DateTimeField(auto_now_add=True, editable=True)
+    timeStamp = models.DateTimeField(auto_now_add=True)
 
-    author = models.ForeignKey(
-        'Medlem',
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name='m2mlogger'
-    )
-
-    model = models.CharField(
+    m2mName = models.CharField(
         max_length=50
     )
+    'A string containing the m2m source model name and the m2m field name separated by an underscore'
 
-    fromPK = models.PositiveIntegerField(
-        null=False
+    fromLogg = models.ForeignKey(
+        Logg,
+        on_delete=models.CASCADE,
+        null=False,
+        related_name='forwardM2Ms'
     )
 
-    toPK = models.PositiveIntegerField(
-        null=False
+    toLogg = models.ForeignKey(
+        Logg,
+        on_delete=models.CASCADE,
+        null=False,
+        related_name='backwardM2Ms'
     )
 
-    CHANGE_CREATE, CHANGE_DELETE = 1, -1
-    CHANGE_CHOICES = ((CHANGE_CREATE, 'Create'), (CHANGE_DELETE, 'Delete'))
+    CREATE, DELETE = 1, -1
+    CHANGE_CHOICES = ((CREATE, 'Create'), (DELETE, 'Delete'))
     change = models.SmallIntegerField(choices=CHANGE_CHOICES, null=False)
 
+    def correspondingM2M(self, forward=True):
+        "Gets the corresponding create or delete M2M"
+        if self.change == LoggM2M.CREATE:
+            return LoggM2M.objects.filter(
+                fromLogg__instancePK=self.fromLogg.instancePK,
+                toLogg__instancePK=self.toLogg.instancePK,
+                m2mName=self.m2mName,
+                change=LoggM2M.DELETE,
+                timeStamp__gt=self.timeStamp
+            ).order_by(
+                "timeStamp"
+            ).first()
+        else:
+            return LoggM2M.objects.filter(
+                fromLogg__instancePK=self.fromLogg.instancePK,
+                toLogg__instancePK=self.toLogg.instancePK,
+                m2mName=self.m2mName,
+                change=LoggM2M.CREATE,
+                timeStamp__lt=self.timeStamp
+            ).order_by(
+                "-timeStamp"
+            ).first()
+
     def __str__(self):
-        return f'{self.model} ({self.timeStamp})' #.strftime("%Y-%m-%d %H:%M:%S")
+        return f'{self.m2mName}{"-_+"[self.change+1]} {self.fromLogg.strRep} <-> {self.toLogg.strRep}'
 
     class Meta:
         ordering = ['-timeStamp']
@@ -120,7 +222,7 @@ class MedlemQuerySet(models.QuerySet):
 
     def annotateKarantenekor(self, kor=None):
         'Annotate feltet "K" med int året de startet i sitt storkor'
-        kVerv = Verv.objects.filter(stemmeGruppeVerv('vervInnehavelse__verv') | Q(vervInnehavelse__verv__navn='dirigent'))
+        kVerv = Verv.objects.filter(stemmegruppeVerv('vervInnehavelse__verv') | Q(vervInnehavelse__verv__navn='dirigent'))
         if kor:
             kVerv = kVerv.filter(kor=kor)
         return self.annotate(
@@ -147,9 +249,7 @@ class Medlem(models.Model):
 
     @property
     def navn(self):
-        """
-        Returne navnet korrekt spaced (mellomnavn kan vær '')
-        """
+        'Returne navnet med korrekt mellomrom'
         if self.mellomnavn:
             return f'{self.fornavn} {self.mellomnavn} {self.etternavn}'
         else:
@@ -173,19 +273,22 @@ class Medlem(models.Model):
     bilde = models.ImageField(upload_to=generateUploadTo, null=True, blank=True)
 
     def __str__(self):
-        return f'{self.navn} {self.storkor} {self.karantenekor}'
+        strRep = self.navn
+        if storkor := self.storkor:
+            strRep += f' {storkor} {self.karantenekor}'
+        return strRep
 
     @cached_property
     def firstStemmegruppeVervInnehavelse(self):
         """Returne første stemmegruppeverv de hadde i et storkor"""
         return self.vervInnehavelse.filter(
-            stemmeGruppeVerv(),
+            stemmegruppeVerv(),
             verv__kor__kortTittel__in=["TSS", "TKS"]
         ).order_by('start').first()
     
     @property
     def storkor(self):
-        """Returne {'TSS', 'TKS' eller ''}"""
+        """Returne koran TSS eller TKS eller en tom streng """
         if self.firstStemmegruppeVervInnehavelse:
             return self.firstStemmegruppeVervInnehavelse.verv.kor
         return ''
@@ -249,11 +352,11 @@ class Medlem(models.Model):
 
     def harSideTilgang(self, instance):
         "Returne en boolean som sie om man kan redigere noe på denne instansens side"
-        return self.tilgangQueryset(type(instance), extended=True).filter(pk=instance.pk).exists()
+        return self.tilgangQueryset(type(instance), extended=False).filter(pk=instance.pk).exists()
 
     def tilgangQueryset(self, model, extended=False):
-        """ Returne i queryset over objekt der vi har tilgang til noe på siden og sansynligvis vil
-            gjøre noe med (samme kor som grunnen til at man har tilgang til det).
+        """ Returne i queryset over objekt der vi har tilgang til noe på den tilsvarende siden og 
+            sansynligvis vil gjøre noe med (samme kor som grunnen til at man har tilgang til det).
             Med extended=True returne den absolutt alle objekt hvis sider brukeren kan redigere noe. 
             Dette slår altså sammen logikken for hva som kommer opp i lister, og hvilke instans-sider man har 
             tilgang til. 
@@ -263,35 +366,48 @@ class Medlem(models.Model):
             if self.tilganger.filter(navn='medlemsdata').exists():
                 # Uavhengig av extended, ha inn folk fra det koret, og folk uten kor
                 medlemmer |= Medlem.objects.distinct().filter(
-                    (stemmeGruppeVerv('vervInnehavelse__verv') &
-                    Q(vervInnehavelse__verv__kor__tilganger__in=self.tilganger.filter(navn='medlemsdata'))) | 
-                    ~stemmeGruppeVerv('vervInnehavelse__verv')
+                    stemmegruppeVerv('vervInnehavelse__verv'), 
+                    Q(vervInnehavelse__verv__kor__tilganger__in=self.tilganger.filter(navn='medlemsdata'))
+                )
+
+                medlemmer |= Medlem.objects.distinct().exclude(
+                    stemmegruppeVerv('vervInnehavelse__verv')
                 )
 
             if self.tilganger.filter(navn='vervInnehavelse').exists():
-                if extended:
-                    # Om extended, ha med alle potensielle vervInnehavere
-                    return Medlem.objects.distinct()
-                else:
-                    # Om ikke, bare ha med aktive i det samme koret som tilgangen, og folk uten kor
-                    medlemmer |= Medlem.objects.distinct().filter(
-                        stemmeGruppeVerv('vervInnehavelse__verv') &
-                        Q(vervInnehavelse__verv__kor__tilganger__in=self.tilganger.filter(navn='vervInnehavelse')) | 
-                        ~stemmeGruppeVerv('vervInnehavelse__verv')
-                    )
-            
+                # if extended:
+                #     # Om extended, ha med alle potensielle vervInnehavere
+                #     return Medlem.objects.distinct()
+                # else:
+                #     # Om ikke, bare ha med aktive i det samme koret som tilgangen, og folk uten kor
+                #     medlemmer |= Medlem.objects.distinct().filter(
+                #         stemmegruppeVerv('vervInnehavelse__verv'),
+                #         Q(vervInnehavelse__verv__kor__tilganger__in=self.tilganger.filter(navn='vervInnehavelse'))
+                #     )
+
+                #     medlemmer |= Medlem.objects.distinct().exclude(
+                #         stemmegruppeVerv('vervInnehavelse__verv')
+                #     )
+
+                return Medlem.objects.distinct()
+
             if self.tilganger.filter(navn='dekorasjonInnehavelse').exists():
-                if extended:
-                    # Om extended, ha med alle vervInnehavere
-                    return Medlem.objects.distinct()
-                else:
-                    # Om ikke, bare ha med aktive i det samme koret som tilgangen, og folk uten kor
-                    medlemmer |= Medlem.objects.distinct().filter(
-                        stemmeGruppeVerv('vervInnehavelse__verv') &
-                        Q(vervInnehavelse__verv__kor__tilganger__in=self.tilganger.filter(navn='dekorasjonInnehavelse')) | 
-                        ~stemmeGruppeVerv('vervInnehavelse__verv')
-                    )
-            
+                # if extended:
+                #     # Om extended, ha med alle potensielle vervInnehavere
+                #     return Medlem.objects.distinct()
+                # else:
+                #     # Om ikke, bare ha med aktive i det samme koret som tilgangen, og folk uten kor
+                #     medlemmer |= Medlem.objects.distinct().filter(
+                #         stemmegruppeVerv('vervInnehavelse__verv'),
+                #         Q(vervInnehavelse__verv__kor__tilganger__in=self.tilganger.filter(navn='dekorasjonInnehavelse'))
+                #     )
+
+                #     medlemmer |= Medlem.objects.distinct().exclude(
+                #         stemmegruppeVerv('vervInnehavelse__verv')
+                #     )
+
+                return Medlem.objects.distinct()
+
             return medlemmer
         
         if model == Verv: # For Verv siden
@@ -305,32 +421,32 @@ class Medlem(models.Model):
                         Q(navn='verv') | Q(navn='vervInnehavelse') | Q(navn='tilgang')
                     )
                 ).distinct()
-        
+            
         if model == Dekorasjon: # For Dekorasjon siden
             return Dekorasjon.objects.filter(
                 kor__tilganger__in=self.tilganger.filter(
                     Q(navn='dekorasjon') | Q(navn='dekorasjonInnehavelse')
                 )
             ).distinct()
-        
+            
         if model == Tilgang: # For Tilgang siden
             return Tilgang.objects.filter(
                 kor__tilganger__in=self.tilganger.filter(navn='tilgang')
             ).distinct()
         
         if model == Logg: # For Logg siden
-            # return Logg.objects.filter(kor__tilganger__in=self.tilganger.filter(navn='logg'))
-
             loggs = Logg.objects.distinct().none()
 
-            models = [Medlem, Verv, Dekorasjon, Tilgang]
+            models = [
+                [Verv, 'verv'], 
+                [VervInnehavelse, 'vervInnehavelse'],
+                [Dekorasjon, 'dekorasjon'],
+                [DekorasjonInnehavelse, 'dekorasjonInnehavelse'],
+                [Tilgang, 'tilgang']
+            ]
 
-            for model in models:
-                qs = self.tilgangQueryset(model)
-                loggs |= Logg.objects.filter(model=model.__name__, instancePK__in=qs.values_list("pk", flat=True)).distinct()
-
-                # TODO: Pr no har vi ikke tilgang til VervInnehavelser og DekorasjonInnehavelser, ettersom de også ikke er noe vi har separate sider til.
-                # Altså funke det no for å linke til loggen av alle objekt, men det må fikses før eller siden. Tror vi tar det som del av logg restruktureringa tho. 
+            for [model, tilgangNavn] in models:
+                loggs |= Logg.objects.filter(Q(kor__tilganger__in=self.tilganger.filter(navn=tilgangNavn)) | Q(kor__isnull=True), model=model.__name__).distinct()
 
             return loggs
 
@@ -342,14 +458,21 @@ class Medlem(models.Model):
         verbose_name_plural = "medlemmer"
 
 
+class KorQuerySet(models.QuerySet):
+    def korForInstance(self, instance):
+        'Returne det tilsvarende koret for instancen, brukes i logSignals'
+        if type(instance) == VervInnehavelse:
+            return instance.verv.kor
+        elif type(instance) == DekorasjonInnehavelse:
+            return instance.dekorasjon.kor
+        else:
+            return instance.kor
+
 class Kor(models.Model):
+    objects = KorQuerySet.as_manager()
     kortTittel = models.CharField(max_length=10) # [TSS, Pirum, KK, Candiss, TKS] helst i den rekkefølgen på id (0-4)
     langTittel = models.CharField(max_length=50) # Trondhjems Studentersangforening, Pirum osv
 
-    @property
-    def logg_url(self):
-        return Logg.objects.getLoggLinkFor(self)
-    
     def __str__(self):
         return self.kortTittel
     
@@ -378,13 +501,14 @@ class Tilgang(models.Model):
         help_text=toolTip('Hvorvidt tilgangen er brukt i kode og følgelig ikke kan endres på av brukere.')
     )
 
+    sjekkheftetSynlig = models.BooleanField(
+        default=False,
+        help_text=toolTip('Om de som har denne tilgangen skal vises som en gruppe i sjekkheftet.')
+    )
+
     @property
     def tittel(self):
         return self.__str__()
-    
-    @property
-    def logg_url(self):
-        return Logg.objects.getLoggLinkFor(self)
     
     def get_absolute_url(self):
         return reverse('tilgang', args=[self.kor.kortTittel, self.navn])
@@ -416,12 +540,8 @@ class Verv(models.Model):
 
     @property
     def stemmegruppeVerv(self):
-        return Verv.objects.filter(stemmeGruppeVerv(''), pk=self.pk).exists()
+        return Verv.objects.filter(stemmegruppeVerv(''), pk=self.pk).exists()
 
-    @property
-    def logg_url(self):
-        return Logg.objects.getLoggLinkFor(self)
-    
     def get_absolute_url(self):
         return reverse('verv', args=[self.kor.kortTittel, self.navn])
 
@@ -451,22 +571,14 @@ class VervInnehavelse(models.Model):
     slutt = MyDateField(blank=True, null=True)
     
     @property
-    def kor(self): # For at Logg skal knytte alle objekt til kor
-        return self.verv.kor
-    
-    @cached_property
     def aktiv(self):
-        VervInnehavelse.objects.filter(vervInnehavelseAktiv(''), pk=self.pk).exists()
+        return VervInnehavelse.objects.filter(vervInnehavelseAktiv(''), pk=self.pk).exists()
 
-    @property
-    def logg_url(self):
-        return Logg.objects.getLoggLinkFor(self)
-    
     def __str__(self):
         return f'{self.medlem.__str__()} -> {self.verv.__str__()}'
     
     class Meta:
-        ordering = ['start']
+        ordering = ['-start']
         verbose_name_plural = "vervinnehavelser"
 
     # https://docs.djangoproject.com/en/4.2/ref/models/instances/#django.db.models.Model.clean
@@ -488,10 +600,6 @@ class Dekorasjon(models.Model):
         null=True
     )
 
-    @property
-    def logg_url(self):
-        return Logg.objects.getLoggLinkFor(self)
-    
     def get_absolute_url(self):
         return reverse('dekorasjon', args=[self.kor.kortTittel, self.navn])
 
@@ -518,19 +626,11 @@ class DekorasjonInnehavelse(models.Model):
         related_name='dekorasjonInnehavelse'
     )
     start = MyDateField(null=False)
-
-    @property
-    def kor(self): # For at Logg skal knytte alle objekt til kor
-        return self.verv.kor
-    
-    @property
-    def logg_url(self):
-        return Logg.objects.getLoggLinkFor(self)
     
     def __str__(self):
         return f'{self.medlem.__str__()} -> {self.dekorasjon.__str__()}'
     
     class Meta:
-        ordering = ['start']
+        ordering = ['-start']
         verbose_name_plural = "dekorasjoninnehavelser"
 

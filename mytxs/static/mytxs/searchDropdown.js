@@ -1,4 +1,8 @@
-for(let select of document.querySelectorAll("select:not([disabled])")){
+/*  For alle <select> menyer gjør denne fila at du kan søke på alternativ. 
+    For multiselect (type="multiple") gjør denne fila også at toggle er default.
+ */
+
+for(const select of document.querySelectorAll("select:not([disabled])")){
     // Lag parent, input og options
     let parent = document.createElement("div")
     let input = document.createElement("input");

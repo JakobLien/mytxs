@@ -1,14 +1,9 @@
+from django.conf import settings
+from django.conf.urls.static import static
+from django.contrib import admin
 from django.urls import path
 
-from . import views
-
-from django.contrib.auth import views as auth_views
-
-from django.contrib import admin
-
-from django.conf import settings
-
-from django.conf.urls.static import static
+from mytxs import views
 
 
 urlpatterns = [
@@ -24,8 +19,8 @@ urlpatterns = [
 
     path('endrePassord', views.endrePassord, name='endrePassord'),
 
-    path('sjekkheftet', views.sjekkheftet, name='sjekkheftet'),
     path('sjekkheftet/<str:gruppe>', views.sjekkheftet, name='sjekkheftet'),
+    path('sjekkheftet/<str:gruppe>/<str:undergruppe>', views.sjekkheftet, name='sjekkheftet'),
 
     path('dekorasjon', views.dekorasjonListe, name='dekorasjonListe'),
     path('dekorasjon/<str:kor>/<str:dekorasjonNavn>', views.dekorasjon, name='dekorasjon'),

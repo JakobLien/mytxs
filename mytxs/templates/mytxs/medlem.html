@@ -1,10 +1,10 @@
 {% extends "mytxs/instance.html" %}
 
 {% block content %}
-    {{ block.super }}
+{{ block.super }}
 
-    {% if not request.instance.user %}
-        <p class="max-w-2xl mt-4">Dette medlemmet har ingen registrert bruker på seg. Send denne lenken til den aktuelle koristen, for å la de registrere seg på medlemmet: 
-        <a class="" href="{% url 'registrer' request.instance.pk %}">{{request.get_host}}{% url 'registrer' request.instance.pk %}</a>
-    {% endif %}
+{% if not request.instance.user %}
+<p class="max-w-2xl mt-4">Dette medlemmet har ingen registrert bruker på seg. Send denne lenken til den aktuelle koristen, for å la de registrere seg på medlemmet: 
+<a class="" href="{% url 'registrer' request.instance.pk %}">{{request.get_host}}{% url 'registrer' request.instance.pk %}</a></p>
+{% endif %}
 {% endblock %}

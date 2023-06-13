@@ -2,11 +2,10 @@
 
 {% block content %}
 
-    <form action="{{ request.path }}" method="post">
-        {% csrf_token %}
-        {{ endrePassordForm.as_p }}
-
-        <input type="submit" value="Lagre"></input>
-    </form>
+<form action="{{ request.path }}" method="post">
+    {% csrf_token %}
+    {{ endrePassordForm.as_p }}
+    <input type="submit" value="Lagre">
+</form>
         
 {% endblock %}

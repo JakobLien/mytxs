@@ -1,8 +1,8 @@
-import datetime
-from itertools import chain
-
 from django.utils import timezone
+
 from mytxs.models import Logg
+
+# For å sette author på endringer
 
 def logAuthorInstance(instance, author, pk=None):
     """ Pr no ser e ikkje koss en save ikke kan generer et log objekt, 
@@ -15,7 +15,7 @@ def logAuthorInstance(instance, author, pk=None):
             instancePK=pk or instance.pk,
             model=type(instance).__name__,
             author__isnull=True,
-            timeStamp__gte=timezone.now() - datetime.timedelta(minutes=1)
+            timeStamp__gte=timezone.now() - timezone.timedelta(minutes=1)
     ).order_by('-timeStamp').first():
         log.author = author
         log.save()

@@ -1,61 +1,59 @@
 {% extends "mytxs/base.html" %}
-{% load customTags %}
+{% load mytxsTags %}
 
 {% block content %}
 
 {% if filterForm %}
-    <form action="{{ request.path }}" method="get" onChange="this.submit()">
-        {{ filterForm.as_p }}
-    </form>
+<form action="{{ request.path }}" method="get" onChange="this.submit()">
+    {{ filterForm.as_p }}
+</form>
 
-    <form action="{{ request.path }}" method="get">
-        <input type="submit" value="Clear">
-    </form> 
+<form action="{{ request.path }}" method="get">
+    <input type="submit" value="Clear">
+</form> 
 {% endif %}
 
 {% if paginatorPage.has_other_pages %}
 
-    <div>
-        <span>
-            Sider: 
-            {% if paginatorPage.has_previous %}
-                {% if paginatorPage.previous_page_number != 1 %}
-                    <a href="{% setURLParams page=1 %}">&laquo; 1</a>
-                {% endif %}
-                <a href="{% setURLParams page=paginatorPage.previous_page_number %}"> {{paginatorPage.previous_page_number}} </a>
-            {% endif %}
+<div>
+    <span>
+        Sider: 
+        {% if paginatorPage.has_previous %}
+        {% if paginatorPage.previous_page_number != 1 %}
+        <a href="{% setURLParams page=1 %}">&laquo; 1</a>
+        {% endif %}
+        <a href="{% setURLParams page=paginatorPage.previous_page_number %}">{{paginatorPage.previous_page_number}}</a>
+        {% endif %}
 
-            <span class="text-3xl">
-                {{ paginatorPage.number }}
-            </span>
+        <span class="text-3xl">{{ paginatorPage.number }}</span>
 
-            {% if paginatorPage.has_next %}
-                <a href="{% setURLParams page=paginatorPage.next_page_number %}"> {{ paginatorPage.next_page_number }} </a>
-                {% if paginatorPage.next_page_number != paginatorPage.paginator.num_pages %}
-                    <a href="{% setURLParams page=paginatorPage.paginator.num_pages %}"> {{paginatorPage.paginator.num_pages}} &raquo;</a>
-                {% endif %}
-            {% endif %}
-        </span>
-    </div>
+        {% if paginatorPage.has_next %}
+        <a href="{% setURLParams page=paginatorPage.next_page_number %}">{{ paginatorPage.next_page_number }}</a>
+        {% if paginatorPage.next_page_number != paginatorPage.paginator.num_pages %}
+        <a href="{% setURLParams page=paginatorPage.paginator.num_pages %}">{{paginatorPage.paginator.num_pages}} &raquo;</a>
+        {% endif %}
+        {% endif %}
+    </span>
+</div>
 
 {% endif %}
 
 {% for instance in paginatorPage %}
-
-    <p><a href="{{instance.get_absolute_url}}">{{instance}}</a></p>
-
+<p><a href="{{instance.get_absolute_url}}">{{instance}}</a></p>
 {% endfor %}
 
-{% if newForm %}
-    {% if newForm.prefix %}
-        <h2 class="text-xl mt-4">{{ newForm.prefix|capfirst }}</h2>
-    {% endif %}
-    <form action="{{ request.get_full_path }}" method="post" class="creationForm">
-        {% csrf_token %}
+{% if newForm and newForm|formIsEnabled %}
 
-        {{ newForm.as_p }}
-        
-        <input type="submit" value="Lagre"></input>
-    </form>
+{% if newForm.prefix %}
+<h2 class="text-xl mt-4">{{ newForm.prefix|capfirst }}</h2>
 {% endif %}
+
+<form action="{{ request.get_full_path }}" method="post" class="creationForm">
+    {% csrf_token %}
+    {{ newForm.as_p }}
+    <input type="submit" value="Lagre">
+</form>
+
+{% endif %}
+
 {% endblock %}

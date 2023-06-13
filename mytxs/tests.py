@@ -47,9 +47,9 @@ class ModelTests(TestCase):
             aktivTilgang = Tilgang.objects.create(navn=kor.kortTittel+"-aktiv")
 
             # For hver stemmegruppe i koret, opprett stemmegruppeverv, og gi de tilgangen om de ikke har det alt. 
-            for stemmeGruppe in self.stemmeFordeling[self.korTilStemmeFordeling[i]]:
-                stemmeGruppeVerv = kor.verv.create(navn=stemmeGruppe)
-                stemmeGruppeVerv.tilganger.add(aktivTilgang)
+            for stemmegruppe in self.stemmeFordeling[self.korTilStemmeFordeling[i]]:
+                stemmegruppeVerv = kor.verv.create(navn=stemmegruppe)
+                stemmegruppeVerv.tilganger.add(aktivTilgang)
             
             dirVerv = kor.verv.create(navn='dirigent')
 

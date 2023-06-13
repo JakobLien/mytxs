@@ -1,7 +1,5 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-
-# Register your models here.
 from django.contrib.auth.models import User
 
 from mytxs.models import *
@@ -39,7 +37,7 @@ class DekorasjonAdmin(admin.ModelAdmin):
 
 @admin.register(Logg)
 class LoggingAdmin(admin.ModelAdmin):
-    fields = ["timeStamp", "instancePK", "author", "model", "change",  "value"]
+    fields = ["timeStamp", "instancePK", "author", "model", "kor", "change",  "value"]
     readonly_fields = fields
 
 
@@ -66,4 +64,4 @@ class CustomUserAdmin(UserAdmin):
     inlines = [MedlemInline]
 
 # Register øverige modeller vi ikkje treng å gjør nå med
-admin.site.register([Kor, VervInnehavelse, DekorasjonInnehavelse])
+admin.site.register([Kor, VervInnehavelse, DekorasjonInnehavelse, LoggM2M])

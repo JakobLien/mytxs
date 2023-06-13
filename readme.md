@@ -56,8 +56,10 @@ For å få hjelp når du skriv tailwind anbefales virkelig [Tailwind CSS Intelli
 
 ## Publisering
 Merk at man må få tilgang av ITK til mytxs mappen på sørveren for å kunne publisere. Stikk innom de i løpet av deres [åpningstider](https://itk.samfundet.no/), så er de veldig behjelpelige med hva enn det skulle være:) Når det er gjort, og du har endringer som skal publiseres, er fremgangsmåten som følger:
+1. Kjør `python3 manage.py makemigrations` for å lag migrasjonsfiler for model-endringene du har gjort. Ikke gjør disse uten grunn, og tenk gjennom endringene du gjør. 
 1. Skriv `tailwindcss -i mytxs/static/mytxs/inputStyles.css -o mytxs/static/mytxs/styles.css --minify` for å dobbeltsjekke at [styles.css](mytxs/static/mytxs/styles.css) er oppdatert av [tailwind](#tailwind).
 1. Kjør `python3 manage.py test`, for å sjekke at endringen din ikke har ødelagt noe, ihvertfall ikke på en måte som er veldig lett å finne ut av. 
+    - Testan e verken bra eller fungerende pr no, håpe dem bli årna i framtida engong?:)
 1. Skriv `python3 -m pip freeze > requirements.txt` for å lagre i requirements.txt hvilken versjon av alle bibliotekene du bruker. 
     - Pass på å ikke endre versjon av biblioteker uten grunn, og dersom du gjør det uintensjonelt, fiks det før du pushe. >:(
 1. Bruk git for å få endringene inn i main, gjerne med merge request inn fra develop (om prosjektet noen gang kommer så langt som å ha flere som jobber på det og kan se over hverandres kode). 
@@ -81,3 +83,9 @@ ITK har også et oppsett der man kan se loggs fra den kjørende instansen på se
     1. For å se kjøre loggs, skriv `less /var/log/uwsgi/app/mytxs.samfundet.no.log`
     1. For å se mellomserver(?) loggs, skriv `less /var/log/apache2/external/error-mytxs.samfundet.no.log`
     1. For å se logg av innkommende requests, skriv `less /var/log/apache2/external/access-mytxs.samfundet.no.log`
+
+## Konvensjoner
+Her kommer jeg til å skrive ting som ikke har så my å si, men som er fint å ha svart på kvitt:
+- Såvidt jeg vet er det ikke en standard for indentation av django html filer. Jeg velger fordi jeg syns det er ganske leselig at
+    - Django tags bidrar ikke til indentation
+    - HTML tags bidrar til indentation

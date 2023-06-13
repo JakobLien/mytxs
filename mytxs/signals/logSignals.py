@@ -1,35 +1,42 @@
 from django.dispatch import receiver
-from django.db.models.signals import post_delete, pre_save, post_save, m2m_changed
+from django.db.models.signals import post_delete, post_save, m2m_changed
 
-from mytxs.models import Dekorasjon, DekorasjonInnehavelse, Kor, Logg, Tilgang, Verv, VervInnehavelse
-
-import json
-
-from django.forms.models import model_to_dict
+from mytxs.models import Dekorasjon, DekorasjonInnehavelse, Kor, Logg, LoggM2M, Tilgang, Verv, VervInnehavelse
 
 from itertools import chain
 
-from django.core import serializers
+from django.db.models.fields.related import RelatedField
 
-# # Modifisert versjon av django.forms.models.model_to_dict hentet herifra
-# # https://stackoverflow.com/a/29088221/6709450
-# # Forskjellen er at denne serialiserer manyToMany relations som en liste, som automatisk kan konverteres til JSON
-# def to_dict(instance, fields=None, exclude=None):
-#     opts = instance._meta
-#     data = {}
-#     for field in chain(opts.concrete_fields, opts.private_fields):
-#         if fields is not None and field.name not in fields:
-#             continue
-#         if exclude and field.name in exclude:
-#             continue
-#         data[field.name] = field.value_from_object(instance)
-#     for field in opts.many_to_many:
-#         if fields is not None and field.name not in fields:
-#             continue
-#         if exclude and field.name in exclude:
-#             continue
-#         data[field.name] = [i.id for i in field.value_from_object(instance)]
-#     return data
+from django.apps import apps
+
+# Modifisert versjon av django.forms.models.model_to_dict delvis hentet herifra 
+# https://stackoverflow.com/a/29088221/6709450 (#5)
+# Forskjellen er at denne serialiserer ikke manyToMany relations, den tar med editable=False fields
+# og erstatter den foreign keys med pk av tilsvarende logg instance, eller str representasjon av objektet
+# når loggen ikke finens (som for Medlem loggs)
+def to_dict(instance, fields=None, exclude=None):
+    opts = instance._meta
+    data = {}
+    for field in chain(opts.concrete_fields, opts.private_fields):
+        if fields is not None and field.name not in fields:
+            continue
+        if exclude and field.name in exclude:
+            continue
+
+        if isinstance(field, RelatedField):
+            if logg := Logg.objects.getLoggFor(getattr(instance, field.name)):
+                # Om det er en relasjon, lagre pk av den nyeste relaterte loggen (ikke av instansen)
+                data[field.name] = logg.pk
+            else:
+                # Om vi ikke finn den relevante loggen, lagre string representasjon av objektet
+                data[field.name] = str(getattr(instance, field.name))
+        elif type(field.value_from_object(instance)) not in [str, int, float, bool, None]:
+            # Om det ikke er en relasjon, men er et objekt, lagre string representasjon av objektet, f.eks. for Date
+            data[field.name] = str(field.value_from_object(instance))
+        else:
+            # Ellers, lagre det som er naturlig.
+            data[field.name] = field.value_from_object(instance)
+    return data
 
 @receiver(post_save, sender=Verv)
 @receiver(post_save, sender=VervInnehavelse)
@@ -37,28 +44,23 @@ from django.core import serializers
 @receiver(post_save, sender=DekorasjonInnehavelse)
 @receiver(post_save, sender=Tilgang)
 def log_create(sender, instance, created, **kwargs):
-    # This is not incorporated into pre_save to make the 
-    # resulting json object include a set id
-
     if created:
-        print(f'log_create: {instance}')
-
         Logg.objects.create(
             model=sender.__name__,
             instancePK=instance.pk,
-            change=Logg.CREATE_CHANGE,
-            value=json.loads(serializers.serialize("jsonl", [instance])),
-            kor=getattr(instance, 'kor', None)
+            change=Logg.CREATE,
+            value=to_dict(instance),
+            strRep=str(instance),
+            kor=Kor.objects.korForInstance(instance)
         )
     else:
-        print(f'log_update: {instance}')
-
         Logg.objects.create(
             model=sender.__name__,
             instancePK=instance.pk,
-            change=Logg.UPDATE_CHANGE,
-            value=json.loads(serializers.serialize("jsonl", [instance])),
-            kor=getattr(instance, 'kor', None)
+            change=Logg.UPDATE,
+            value=to_dict(instance),
+            strRep=str(instance),
+            kor=Kor.objects.korForInstance(instance)
         )
 
 @receiver(post_delete, sender=Verv)
@@ -67,88 +69,50 @@ def log_create(sender, instance, created, **kwargs):
 @receiver(post_delete, sender=DekorasjonInnehavelse)
 @receiver(post_delete, sender=Tilgang)
 def log_delete(sender, instance, **kwargs):
-    print(f'log_delete: {instance}')
-
     # This is deletion
     Logg.objects.create(
         model=sender.__name__,
         instancePK=instance.pk,
-        change=Logg.DELETE_CHANGE,
-        value=json.loads(serializers.serialize("jsonl", [instance])),
-        kor=getattr(instance, 'kor', None)
+        change=Logg.DELETE,
+        value=to_dict(instance),
+        strRep=str(instance),
+        kor=Kor.objects.korForInstance(instance)
     )
 
-# def logSave(oldInstance, newInstance):
-#     # Å importer Logging modellen hadd vært circular import
-#     Logging = apps.get_model('mytxs', 'Logging')
 
-#     Logging.objects.create(
-#         model=type(newInstance).__name__,
-#         instancePK=newInstance.pk,
-#         value=serializers.serialize("jsonl", [newInstance])
-#     )
+def makeM2MLogg(sender, action, fromPK, toPK):
+    [fromModelName, fieldName] = sender._meta.object_name.split("_")
 
-# def logDelete(instance):
-#     # Å importer Logging modellen hadd vært circular import
-#     Logging = apps.get_model('mytxs', 'Logging')
+    fromModel = apps.get_model('mytxs', fromModelName)
+    toModel = getattr(fromModel, fieldName).rel.model
 
-#     Logging.objects.create(
-#         model=type(instance).__name__,
-#         instancePK=instance.pk,
-#         value=serializers.serialize("jsonl", [instance])
-#     )
-
-
-
-
-# Fiks så logs har rett relations
-
-# Pr no produsere vi logs ved å override save og delete methods i utils/log.py
-# Dette fikse ikkje at relasjoner på logsa er korrekt, så gjør det her
-# Må altså gitt alle mulige argument, gå inn og fiks at relasjonan stemme
+    LoggM2M.objects.create(
+        m2mName=sender._meta.object_name,
+        fromLogg=Logg.objects.getLoggForModelPK(fromModel, fromPK),
+        toLogg=Logg.objects.getLoggForModelPK(toModel, toPK),
+        change=LoggM2M.CREATE if action == 'post_add' else LoggM2M.DELETE
+    )
 
 @receiver(m2m_changed, sender=Verv.tilganger.through)
 def log_m2m_changed(sender, instance, action, reverse, model, pk_set, **kwargs):
 
-    #print(f'{sender} {instance} {action} {reverse} {model} {pk_set}')
-
-    # TODO: Om vi bare lagre sender med keys i rett rekkefølge har vi det:)
-
     if action == 'post_add':
         for key in pk_set:
             if not reverse:
-                print(f'Adding {instance.pk} {key}')
+                makeM2MLogg(sender, action, instance.pk, key)
             else:
-                print(f'Adding {key} {instance.pk} ')
+                makeM2MLogg(sender, action, key, instance.pk)
 
     elif action == 'post_remove':
         for key in pk_set:
             if not reverse:
-                print(f'Removing {instance.pk} {key}')
+                makeM2MLogg(sender, action, instance.pk, key)
             else:
-                print(f'Removing {key} {instance.pk} ')
+                makeM2MLogg(sender, action, key, instance.pk)
 
     elif action == 'post_clear':
-        print(f'Clearing {instance.pk} {pk_set}')
-
-
-        #     log = Logging.objects.filter(
-        #         model=sender._meta.auto_created.__name__, 
-        #         instancePK=instance.pk
-        #     ).order_by('-timeStamp').first()
-
-
-        #     print(log.newValue)
-
-        #     log.newValue = to_dict(instance)
-
-        #     print(log.newValue)
-
-        #     log.save()
-
-        #     # Dette printe forskjellen e treng. 
-        #     # print(f'log_m2m_changed: {to_dict(instance)}')
-        #     # print(f'{sender} {instance} {action} {reverse} {model}')
-
-        # else:
-        #     print(f'YIKES: {instance}')
+        for key in pk_set:
+            if not reverse:
+                makeM2MLogg(sender, action, instance.pk, key)
+            else:
+                makeM2MLogg(sender, action, key, instance.pk)

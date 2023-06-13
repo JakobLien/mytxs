@@ -1,9 +1,14 @@
 from django.core.management.base import BaseCommand
-from mytxs.models import *
 
 from django.contrib.auth.models import User
 
+from mytxs.models import Dekorasjon, DekorasjonInnehavelse, Kor, Logg, LoggM2M, Medlem, Tilgang, Verv, VervInnehavelse
+from mytxs.consts import alleKorKortTittel, alleKorLangTittel, korTilStemmeFordeling, stemmeFordeling, tilganger, tilgangBeskrivelser, storkorTilganger, storkorTilgangBeskrivelser
+from mytxs.utils.modelUtils import randomDistinct, stemmegruppeVerv
+
+
 import datetime
+
 
 class Command(BaseCommand):
     help = 'seed database for testing and development.'
@@ -33,37 +38,37 @@ class Command(BaseCommand):
         )
 
         parser.add_argument(
-            '--createStorkorAdmin',
+            '--korAdmin',
             action='store_true',
             help='Create [storkor]-admin og [storkor]-user',
         )
 
         parser.add_argument(
-            '--createUserAdmin',
+            '--userAdmin',
             action='store_true',
             help='Create user user and admin admin',
         )
 
     def handle(self, *args, **options):
         if options['clear']:
-            print('Clearing Data...')
+            print('clear...')
             clearData(self)
 
         if options['clearLogs']:
-            print('Clearing Logs...')
+            print('clearLogs...')
             clearLogs(self)
         
         if not options['dont']:
             print('Seeding Data...')
             runSeed(self)
 
-        if options['createUserAdmin']:
-            print('Seeding Data...')
-            createUserAdmin(self)
+        if options['userAdmin']:
+            print('userAdmin...')
+            userAdmin(self)
 
-        if options['createStorkorAdmin']:
-            print('createStorkorAdmin...')
-            createStorkorAdmin(self)
+        if options['korAdmin']:
+            print('korAdmin...')
+            korAdmin(self)
 
         # run_seed(self)
 
@@ -93,7 +98,7 @@ def clearLogs(self):
     print('Delete LoggM2M instances')
     LoggM2M.objects.all().delete()
 
-def createUserAdmin(self):
+def userAdmin(self):
     medlemmer = []
     for navn in ['admin', 'user']:
         user, created = User.objects.get_or_create(username=navn, defaults={'email':navn+'@example.com'})
@@ -114,8 +119,8 @@ def createUserAdmin(self):
     )
     nettanvarlig.tilganger.add(*Tilgang.objects.filter(kor__kortTittel='TSS'))
     
-    b2 = Verv.objects.get(kor__kortTittel='TSS', navn='22B')
-    s1 = Verv.objects.get(kor__kortTittel='TKS', navn='11S')
+    tssStemmegruppe= randomDistinct(Verv.objects.filter(stemmegruppeVerv(''), kor__kortTittel='TSS'))
+    tksStemmegruppe = randomDistinct(Verv.objects.filter(stemmegruppeVerv(''), kor__kortTittel='TKS'))
 
     VervInnehavelse.objects.get_or_create(
         verv=nettanvarlig,
@@ -124,91 +129,70 @@ def createUserAdmin(self):
     )
 
     VervInnehavelse.objects.get_or_create(
-        verv=b2,
+        verv=tssStemmegruppe,
         medlem=medlemmer[0],
         start=datetime.date.today()
     )
 
     VervInnehavelse.objects.get_or_create(
-        verv=s1,
+        verv=tksStemmegruppe,
         medlem=medlemmer[1],
         start=datetime.date.today()
     )
 
-def createStorkorAdmin(self):
-    for navn in ['TSS-admin', 'TSS-user', 'TKS-admin', 'TKS-user']: # 'admin', 'user', 
-        user, created = User.objects.get_or_create(username=navn, defaults={'email':navn+'@example.com'})
-        if created:
-            user.set_password(navn)
-            user.save()
+def korAdmin(self):
+    "Opprett medlemmer for alle korlederne, med ish realistiske stemmegruppeverv"
 
-        medlem, created = Medlem.objects.get_or_create(user=user, defaults={
-            'fornavn': navn,
-            'etternavn': navn+'sen'
+    korledere = ['Frode', 'Sivert', 'Anine', 'Hedda', 'Ingeborg', 'Adrian']
+    storkor = ['TSS', 'TSS', 'TKS', 'TKS', 'TKS', 'TSS']
+    korlederVerv = ['formann', 'pirumsjef', 'knausleder', 'toppcandisse', 'leder', 'barsjef']
+
+    for i in range(len(alleKorKortTittel)):
+        kor = Kor.objects.get(kortTittel=alleKorKortTittel[i])
+        
+        # Opprett medlememr for hver av de
+        korleder, created = Medlem.objects.get_or_create(fornavn=korledere[i], defaults={
+            'etternavn': korledere[i]+'sen'
         })
 
-        kor = Kor.objects.get(kortTittel=navn.split("-")[0])
+        # Opprett admin vervet
+        adminVerv, created = Verv.objects.get_or_create(
+            navn=korlederVerv[i],
+            kor=kor
+        )
+        adminVerv.tilganger.add(*Tilgang.objects.filter(kor=kor))
 
-        # Legg på stemmegruppeverv på alle
-        if not Verv.objects.filter(stemmeGruppeVerv(''), vervInnehavelse__medlem=medlem).exists():
-            stemmegruppe = Verv.objects.filter(stemmeGruppeVerv(''), kor=kor).order_by("?").first()
+        # Gi korleder adminVervet
+        adminVervInnehavelse, created = VervInnehavelse.objects.get_or_create(
+            medlem=korleder,
+            verv=adminVerv,
+            defaults={'start': datetime.date.today()}
+        )
 
-            VervInnehavelse.objects.create(
-                verv=stemmegruppe,
-                medlem=medlem,
-                start=datetime.date.today()
+        # Gi korleder stemmegruppeverv i koret sitt, om koret har stemmegruppeverv, og de mangle stemmegruppeverv fra det koret
+        if Verv.objects.filter(stemmegruppeVerv(''), kor=kor).exists():
+            if not VervInnehavelse.objects.filter(stemmegruppeVerv(), medlem=korleder, verv__kor=kor).exists():
+                stemmegruppeVervInnehavelse, created = VervInnehavelse.objects.get_or_create(
+                    medlem=korleder,
+                    start=datetime.date.today(),
+                    verv=randomDistinct(Verv.objects.filter(stemmegruppeVerv(''), kor=kor))
+                )
+
+        # Gi korleder stemmegruppeverv i storkoret sitt, om dem ikkje har det allerede
+        if not VervInnehavelse.objects.filter(stemmegruppeVerv(), medlem=korleder, verv__kor=Kor.objects.get(kortTittel=storkor[i])).exists():
+            stemmegruppeVervInnehavelse, created = VervInnehavelse.objects.get_or_create(
+                medlem=korleder,
+                verv=randomDistinct(Verv.objects.filter(stemmegruppeVerv(''), kor=Kor.objects.get(kortTittel=storkor[i]))),
+                defaults={'start': datetime.date.today()}
             )
-        
-        # Gi admin et admin verv
-        if 'admin' in navn:
-            if not Verv.objects.filter(vervInnehavelse__medlem=medlem).filter(navn=navn).exists():
-                adminVerv, created = Verv.objects.get_or_create(
-                    navn=navn,
-                    kor=kor
-                )
-
-                adminVerv.tilganger.add(*Tilgang.objects.filter(kor=kor).exclude(navn='aktiv'))
-
-                VervInnehavelse.objects.create(
-                    verv=adminVerv,
-                    medlem=medlem,
-                    start=datetime.date.today()
-                )
 
 def runSeed(self):
     ''' Seed database based on mode'''
-
-    kortTittel = ['TSS', 'Pirum', 'KK', 'Candiss', 'TKS']
-    langTittel = [
-		'Trondhjems Studentersangforening',
-		'Pirum',
-		'Knauskoret',
-		'Candiss',
-		'Trondhjems Kvinnelige Studentersangforening'
-    ]
-
-    korTilStemmeFordeling = [0, 0, 1, 2, 2]
-    stemmeFordeling = ['TB', 'SATB', 'SA']
-
-    tilganger = ['aktiv', 'dekorasjon', 'dekorasjonInnehavelse', 'verv', 'vervInnehavelse', 'tilgang']
-    tilgangBeskrivelser = [
-        'Gitt til stemmegruppeverv og dirigent i koret. De som har tilgangen er altså de som er aktive i koret.',
-        'For å opprette og slette dekorasjoner, samt endre på eksisterende dekorasjoner.',
-        'For å opprette og slette dekorasjonInnehavelser, altså hvem som fikk hvilken dekorasjon når.',
-        'For å opprette og slette verv, samt endre på eksisterende verv.',
-        'For å opprette og slette vervInnehavelser, altså hvem som hadde hvilket verv når. Dette inkluderer stemmegrupper.',
-        'For å opprette og slette tilganger, samt endre på hvilket verv som medfører disse tilgangene.'
-    ]
-    
-    storkorTilganger = ['medlemsdata']
-    storkorTilgangBeskrivelser = [
-        'For å kunne endre på medlemsdataene til de i ditt storkor.'
-    ]
 	
     # For hvert kor
-    for i in range(5):
+    for i in range(len(alleKorKortTittel)):
         # Opprett koret
-        kor, korCreated = Kor.objects.get_or_create(kortTittel=kortTittel[i], defaults={'langTittel':langTittel[i]})
+        kor, korCreated = Kor.objects.get_or_create(kortTittel=alleKorKortTittel[i], defaults={'langTittel':alleKorLangTittel[i]})
         if(korCreated):
             self.stdout.write('Created kor ' + kor.kortTittel + ' at id ' + str(kor.pk))
 
@@ -226,31 +210,25 @@ def runSeed(self):
                     print(f'Created tilgang {tilgang}')
 
 
-        # For hver stemmegruppe i koret, opprett top-level stemmegruppeverv, og gi de aktiv tilgangen om de ikke har det alt. 
-        aktivTilgang = Tilgang.objects.get(navn='aktiv', kor=kor)
+        # For hver stemmegruppe i koret, opprett top-level stemmegruppeverv
+        if i < len(korTilStemmeFordeling):
+            for stemmegruppe in stemmeFordeling[korTilStemmeFordeling[i]]:
+                for y in '12':
+                    # Opprett hovedstemmegruppeverv
+                    stemmegruppeVerv, stemmegruppeVervCreated = kor.verv.get_or_create(navn=y+stemmegruppe)
+                    if stemmegruppeVervCreated:
+                        self.stdout.write('Created verv ' + stemmegruppeVerv.navn + ' for kor ' + kor.kortTittel + ' at id ' + str(stemmegruppeVerv.pk))
+                    
+                    for x in '12':
+                        # Opprett understemmegruppeverv
+                        underStemmegruppeVerv, underStemmegruppeVervCreated = kor.verv.get_or_create(navn=x+y+stemmegruppe)
+                        if underStemmegruppeVervCreated:
+                            self.stdout.write('Created verv ' + underStemmegruppeVerv.navn + ' for kor ' + kor.kortTittel + ' at id ' + str(underStemmegruppeVerv.pk))
 
-        for stemmeGruppe in stemmeFordeling[korTilStemmeFordeling[i]]:
-            for y in '12':
-                # Opprett hovedstemmegruppeverv
-                stemmeGruppeVerv, stemmeGruppeVervCreated = kor.verv.get_or_create(navn=y+stemmeGruppe)
-                if(stemmeGruppeVervCreated):
-                    self.stdout.write('Created verv ' + stemmeGruppeVerv.navn + ' for kor ' + kor.kortTittel + ' at id ' + str(stemmeGruppeVerv.pk))
-                
-                stemmeGruppeVerv.tilganger.add(aktivTilgang)
-
-                for x in '12':
-                    # Opprett understemmegruppeverv
-                    underStemmeGruppeVerv, underStemmeGruppeVervCreated = kor.verv.get_or_create(navn=x+y+stemmeGruppe)
-                    if(underStemmeGruppeVervCreated):
-                        self.stdout.write('Created verv ' + underStemmeGruppeVerv.navn + ' for kor ' + kor.kortTittel + ' at id ' + str(underStemmeGruppeVerv.pk))
-
-                    underStemmeGruppeVerv.tilganger.add(aktivTilgang)
-        
-        # Opprett dirrigent verv
-        dirrVerv, dirrVervCreated = kor.verv.get_or_create(navn='dirigent')
-        dirrVerv.tilganger.add(aktivTilgang)
-        if(dirrVervCreated):
-            self.stdout.write('Created verv ' + dirrVerv.navn + ' for kor ' + kor.kortTittel + ' at id ' + str(dirrVerv.pk))
+            # Opprett dirrigent verv
+            dirrVerv, dirrVervCreated = kor.verv.get_or_create(navn='dirigent')
+            if(dirrVervCreated):
+                self.stdout.write('Created verv ' + dirrVerv.navn + ' for kor ' + kor.kortTittel + ' at id ' + str(dirrVerv.pk))
 
 
         # Opprett dekorasjoner

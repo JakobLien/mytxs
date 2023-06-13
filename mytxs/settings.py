@@ -67,6 +67,9 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
             ],
+            'libraries': {
+                'mytxsTags': 'mytxs.templateTags'
+            }
         },
     },
 ]
@@ -132,6 +135,10 @@ USE_TZ = True
 USE_L10N = False
 
 DATE_FORMAT = 'd.m.Y'
+
+TIME_FORMAT = 'H:i:s'
+
+DATETIME_FORMAT = f'{DATE_FORMAT} {TIME_FORMAT}'
 
 # https://stackoverflow.com/questions/4876370/django-date-format-dd-mm-yyyy
 

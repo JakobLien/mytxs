@@ -6,14 +6,11 @@ module.exports = {
             colors: {
                 transparent: 'transparent',
                 current: 'currentColor',
-                customPurple: '#AAAAFF',
+                customPurple: '#aaf',
             },
         },
     },
     plugins: [
         require('@tailwindcss/forms'),
     ],
-    // corePlugins: {
-    //     preflight: false,
-    // }
 }  

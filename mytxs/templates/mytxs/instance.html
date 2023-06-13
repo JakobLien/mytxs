@@ -1,34 +1,41 @@
 {% extends "mytxs/base.html" %}
+{% load mytxsTags %}
 
 {% block content %}
 
-    {% for form in forms %}
-        <form action="{{ request.get_full_path }}" method="post" class="managedForm">
-            {% csrf_token %}
-            {{ form.as_p }}
+{% for form in forms %}
+{% if form|formIsVisible %}
+<form action="{{ request.get_full_path }}" method="post" class="managedForm" {{ form|fixFileField }}>
+    {% csrf_token %}
+    {{ form.as_p }}
 
-            <div class='changes'></div>
-            <input type="button" value="Angre" onclick="resetForm(this.form)">
-            <input type="submit" value="Lagre"></input>
-        </form>
-    
+    {% if form|formIsEnabled %}
+    <div class='changes'></div>
+    <input type="button" value="Angre" onclick="resetForm(this.form)">
+    <input type="submit" value="Lagre">
+    {% endif %}
+</form>
+{% endif %}
+{% endfor %}
+
+{% for formset in formsets %}
+{% if formset|formIsVisible %}
+<h2 class="text-xl mt-4">{{ formset.prefix|capfirst }}</h2>
+<form action="{{ request.get_full_path }}" method="post" class="managedForm">
+    {% csrf_token %}
+    {{ formset.management_form }}
+
+    {% for form in formset %}
+    {{ form }} <br>
     {% endfor %}
 
-    {% for formset in formsets %}
-        <h2 class="text-xl mt-4">{{ formset.prefix|capfirst }}</h2>
-        <form action="{{ request.get_full_path }}" method="post" class="managedForm">
-            {% csrf_token %}
+    {% if formset|formIsEnabled %}
+    <div class='changes'></div>
+    <input type="button" value="Angre" onclick="resetForm(this.form)">
+    <input type="submit" value="Lagre">
+    {% endif %}
+</form>
+{% endif %}
+{% endfor %}
 
-            {{ formset.management_form }}
-
-            {% for form in formset %}
-                {{ form }} <br>
-            {% endfor %}
-
-            <div class='changes'></div>
-            <input type="button" value="Angre" onclick="resetForm(this.form)">
-            <input type="submit" value="Lagre"></input>
-        </form>
-
-    {% endfor %}
 {% endblock %}

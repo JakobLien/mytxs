@@ -1,21 +1,84 @@
 {% extends "mytxs/instance.html" %}
 
 {% block content %}
-    <div>
-        {% if lastLog %}
-            <a href="{{lastLog.get_absolute_url}}">Last log</a>
+
+<div>
+    {% if request.instance.lastLogg %}
+    <a href="{{ request.instance.lastLogg.get_absolute_url }}">Last log</a>
+    {% else %}
+    <span>Last log</span>
+    {% endif %}
+
+    {% if request.instance.nextLogg %}
+    <a href="{{ request.instance.nextLogg.get_absolute_url }}">Next log</a>
+    {% else %}
+    <span>Next log</span>
+    {% endif %}
+
+    {% if request.instance.getActualUrl %}
+    <a href="{{ request.instance.getActualUrl }}">Actual object</a>
+    {% else %}
+    <span>Actual object</span>
+    {% endif %}
+</div>
+
+<ul>
+    <li>Tidspunkt: {{request.instance.timeStamp}}</li>
+    <li>Kor: {{request.instance.kor}}</li>
+    <li>Forfatter: {{request.instance.author}}</li>
+    <li>Endring: {{request.instance.get_change_display}}</li>
+    <li>Model: {{request.instance.model}}</li>
+    <li>InstancePK: {{request.instance.instancePK}}</li>
+</ul>
+
+<pre class="bg-white p-4 w-fit my-4">{{request.instance.formatValue|safe}}</pre>
+
+{% if request.instance.getReverseRelated %}
+<h2 class="text-xl">Logger som refererer til denne loggen: </h2>
+<ul>
+    {% for related in request.instance.getReverseRelated %}
+    <li><a href="{{related.get_absolute_url}}">{{related}}</a></li>
+    {% endfor %}
+</ul>
+{% endif %}
+<br>
+
+{% if request.instance.getM2MRelated %}
+{% for m2mName, M2Ms in request.instance.getM2MRelated.items %}
+<h2 class="text-xl">{{m2mName}} M2M relasjoner</h2>
+<ul>
+
+{% for M2M in M2Ms %}
+    <li id="m2m_{{M2M.pk}}">
+        {{ M2M.timeStamp }}: 
+        {{ M2M.get_change_display }} 
+        
+        {% if M2M.fromLogg.get_absolute_url != request.path %}
+        <a href="{{ M2M.fromLogg.get_absolute_url }}#m2m_{{M2M.pk}}">{{ M2M.fromLogg.strRep }}</a>
+        {% else  %}
+        {{ M2M.fromLogg.strRep }}
         {% endif %}
 
-        {% if nextLog %}
-            <a href="{{nextLog.get_absolute_url}}">Next log</a>
+        &lt;-&gt; 
+
+        {% if M2M.toLogg.get_absolute_url != request.path %}
+        <a href="{{ M2M.toLogg.get_absolute_url }}#m2m_{{M2M.pk}}">{{ M2M.toLogg.strRep }}</a>
+        {% else  %}
+        {{ M2M.toLogg.strRep }}
         {% endif %}
 
-        {% if actual and actual.get_absolute_url %}
-            <a href="{{actual.get_absolute_url}}">Actual object</a>
+        {% if M2M.correspondingM2M %} 
+        {% if  M2M.fromLogg.get_absolute_url == request.path %}
+        <a href="{{ M2M.correspondingM2M.fromLogg.get_absolute_url }}#m2m_{{M2M.correspondingM2M.pk}}">(Tilsvarende)</a>
+        {% else %}
+        <a href="{{ M2M.correspondingM2M.toLogg.get_absolute_url }}#m2m_{{M2M.correspondingM2M.pk}}">(Tilsvarende)</a>
         {% endif %}
-    </div>
+        {% endif %}
+    </li>
+{% endfor %}
 
-    {{ block.super }}
+</ul>
+{% endfor %}
+{% endif %}
 
-    <pre class="bg-white">{{value}}</pre>
 {% endblock %}

@@ -1,3 +1,11 @@
+/*  Gjør forms med klasse "managedForm" lettere å jobbe med ved å:
+    - Disable lagre og angre knapper
+    - Ha en angreknapp som angrer alle (ulagrede) endringer gjort
+    - Ha en liste av hva som endrer seg
+    Gjør også forms med klasse "creationForm" lettere å jobbe med ved å:
+    - Disable lagreknappen når ikke alle required felt er utfylte
+ */
+
 function getInitialValue(element){
     if(element.tagName === 'SELECT'){
         if(element.hasAttribute("multiple")){
@@ -159,7 +167,7 @@ function evaluateCreationForm(form){
 // Script fila her burde være includa som defer, slik at den kjøre etter formsa e lasta inn:
 // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script#attr-defer
 for(const form of document.forms){
-    if(form.classList.contains('managedForm')){
+    if(form.classList.contains('managedForm') && form.querySelector("[type=submit]")){
         // console.log(form);
         form.onchange = () => evaluateManagedForm(form);
         form.onsubmit = () => {
@@ -175,7 +183,7 @@ for(const form of document.forms){
     
         evaluateManagedForm(form);
 
-    }else if(form.classList.contains('creationForm')){
+    }else if(form.classList.contains('creationForm') && form.querySelector("[type=submit]")){
         form.onchange = () => evaluateCreationForm(form);
         form.onsubmit = () => {
             return confirm("Bekreft endringer: \n" + formatFormChanges(getFormChanges(form)).join("\n"))
@@ -189,10 +197,10 @@ for(const form of document.forms){
 /*
         <div class='changes'></div>
         <input type="button" value="Angre" onclick="resetForm(this.form)">
-        <input type="submit" value="Lagre"></input>
+        <input type="submit" value="Lagre">
 */
 
 // creationForm html:
 /*
-    <input type="submit" value="Lagre"></input>
+    <input type="submit" value="Lagre">
 */
