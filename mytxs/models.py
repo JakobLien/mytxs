@@ -896,7 +896,7 @@ class Hendelse(models.Model):
         if self.sluttDate:
             # I utgangspunktet er slutt tiden (hovedsakling tidspunktet) ekskludert i ical formatet, 
             # men følgelig om det er en sluttdato (uten tid), vil det vises som en dag for lite
-            # i kallenderapplikasjonene. Derfor hive vi på en dag her, så det vises rett:)
+            # i kalenderapplikasjonene. Derfor hive vi på en dag her, så det vises rett:)
             return (self.slutt + datetime.timedelta(days=1)).strftime('%Y%m%d')
         return None
 
