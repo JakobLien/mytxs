@@ -132,7 +132,7 @@ def userAdmin(self):
 def korAdmin(self):
     'Opprett medlemmer for alle korlederne, med ish realistiske stemmegruppeverv'
 
-    korledere = ['Frode', 'Sivert', 'Anine', 'Hedda', 'Ingeborg', 'Adrian']
+    korledere = ['Frode', 'Ingeborg', 'Sivert', 'Anine', 'Hedda', 'Adrian']
     storkor = ['TSS', 'TKS', 'TSS', 'TKS', 'TKS', 'TSS']
     korlederVerv = ['formann', 'leder', 'pirumsjef', 'knausleder', 'toppcandisse', 'barsjef']
 
