@@ -133,8 +133,8 @@ def korAdmin(self):
     'Opprett medlemmer for alle korlederne, med ish realistiske stemmegruppeverv'
 
     korledere = ['Frode', 'Sivert', 'Anine', 'Hedda', 'Ingeborg', 'Adrian']
-    storkor = ['TSS', 'TSS', 'TKS', 'TKS', 'TKS', 'TSS']
-    korlederVerv = ['formann', 'pirumsjef', 'knausleder', 'toppcandisse', 'leder', 'barsjef']
+    storkor = ['TSS', 'TKS', 'TSS', 'TKS', 'TKS', 'TSS']
+    korlederVerv = ['formann', 'leder', 'pirumsjef', 'knausleder', 'toppcandisse', 'barsjef']
 
     for i in range(len(consts.alleKorKortTittel)):
         kor = Kor.objects.get(kortTittel=consts.alleKorKortTittel[i])
