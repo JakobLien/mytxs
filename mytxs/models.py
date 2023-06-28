@@ -911,10 +911,19 @@ class Hendelse(models.Model):
     def getVevent(self):
         vevent =  'BEGIN:VEVENT\n'
         vevent += f'UID:{self.UID}\n'
-        vevent += f'SUMMARY:{self.navn}\n'
+
+        if self.kategori == Hendelse.OBLIG:
+            vevent += f'SUMMARY:[OBLIG]: {self.navn}\n'
+        elif self.kategori == Hendelse.PÅMELDING:
+            vevent += f'SUMMARY:[PÅMELDING]: {self.navn}\n'
+        else:
+            vevent += f'SUMMARY:{self.navn}\n'
+
         vevent += f'DESCRIPTION:{self.beskrivelse}'
         if self.kategori != Hendelse.FRIVILLIG:
-            vevent += '\\n\\n' + self.getOppmøteLink()
+            if self.beskrivelse:
+                vevent += '\\n\\n'
+            vevent += self.getOppmøteLink()
         vevent += '\n'
 
         vevent += f'LOCATION:{self.sted}\n'
@@ -929,6 +938,7 @@ class Hendelse(models.Model):
                 vevent += f'DTEND;TZID=Europe/Oslo:{slutt}\n'
             else:
                 vevent += f'DTEND;VALUE=DATE:{slutt}\n'
+        
         vevent += f'DTSTAMP:{datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S")}Z\n'
         vevent += 'END:VEVENT\n'
         return vevent
