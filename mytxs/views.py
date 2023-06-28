@@ -319,24 +319,27 @@ def medlem(request, medlemPK):
         **kwargs
     })
 
-
-@login_required()
+# Ikke login_required her for å slippe gjennom kalender-apper som spør om iCal fila
 def semesterplan(request, kor):
+    # Håndter ical dersom det var det
+    if request.GET.get('iCal'):
+        file_data = Hendelse.objects.filter(kor__kortTittel=kor).generateICal()
+        return downloadFile(f'{kor}.ics', file_data)
+    # Manuel implementasjon av @login_required for å slippe gjennom iCal
+    elif not request.user.is_authenticated:
+        return redirect('login')
+
     if not request.user.medlem.kor.filter(kortTittel=kor).exists():
         messages.error(request, f'Du har ikke tilgang til andre kors kalender')
         return redirect(request.user.medlem)
 
-    if request.GET.get('gammelt') or request.GET.get('iCal'):
+    if request.GET.get('gammelt'):
         request.queryset = Hendelse.objects.filter(kor__kortTittel=kor)
     else:
         request.queryset = Hendelse.objects.filter(kor__kortTittel=kor, startDate__gte=datetime.datetime.today())
-
-    # Håndter ical dersom det var det
-    if request.GET.get('iCal'):
-        file_data = request.queryset.generateICal()
-        return downloadFile(f'{kor}.ics', file_data)
     
     return render(request, 'mytxs/semesterplan.html')
+
 
 @login_required()
 def meldFravær(request, hendelsePK):
