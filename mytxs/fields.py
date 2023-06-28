@@ -2,53 +2,66 @@ from django import forms
 from django.db import models
 
 class MyDateFormField(forms.DateField):
-    "Et formField som gir input[type=date]"
+    'Et formfield som gir widget med input[type=date]'
     widget = forms.widgets.DateInput(attrs={'type': 'date'})
 
 class MyDateField(models.DateField):
-    "Et model field som gir et widget med input[type=date]"
+    'Et model field som gir et widget med input[type=date]'
     def formfield(self, **kwargs):
         defaults = {'form_class': MyDateFormField}
         defaults.update(kwargs)
         return super().formfield(**defaults)
 
+class MyTimeFormField(forms.TimeField):
+    'Et formfield som gir widget med input[type=time]'
+    widget = forms.widgets.TimeInput(attrs={'type': 'time'})
+
+class MyTimeField(models.TimeField):
+    'Et model field som gir et widget med input[type=time]'
+    def formfield(self, **kwargs):
+        defaults = {'form_class': MyTimeFormField}
+        defaults.update(kwargs)
+        return super().formfield(**defaults)
 
 class MySelectMultiple(forms.widgets.SelectMultiple):
-    "Et widget som bare displaye de som er i enableQueryset (om det er satt)"
+    'Et widget som bare displaye de som er i enableQueryset (om det er satt)'
     enableQueryset = False
 
     def create_option(self, *args, **kwargs):
         options_dict = super().create_option(*args, **kwargs)
         
         if self.enableQueryset != False and options_dict['value'].instance not in self.enableQueryset:
-            # print(f'Disabling: {options_dict["value"].instance}')
+            # print(f'Disabling: {options_dict['value'].instance}')
             options_dict['attrs']['disabled'] = ''
 
         return options_dict
 
 class MyModelMultipleChoiceField(forms.ModelMultipleChoiceField):
-    "Et form field som har setEnableQueryset og setEnableQuerysetKor metodene"
+    'Et form field som har setEnableQueryset og setEnableQuerysetKor metodene'
     widget = MySelectMultiple
 
     initialValue = False
-    "Queryset av alternativ som er selected initially"
+    'Queryset av alternativ som er selected initially'
     enableQueryset = False
-    "Queryset av de som skal enables (ikke vær disabled)"
+    'Queryset av de som skal enables (ikke vær disabled)'
 
     def setEnableQueryset(self, enableQueryset, initialValue):
-        """Sett hvilke verdier som skal vær enabled basert på queryset. 
+        '''
+        Sett hvilke verdier som skal vær enabled basert på queryset. 
         For initialValue er det lettest å si request.instance.tilganger.all()
-        """
+        '''
         self.enableQueryset = enableQueryset
         self.widget.enableQueryset = enableQueryset
 
         self.initialValue = initialValue
 
     def setEnableQuerysetKor(self, kor, initialValue):
-        """Sett hvilke verdier som skal vær enabled, og en initial value
+        '''
+        Sett hvilke verdier som skal vær enabled, og en initial value
         for InitialValue. Det er lettest å si request.instance.tilganger.all()
         Dette er en shorthand for setEnableQueryset som oversett fra liste med 
-        kor til queryset:)"""
+        kor til queryset
+        '''
 
         self.setEnableQueryset(
             self.queryset.filter(kor__in=kor),
@@ -68,12 +81,12 @@ class MyModelMultipleChoiceField(forms.ModelMultipleChoiceField):
         
         if self.enableQueryset != False:
             enablePKs = self.enableQueryset.values_list('pk', flat=True)
-            returnValue = (returnValue.filter(pk__in=enablePKs)) | (self.initialValue.exclude(pk__in=enablePKs))
+            returnValue = (returnValue.filter(pk__in=enablePKs)) | (self.initialValue.exclude(pk__in=enablePKs)).distinct()
             
         return returnValue
 
 class MyManyToManyField(models.ManyToManyField):
-    "Et model field med et form field som kan disable m2m options på seg:)"
+    'Et model field med et form field som kan disable m2m options på seg:)'
     def formfield(self, **kwargs):
         defaults = {'form_class': MyModelMultipleChoiceField}
         defaults.update(kwargs)

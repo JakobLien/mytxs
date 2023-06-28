@@ -9,21 +9,21 @@ from mytxs.models import Medlem
 # https://stackoverflow.com/a/16041527
 @receiver(post_delete, sender=Medlem)
 def auto_delete_file_on_delete(sender, instance, **kwargs):
-    """
+    '''
     Deletes file from filesystem
     when corresponding `MediaFile` object is deleted.
-    """
+    '''
     if instance.bilde:
         if os.path.isfile(instance.bilde.path):
             os.remove(instance.bilde.path)
 
 @receiver(pre_save, sender=Medlem)
 def auto_delete_file_on_change(sender, instance, **kwargs):
-    """
+    '''
     Deletes old file from filesystem
     when corresponding `MediaFile` object is updated
     with new file.
-    """
+    '''
     if not instance.pk:
         return
 

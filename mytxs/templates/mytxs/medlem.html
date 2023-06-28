@@ -3,8 +3,9 @@
 {% block content %}
 {{ block.super }}
 
-{% if not request.instance.user %}
+{% if registreringLink %}
 <p class="max-w-2xl mt-4">Dette medlemmet har ingen registrert bruker på seg. Send denne lenken til den aktuelle koristen, for å la de registrere seg på medlemmet: 
-<a class="" href="{% url 'registrer' request.instance.pk %}">{{request.get_host}}{% url 'registrer' request.instance.pk %}</a></p>
+<br><a class="" href="//{{ registreringLink }}">{{ registreringLink }}</a></p>
 {% endif %}
+
 {% endblock %}

@@ -37,7 +37,7 @@ class DekorasjonAdmin(admin.ModelAdmin):
 
 @admin.register(Logg)
 class LoggingAdmin(admin.ModelAdmin):
-    fields = ["timeStamp", "instancePK", "author", "model", "kor", "change",  "value"]
+    fields = ['timeStamp', 'instancePK', 'author', 'model', 'kor', 'change',  'value']
     readonly_fields = fields
 
 
@@ -64,4 +64,4 @@ class CustomUserAdmin(UserAdmin):
     inlines = [MedlemInline]
 
 # Register øverige modeller vi ikkje treng å gjør nå med
-admin.site.register([Kor, VervInnehavelse, DekorasjonInnehavelse, LoggM2M])
+admin.site.register([Kor, VervInnehavelse, DekorasjonInnehavelse, LoggM2M, Hendelse, Oppmøte, Lenke])

@@ -5,7 +5,7 @@ from mytxs.fields import MyModelMultipleChoiceField
 # Alt som legg til fields på forms
 
 def addReverseM2M(ModelForm, related_name):
-    """Utility funksjon for å hiv på reverse relaterte M2M relasjoner"""
+    'Utility funksjon for å hiv på reverse relaterte M2M relasjoner'
     relatedModel = getattr(ModelForm._meta.model, related_name).rel.related_model
 
     # Mesteparten av dette kjem herifra: https://stackoverflow.com/a/53859922/6709450
@@ -28,11 +28,12 @@ def addReverseM2M(ModelForm, related_name):
     return NewForm
 
 def addDeleteCheckbox(ModelForm):
-    """ Legg til en delte checkbox og at når modelform.save kjøre slettes instansen.
-        Boolean verdien kan aksesseres etter is_valid() via form.cleaned_data['DELETE'].
-    """
+    '''
+    Legg til en delte checkbox og at når modelform.save kjøre slettes instansen.
+    Boolean verdien kan aksesseres etter is_valid() via form.cleaned_data['DELETE'].
+    '''
     class NewForm(ModelForm):
-        DELETE = forms.BooleanField(label="Slett", required=False)
+        DELETE = forms.BooleanField(label='Slett', required=False)
 
         def save(self, commit=True):
             if self.cleaned_data['DELETE']:

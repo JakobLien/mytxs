@@ -1,7 +1,9 @@
 from django.dispatch import receiver
 from django.db.models.signals import post_delete, post_save, m2m_changed
+from django.db.models import ManyToManyField
 
-from mytxs.models import Dekorasjon, DekorasjonInnehavelse, Kor, Logg, LoggM2M, Tilgang, Verv, VervInnehavelse
+from mytxs.models import Kor, Logg, LoggM2M, Medlem
+from mytxs import consts
 
 from itertools import chain
 
@@ -24,12 +26,19 @@ def to_dict(instance, fields=None, exclude=None):
             continue
 
         if isinstance(field, RelatedField):
-            if logg := Logg.objects.getLoggFor(getattr(instance, field.name)):
+            if getattr(instance, field.name) and (logg := Logg.objects.getLoggFor(getattr(instance, field.name))):
                 # Om det er en relasjon, lagre pk av den nyeste relaterte loggen (ikke av instansen)
                 data[field.name] = logg.pk
             else:
                 # Om vi ikke finn den relevante loggen, lagre string representasjon av objektet
                 data[field.name] = str(getattr(instance, field.name))
+        elif type(instance) == Medlem:
+            # Om det e et medlem skal vi bare lagre relasjoner + fornavn, mellomnavn og etternavn
+            if field.name in ['fornavn', 'mellomnavn', 'etternavn']:
+                data[field.name] = field.value_from_object(instance)
+        elif field.choices != None:
+            # Håndter choice fields
+            data[field.name] = getattr(instance, f'get_{field.name}_display')()
         elif type(field.value_from_object(instance)) not in [str, int, float, bool, None]:
             # Om det ikke er en relasjon, men er et objekt, lagre string representasjon av objektet, f.eks. for Date
             data[field.name] = str(field.value_from_object(instance))
@@ -38,13 +47,25 @@ def to_dict(instance, fields=None, exclude=None):
             data[field.name] = field.value_from_object(instance)
     return data
 
-@receiver(post_save, sender=Verv)
-@receiver(post_save, sender=VervInnehavelse)
-@receiver(post_save, sender=Dekorasjon)
-@receiver(post_save, sender=DekorasjonInnehavelse)
-@receiver(post_save, sender=Tilgang)
-def log_create(sender, instance, created, **kwargs):
+def recieverWithModels(signal, senders=consts.getLoggedModels()):
+    '''
+    Denne funksjonen tar inn en liste av models, og er ekvivalent med å skrive mange @reciever statements, typ:
+    ``` @receiver(post_delete, sender=Verv)
+        @receiver(post_delete, sender=VervInnehavelse)
+        @receiver(post_delete, sender=Dekorasjon)
+        @receiver(post_delete, sender=DekorasjonInnehavelse)
+        @receiver(post_delete, sender=Tilgang)```
+    '''
+    def _decorator(func):
+        for model in senders:
+            func = receiver(signal, sender=model)(func)
+        return func
+    return _decorator
+
+@recieverWithModels(post_save)
+def log_post_save(sender, instance, created, **kwargs):
     if created:
+        # This is creation
         Logg.objects.create(
             model=sender.__name__,
             instancePK=instance.pk,
@@ -54,6 +75,7 @@ def log_create(sender, instance, created, **kwargs):
             kor=Kor.objects.korForInstance(instance)
         )
     else:
+        # This is change
         Logg.objects.create(
             model=sender.__name__,
             instancePK=instance.pk,
@@ -63,12 +85,8 @@ def log_create(sender, instance, created, **kwargs):
             kor=Kor.objects.korForInstance(instance)
         )
 
-@receiver(post_delete, sender=Verv)
-@receiver(post_delete, sender=VervInnehavelse)
-@receiver(post_delete, sender=Dekorasjon)
-@receiver(post_delete, sender=DekorasjonInnehavelse)
-@receiver(post_delete, sender=Tilgang)
-def log_delete(sender, instance, **kwargs):
+@recieverWithModels(post_delete)
+def log_post_delete(sender, instance, **kwargs):
     # This is deletion
     Logg.objects.create(
         model=sender.__name__,
@@ -81,7 +99,14 @@ def log_delete(sender, instance, **kwargs):
 
 
 def makeM2MLogg(sender, action, fromPK, toPK):
-    [fromModelName, fieldName] = sender._meta.object_name.split("_")
+    '''
+    Makes an m2m logg given 
+    - sender: a m2mfield.through
+    - action: one of 'post_add', 'post_remove' and 'post_clear'
+    - fromPK: The pk of the source model
+    - toPK: The pk of the target model
+    '''
+    [fromModelName, fieldName] = sender._meta.object_name.split('_')
 
     fromModel = apps.get_model('mytxs', fromModelName)
     toModel = getattr(fromModel, fieldName).rel.model
@@ -93,9 +118,15 @@ def makeM2MLogg(sender, action, fromPK, toPK):
         change=LoggM2M.CREATE if action == 'post_add' else LoggM2M.DELETE
     )
 
-@receiver(m2m_changed, sender=Verv.tilganger.through)
-def log_m2m_changed(sender, instance, action, reverse, model, pk_set, **kwargs):
+# Skaff en liste av alle m2m fields .through, der vi logge både kilde og target modell
+m2mFields = []
+for model in consts.getLoggedModels():
+    for field in model._meta.get_fields():
+        if isinstance(field, ManyToManyField) and field.related_model in consts.getLoggedModels():
+            m2mFields.append(getattr(model, field.name).through)
 
+@recieverWithModels(m2m_changed, senders=m2mFields)
+def log_m2m_changed(sender, instance, action, reverse, model, pk_set, **kwargs):
     if action == 'post_add':
         for key in pk_set:
             if not reverse:

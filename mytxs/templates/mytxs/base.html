@@ -32,10 +32,7 @@
         <div class="bg-gray-800 border border-yellow-300 w-24 text-white text-xs 
             text-center flex flex-col [&>*]:py-2 [&>*>*]:mx-auto [&>*>p]:font-bold">
             {% block sidebar %}
-            {% comment %} [Default Sidebar] {% endcomment %}
 
-            {% comment %} <a href="https://mytss.mannskor.no/index.php?cgi_module=news" class="menulink"><img src="Min%20TSS%20side_files/news_section.png" border="0"></a>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=news" class="menulink">Siste nytt</a> {% endcomment %}
             {% if user.medlem %}
             <a href="{{user.medlem.get_absolute_url}}">
                 <img src="{% static 'mytxs/bok.png' %}">
@@ -43,38 +40,68 @@
             </a>
             {% endif %}
 
-            <a href="{% url 'endrePassord' %}" class="menulink">
+            <a href="{% url 'endrePassord' %}">
                 <img src="{% static 'mytxs/lock.png' %}" border="0">
                 <p>Endre passord</p>
             </a>
-            {% comment %} <a href="https://mytss.mannskor.no/index.php?cgi_module=sangern" class="menulink"><img src="Min%20TSS%20side_files/beer01.gif" border="0"></a>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=sangern" class="menulink">Sangern</a>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=arkiv" class="menulink"><img src="Min%20TSS%20side_files/arkiv.png" border="0"></a>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=arkiv" class="menulink">Arkiv</a>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=notearkiv" class="menulink"><img src="Min%20TSS%20side_files/notearkiv.png" border="0"></a>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=notearkiv" class="menulink">Notearkivet</a>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=statistikk" class="menulink"><img src="Min%20TSS%20side_files/edutainment_mathematics.png" border="0"></a>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=statistikk" class="menulink">Passiv kontingent-statistikk</a> {% endcomment %}
-            
+
             {% if user.medlem.storkor %}
-            <a href="{% url 'sjekkheftet' user.medlem.storkor %}" class="menulink">
+            <a href="{% url 'sjekkheftet' user.medlem.storkor %}">
             {% else %}
-            <a href="{% url 'sjekkheftet' 'TSS' %}" class="menulink">
+            <a href="{% url 'sjekkheftet' 'TSS' %}">
             {% endif %}
                 <img src="{% static 'mytxs/sjekkheftet.png' %}" border="0">
                 <p>Sjekkheftet</p>
             </a>
+
+            {% if user.medlem.storkor %}
+            <a href="{% url 'semesterplan' user.medlem.storkor %}">
+            {% else %}
+            <a href="{% url 'semesterplan' 'TSS' %}">
+            {% endif %}
+                <svg class="w-1/2 fill-gray-400" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 29.237 29.237" xml:space="preserve">
+                    <g>
+                        <g>
+                            <path d="M7.685,24.819H8.28v-2.131h3.688v2.131h0.596v-2.131h3.862v2.131h0.597v-2.131h4.109v2.131h0.595    v-2.131h3.417v-0.594h-3.417v-3.861h3.417v-0.596h-3.417v-3.519h3.417v-0.594h-3.417v-2.377h-0.595v2.377h-4.109v-2.377h-0.597    v2.377h-3.862v-2.377h-0.596v2.377H8.279v-2.377H7.685v2.377H3.747v0.594h3.938v3.519H3.747v0.596h3.938v3.861H3.747v0.594h3.938    V24.819z M12.563,22.094v-3.861h3.862v3.861H12.563z M21.132,22.094h-4.109v-3.861h4.109V22.094z M21.132,14.118v3.519h-4.109    v-3.519C17.023,14.119,21.132,14.119,21.132,14.118z M16.426,14.118v3.519h-3.862v-3.519    C12.564,14.119,16.426,14.119,16.426,14.118z M8.279,14.118h3.688v3.519H8.279V14.118z M8.279,18.233h3.688v3.861H8.279V18.233z"/>
+                            <path d="M29.207,2.504l-4.129,0.004L24.475,2.51v2.448c0,0.653-0.534,1.187-1.188,1.187h-1.388    c-0.656,0-1.188-0.533-1.188-1.187V2.514l-1.583,0.002v2.442c0,0.653-0.535,1.187-1.191,1.187h-1.388    c-0.655,0-1.188-0.533-1.188-1.187V2.517l-1.682,0.004v2.438c0,0.653-0.534,1.187-1.189,1.187h-1.389    c-0.653,0-1.188-0.533-1.188-1.187V2.525H8.181v2.434c0,0.653-0.533,1.187-1.188,1.187H5.605c-0.656,0-1.189-0.533-1.189-1.187    V2.53L0,2.534v26.153h2.09h25.06l2.087-0.006L29.207,2.504z M27.15,26.606H2.09V9.897h25.06V26.606z"/>
+                            <path d="M5.605,5.303h1.388c0.163,0,0.296-0.133,0.296-0.297v-4.16c0-0.165-0.133-0.297-0.296-0.297H5.605    c-0.165,0-0.298,0.132-0.298,0.297v4.16C5.307,5.17,5.44,5.303,5.605,5.303z"/>
+                            <path d="M11.101,5.303h1.389c0.164,0,0.297-0.133,0.297-0.297v-4.16c-0.001-0.165-0.134-0.297-0.298-0.297    H11.1c-0.163,0-0.296,0.132-0.296,0.297v4.16C10.805,5.17,10.938,5.303,11.101,5.303z"/>
+                            <path d="M16.549,5.303h1.388c0.166,0,0.299-0.133,0.299-0.297v-4.16c-0.001-0.165-0.133-0.297-0.299-0.297    h-1.388c-0.164,0-0.297,0.132-0.297,0.297v4.16C16.252,5.17,16.385,5.303,16.549,5.303z"/>
+                            <path d="M21.899,5.303h1.388c0.164,0,0.296-0.133,0.296-0.297v-4.16c0-0.165-0.132-0.297-0.296-0.297    h-1.388c-0.164,0-0.297,0.132-0.297,0.297v4.16C21.603,5.17,21.735,5.303,21.899,5.303z"/>
+                        </g>
+                    </g>
+                </svg>
+                <p>Semesterplan</p>
+            </a>
+
+            {% if user.medlem.kor %}
+            <a href="{% url 'lenker' %}">
+                <svg class="w-2/3 stroke-gray-400 fill-transparent" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <g id="Interface / Link">
+                        <path id="Vector" d="M9.1718 14.8288L14.8287 9.17192M7.05086 11.293L5.63664 12.7072C4.07455 14.2693 4.07409 16.8022 5.63619 18.3643C7.19829 19.9264 9.7317 19.9259 11.2938 18.3638L12.7065 16.9498M11.2929 7.05L12.7071 5.63579C14.2692 4.07369 16.8016 4.07397 18.3637 5.63607C19.9258 7.19816 19.9257 9.73085 18.3636 11.2929L16.9501 12.7071" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </g>
+                </svg>
+                <p>Lenker</p>
+            </a>
+            {% endif %}
+
+            {% if 'hendelseListe' in user.medlem.navBarTilgang %}
+            <a href="{% url 'hendelseListe' %}">
+                <img src="{% static 'mytxs/arkiv.png' %}" border="0">
+                <p>Hendelser</p>
+            </a>
+            {% endif %}
             
             {% if 'medlemListe' in user.medlem.navBarTilgang %}
-            <a href="{% url 'medlemListe' %}" class="menulink">
+            <a href="{% url 'medlemListe' %}">
                 <img src="{% static 'mytxs/arkiv.png' %}" border="0">
                 <p>Medlemmer</p>
             </a>
             {% endif %}
 
             {% if 'dekorasjonListe' in user.medlem.navBarTilgang %}
-            <a href="{% url 'dekorasjonListe' %}" class="menulink">
-                <svg class="w-4/6 fill-gray-400" version="1.0" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 64 64" xml:space="preserve">
+            <a href="{% url 'dekorasjonListe' %}">
+                <svg class="w-2/3 fill-gray-400" version="1.0" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 64 64" xml:space="preserve">
                     <g>
                         <path d="M54,22C54,9.869,44.131,0,32,0S10,9.869,10,22c0,6.816,3.117,12.92,8,16.958V62   c0,0.758,0.428,1.45,1.105,1.789C19.388,63.931,19.694,64,19.998,64c0.426,0,0.848-0.136,1.202-0.4L32,55.5l10.8,8.1   c0.354,0.265,0.775,0.4,1.2,0.4c0.305,0,0.611-0.069,0.895-0.211C45.572,63.45,46,62.758,46,62V38.958   C50.883,34.92,54,28.816,54,22z M20,62V40.425c0.645,0.421,1.312,0.809,2,1.161V60.5L20,62z M32,53l-8,6V42.487   C26.481,43.46,29.178,44,32,44s5.519-0.54,8-1.513V59L32,53z M44,62l-2-1.5V41.586c0.688-0.353,1.355-0.74,2-1.161V62z M32,42   c-11.028,0-20-8.972-20-20S20.972,2,32,2s20,8.972,20,20S43.028,42,32,42z"/>
                         <path d="M32,4c-9.925,0-18,8.075-18,18s8.075,18,18,18s18-8.075,18-18S41.925,4,32,4z M32,38   c-8.822,0-16-7.178-16-16S23.178,6,32,6s16,7.178,16,16S40.822,38,32,38z"/>
@@ -86,7 +113,7 @@
             {% endif %}
 
             {% if 'vervListe' in user.medlem.navBarTilgang %}
-            <a href="{% url 'vervListe' %}" class="menulink">
+            <a href="{% url 'vervListe' %}">
                 <svg class="w-2/3 fill-transparent stroke-gray-400" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path d="M4 16V5L8 9L12 5L16 9L20 5V16H4Z"/>
                     <path d="M4 19H20M4 5V16H20V5L16 9L12 5L8 9L4 5Z" stroke-linecap="round" stroke-linejoin="round"/>
@@ -96,7 +123,7 @@
             {% endif %}
 
             {% if 'tilgangListe' in user.medlem.navBarTilgang %}
-            <a href="{% url 'tilgangListe' %}" class="menulink">
+            <a href="{% url 'tilgangListe' %}">
                 <svg class="w-2/3 fill-transparent stroke-gray-400 stroke-1" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path d="M21 9L9.59309 9C9.59309 9 8.5 7 6 7C3.5 7 2 8.79086 2 11C2 13.2091 3.5 15 6 15C8.5 15 9.59309 13 9.59309 13L15 13L15 17L19 17L19 13L21 13L21 9Z" stroke-linecap="round" stroke-linejoin="round"/>
                     <path d="M6 12.5C5.17157 12.5 4.5 11.8284 4.5 11C4.5 10.1716 5.17157 9.5 6 9.5C6.82843 9.5 7.5 10.1716 7.5 11C7.5 11.8284 6.82843 12.5 6 12.5Z"/>
@@ -106,7 +133,7 @@
             {% endif %}
 
             {% if 'loggListe' in user.medlem.navBarTilgang %}
-            <a href="{% url 'loggListe' %}" class="menulink">
+            <a href="{% url 'loggListe' %}">
                 <svg class="w-4/5 fill-gray-400" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 511 511" xml:space="preserve">
                     <g>
                         <path d="M447.5,160h-160c-0.301,0-0.596,0.022-0.888,0.057l-22.27-40.085c-2.732-4.917-7.924-7.972-13.549-7.972h-26.355   c-4.403,0-8.613,1.882-11.549,5.163s-4.342,7.672-3.856,12.049L212.454,160H63.5C27.893,160,0,212.491,0,279.5S27.893,399,63.5,399   h384c35.607,0,63.5-52.491,63.5-119.5S483.107,160,447.5,160z M30.61,355.342C20.544,335.209,15,308.274,15,279.5   s5.544-55.709,15.61-75.842C39.717,185.445,51.705,175,63.5,175s23.783,10.445,32.89,28.658C106.456,223.791,112,250.726,112,279.5   s-5.544,55.709-15.61,75.842C87.283,373.555,75.295,384,63.5,384S39.717,373.555,30.61,355.342z M447.5,384H94.757   C114.147,363.769,127,324.982,127,279.5S114.147,195.231,94.757,175H214.12l1.925,17.328c0.458,4.117,4.161,7.084,8.282,6.626   c4.117-0.458,7.083-4.166,6.626-8.282l-7.013-63.116c-0.007-0.061-0.024-0.223,0.125-0.389s0.312-0.167,0.373-0.167h26.355   c0.182,0,0.349,0.099,0.437,0.257l37.714,67.886c1.371,2.467,3.927,3.859,6.563,3.859c1.232,0,2.482-0.304,3.635-0.945   c3.621-2.011,4.926-6.578,2.914-10.199L294.913,175H447.5c11.795,0,23.783,10.445,32.89,28.658   C490.456,223.791,496,250.726,496,279.5s-5.544,55.709-15.61,75.842C471.283,373.555,459.295,384,447.5,384z"/>
@@ -127,33 +154,13 @@
             </a>
             {% endif %}
 
-            {% comment %} <svg class= "w-4/5 stroke-gray-400 bg-transparent" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M8.18185 10.7027H6.00004C5.44776 10.7027 5.00005 11.1485 5.00004 11.7008C5.00001 13.3483 4.99996 16.6772 5.00006 18.9189C5.00018 21.4317 8.88614 22 12 22C15.1139 22 18.9999 21.4317 18.9999 18.9189C19 16.6773 19 13.3483 18.9999 11.7008C18.9999 11.1485 18.5522 10.7027 17.9999 10.7027H15.8181H8.18185ZM8.18185 10.7027C8.18185 10.7027 8.18189 8.13513 8.18185 6.59459C8.18181 4.74571 9.70882 3 12 3C14.2912 3 15.8181 4.74571 15.8181 6.59459" stroke-linecap="round" stroke-linejoin="round"/>
-                <path fill-rule="evenodd" clip-rule="evenodd" d="M13 16.6181V18C13 18.5523 12.5523 19 12 19C11.4477 19 11 18.5523 11 18V16.6181C10.6931 16.3434 10.5 15.9442 10.5 15.5C10.5 14.6716 11.1716 14 12 14C12.8284 14 13.5 14.6716 13.5 15.5C13.5 15.9442 13.3069 16.3434 13 16.6181Z"/>
-            </svg> {% endcomment %}
-
-            {% comment %} <a href="https://mytss.mannskor.no/index.php?cgi_module=semesterplan" class="menulink"><img src="Min%20TSS%20side_files/spreadsheet_section.png" border="0"></a>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=semesterplan" class="menulink">Semesterplan</a>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=permisjoner" class="menulink"><img src="Min%20TSS%20side_files/gnome-ghostview.png" border="0"></a>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=permisjoner" class="menulink">Søke permisjon</a>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=knaus" class="menulink"><img src="Min%20TSS%20side_files/knaus.png" border="0"></a>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=knaus" class="menulink">Knauskoret</a>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=passord" class="menulink"><img src="Min%20TSS%20side_files/lock.png" border="0"></a>
-            <a href="https://mytss.mannskor.no/index.php?cgi_module=passord" class="menulink">Skifte passord</a> {% endcomment %}
-            <a href="{% url 'logout' %}" class="menulink">
+            <a href="{% url 'logout' %}">
                 <svg class="w-3/5 fill-gray-400" viewBox="-2 0 19 19" xmlns="http://www.w3.org/2000/svg">
                     <path d="M7.498 17.1a7.128 7.128 0 0 1-.98-.068 7.455 7.455 0 0 1-1.795-.483 7.26 7.26 0 0 1-3.028-2.332A7.188 7.188 0 0 1 .73 12.52a7.304 7.304 0 0 1 .972-7.128 7.221 7.221 0 0 1 1.387-1.385 1.03 1.03 0 0 1 1.247 1.638 5.176 5.176 0 0 0-.993.989 5.313 5.313 0 0 0-.678 1.181 5.23 5.23 0 0 0-.348 1.292 5.22 5.22 0 0 0 .326 2.653 5.139 5.139 0 0 0 .69 1.212 5.205 5.205 0 0 0 .992.996 5.257 5.257 0 0 0 1.178.677 5.37 5.37 0 0 0 1.297.35 5.075 5.075 0 0 0 1.332.008 5.406 5.406 0 0 0 1.32-.343 5.289 5.289 0 0 0 2.211-1.682 5.18 5.18 0 0 0 1.02-2.465 5.2 5.2 0 0 0 .01-1.336 5.315 5.315 0 0 0-.343-1.318 5.195 5.195 0 0 0-.695-1.222 5.134 5.134 0 0 0-.987-.989 1.03 1.03 0 1 1 1.24-1.643 7.186 7.186 0 0 1 1.384 1.386 7.259 7.259 0 0 1 .97 1.706 7.413 7.413 0 0 1 .473 1.827 7.296 7.296 0 0 1-4.522 7.65 7.476 7.476 0 0 1-1.825.471 7.203 7.203 0 0 1-.89.056zM7.5 9.613a1.03 1.03 0 0 1-1.03-1.029V2.522a1.03 1.03 0 0 1 2.06 0v6.062a1.03 1.03 0 0 1-1.03 1.03z"/>
                 </svg>
                 <p>Logg ut</p>
             </a>
 
-
-            {% comment %} <ul>
-                <li><a href="{% url 'index' %}">Index</a></li>
-                <li><a href="{% url 'sjekkheftet' %}">Sjekkheftet</a></li>
-                <li><a href="{% url 'medlemsdata' %}">Medlemsdata</a></li>
-            </ul> {% endcomment %}
-            
             {% endblock %}
         </div>
         
@@ -164,12 +171,6 @@
                     <b>Hei {{ user.medlem.navn }}!</b>
                     <span class="ml-10">Siste login: {{user.last_login|date:"G:i d.m.Y"}}</span>
                 </div>
-                {% comment %} <div>
-                Tilganger: 
-                {% for tilgang in user.medlem.tilganger %}
-                {{tilgang}}
-                {% endfor %}
-                </div> {% endcomment %}
                 {% endblock %}
             </div>
 
@@ -181,9 +182,7 @@
                         {{heading}}
                         {% elif request.instance %}
                         {{request.instance|capfirst}}
-                        {% if request.instance|logLink %}
-                        <a class="text-sm" href="{{request.instance|logLink}}">(Logg)</a>
-                        {% endif %}
+                        {% addLoggLink request.instance %}
                         {% endif %}
                     </h1>
                 </div>

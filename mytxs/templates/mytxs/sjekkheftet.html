@@ -4,8 +4,14 @@
 {% block content %}
 
 {% for gruppe in grupper %}
+{% if gruppe == request.resolver_match.kwargs.gruppe %}
+<a class="text-3xl" href="{% url 'sjekkheftet' gruppe %}" >{{ gruppe|capfirst }}</a> 
+{% else %}
 <a href="{% url 'sjekkheftet' gruppe %}">{{ gruppe|capfirst }}</a> 
+{% endif %}
 {% endfor %}
+
+{% block beforeSjekkheftetContent %}{% endblock %}
 
 {% block sjekkheftetContent %}
 

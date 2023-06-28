@@ -1,0 +1,39 @@
+{% extends "mytxs/base.html" %}
+{% load mytxsTags %}
+
+{% block content %}
+
+{% for kor in request.user.medlem.kor %}
+    <a href="{% url 'semesterplan' kor %}">{{kor.kortTittel}}</a>
+{% endfor %}
+
+<br>
+
+<a href="{% setURLParams iCal='true' %}">Last ned iCal fil</a>
+<a href="https://www.google.com/calendar/render?cid={{ request.get_host }}{{ request.path }}{% setURLParams iCal='true' %}">Legg til i google Calendar</a>
+
+<br>
+
+<a href="{% setURLParams gammelt='true' %}">Vis tidligere hendelser</a>
+
+<div class="[&>*]:border-b [&>*]:border-black [&>*]:mt-2">
+    <div class="[&>*]:w-52 [&>*]:inline-block">
+        <span>Hva</span>
+        <span>Når</span>
+        <span>Hvor</span>
+        <span>Fravær</span>
+    </div>
+    {% for hendelse in request.queryset %}
+    <div class="[&>*]:w-52 [&>*]:inline-block [&>*]:align-top">
+        <span>{{ hendelse.navn }} {% if 'hendelseListe' in user.medlem.navBarTilgang %}<a href="{% url 'hendelse' hendelse.pk %}">Rediger</a>{% endif %}</span>
+        <span>{{ hendelse.start }}{% if hendelse.slutt %}<br> - {{ hendelse.slutt }}{% endif %}</span>
+        <span>{{ hendelse.sted }}</span>
+        {% if hendelse.getOppmøteLink and request.user.medlem in hendelse.getMedlemmer %}
+        <span><a href="{% url 'meldFravær' hendelse.pk %}">
+            {% if hendelse.kategori == 'O' %}Søk fravær{% elif hendelse.kategori == 'P' %}Meld om du kommer{% endif %}
+        </a></span>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -10,11 +10,13 @@
 
 <form action="{{ request.path }}" method="get">
     <input type="submit" value="Clear">
-</form> 
+</form>
 {% endif %}
 
-{% if paginatorPage.has_other_pages %}
 
+{% if paginatorPage %}
+
+{% if paginatorPage.has_other_pages %}
 <div>
     <span>
         Sider: 
@@ -35,12 +37,20 @@
         {% endif %}
     </span>
 </div>
-
 {% endif %}
 
 {% for instance in paginatorPage %}
 <p><a href="{{instance.get_absolute_url}}">{{instance}}</a></p>
 {% endfor %}
+
+{% else %}
+
+{% for instance in request.queryset %}
+<p><a href="{{instance.get_absolute_url}}">{{instance}}</a></p>
+{% endfor %}
+
+{% endif %}
+
 
 {% if newForm and newForm|formIsEnabled %}
 

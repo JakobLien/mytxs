@@ -1,0 +1,15 @@
+{% extends "mytxs/sjekkheftet.html" %}
+
+{% block beforeSjekkheftetContent %}
+
+<p>Her kan du filtrere på de som nå er aktive i korene.</p>
+
+<form action="{{ request.path }}" method="get" onChange="this.submit()">
+    {{ filterForm.as_p }}
+</form>
+
+<form action="{{ request.path }}" method="get">
+    <input type="submit" value="Clear">
+</form>
+
+{% endblock %}

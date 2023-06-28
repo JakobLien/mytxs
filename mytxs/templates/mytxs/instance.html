@@ -3,39 +3,32 @@
 
 {% block content %}
 
-{% for form in forms %}
-{% if form|formIsVisible %}
-<form action="{{ request.get_full_path }}" method="post" class="managedForm" {{ form|fixFileField }}>
+{% block beforeForms %}{% endblock %}
+
+<form action="{{ request.get_full_path }}" method="post" class="managedForm" {% fixFileField forms formsets %}>
     {% csrf_token %}
+    {% for form in forms %}
+    {% if form|formIsVisible %}
     {{ form.as_p }}
-
-    {% if form|formIsEnabled %}
-    <div class='changes'></div>
-    <input type="button" value="Angre" onclick="resetForm(this.form)">
-    <input type="submit" value="Lagre">
     {% endif %}
-</form>
-{% endif %}
-{% endfor %}
-
-{% for formset in formsets %}
-{% if formset|formIsVisible %}
-<h2 class="text-xl mt-4">{{ formset.prefix|capfirst }}</h2>
-<form action="{{ request.get_full_path }}" method="post" class="managedForm">
-    {% csrf_token %}
-    {{ formset.management_form }}
-
-    {% for form in formset %}
-    {{ form }} <br>
     {% endfor %}
 
-    {% if formset|formIsEnabled %}
-    <div class='changes'></div>
+    {% block betweenForms %}{% endblock %}
+
+    {% for formset in formsets %}
+    <h2 class="text-xl mt-4">{{ formset.prefix|capfirst }}</h2>
+    {% if formset|formIsVisible %}
+    {{ formset.management_form }}
+    {% for form in formset %}
+    {{ form }} {% addLoggLink form.instance %} <br>
+    {% endfor %}
+    {% endif %}
+    {% endfor %}
+
     <input type="button" value="Angre" onclick="resetForm(this.form)">
     <input type="submit" value="Lagre">
-    {% endif %}
 </form>
-{% endif %}
-{% endfor %}
+
+{% block afterForms %}{% endblock %}
 
 {% endblock %}

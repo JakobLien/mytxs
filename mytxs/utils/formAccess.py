@@ -1,4 +1,5 @@
 from django import forms
+from mytxs.utils.formUtils import callForEveryForm
 
 from mytxs.utils.modelUtils import toolTip
 
@@ -7,7 +8,41 @@ from mytxs.utils.modelUtils import toolTip
 def fieldIsVisible(field):
     return not(isinstance(field.widget, forms.HiddenInput) or isinstance(field.widget, forms.MultipleHiddenInput))
 
-def disableFormField(form, *fieldNames, helpText=None):
+def formIsEnabled(form):
+    'Returne true om det e minst ett felt som ikke e disabled i formet/formsettet'
+    if hasattr(form, 'forms') and form.forms != None:
+        return any(map(lambda form: formIsEnabled(form), form.forms))
+
+    return any(map(lambda field: not field.disabled and fieldIsVisible(field), form.fields.values()))
+
+def formIsVisible(form):
+    'Returne true om det e minst ett felt som ikke e invisible i formet'
+    if hasattr(form, 'forms') and form.forms != None:
+        return any(map(lambda form: formIsVisible(form), form.forms))
+
+    return any(map(lambda field: fieldIsVisible(field), form.fields.values()))
+
+def hideFields(form, *fieldNames):
+    if callForEveryForm(hideFields, form, *fieldNames):
+        return
+    
+    if not fieldNames:
+        fieldNames = form.fields.keys()
+
+    for fieldName in fieldNames:
+        form.fields[fieldName].widget = form.fields[fieldName].hidden_widget()
+
+def hideDisabledFields(form):
+    if callForEveryForm(hideDisabledFields, form):
+        return
+    
+    if not formIsEnabled(form):
+        hideFields(form)
+
+def disableFields(form, *fieldNames, helpText=None):
+    if callForEveryForm(disableFields, form, *fieldNames, helpText=helpText):
+        return
+
     for fieldName in fieldNames:
         form.fields[fieldName].disabled = True
 
@@ -21,16 +56,14 @@ def disableFormField(form, *fieldNames, helpText=None):
                 form.fields[fieldName].queryset = form.fields[fieldName].queryset.filter(pk=getattr(form.instance, fieldName).pk)
             else:
                 form.fields[fieldName].queryset = form.fields[fieldName].queryset.none()
-            # print(f'{fieldName} {hasattr(form, "instance")} {hasattr(form.fields[fieldName], "queryset")} {len(form.fields[fieldName].queryset)}')
+            # print(f'{fieldName} {hasattr(form, 'instance')} {hasattr(form.fields[fieldName], 'queryset')} {len(form.fields[fieldName].queryset)}')
 
 def disableForm(form):
-    """ Disable alle fields i formet (untatt id, for da funke det ikkje på modelformsets)
-        Funke på forms og formsets. 
-    """
-
-    if hasattr(form, 'forms') and form.forms != None:
-        for formet in form.forms:
-            disableForm(formet)
+    '''
+    Disable alle fields i formet (untatt id, for da funke det ikkje på modelformsets)
+    Funke på forms og formsets. 
+    '''
+    if callForEveryForm(disableForm, form):
         return
     
     for name, field in form.fields.items():
@@ -38,10 +71,10 @@ def disableForm(form):
             form.fields['DELETE'].disabled = True
             field.widget = field.hidden_widget()
         elif fieldIsVisible(field):
-            disableFormField(form, name)
+            disableFields(form, name)
 
 def partiallyDisableFormset(formset, queryset, fieldNavn):
-    """Sett queryset og disable forms som ikke er i det."""
+    'Sett queryset og disable forms som ikke er i det'
     if not queryset.exists():
         formset.extra = 0
 
@@ -54,7 +87,7 @@ def partiallyDisableFormset(formset, queryset, fieldNavn):
             form.fields[fieldNavn].queryset = queryset.distinct()
 
 def partiallyDisableFormsetKor(formset, korMedTilgang, fieldNavn):
-    """Disable fields som ikke tilhører et kor brukeren har den tilgangen i"""
+    'Disable fields som ikke tilhører et kor brukeren har den tilgangen i'
     if not korMedTilgang.exists():
         formset.extra = 0
 
@@ -64,14 +97,30 @@ def partiallyDisableFormsetKor(formset, korMedTilgang, fieldNavn):
         else:
             form.fields[fieldNavn].queryset = form.fields[fieldNavn].queryset.filter(kor__in=korMedTilgang)
 
-def setRequiredDropdownOptions(form, field, korMedTilgang):
-    "Set options for dropdown, og disable formet dersom det er ingen options"
+def setRequiredDropdownOptions(form, fieldNavn, korMedTilgang):
+    'Set options for dropdown, og disable formet dersom det er ingen options'
 
-    if form.fields[field].queryset.model.__name__ == 'Kor':
-        form.fields[field].queryset = korMedTilgang.distinct()
+    if callForEveryForm(setRequiredDropdownOptions, form, fieldNavn, korMedTilgang):
+        return
+
+    if form.fields[fieldNavn].queryset.model.__name__ == 'Kor':
+        # Dropdownen har queryset av kor modellen
+        if form.instance.pk and not getattr(form.instance, fieldNavn) in korMedTilgang:
+            # Om vi ikke har tilgang til selected option
+            disableForm(form)
+            return
+        else:
+            # Om vi har tilgang til selected option
+            form.fields[fieldNavn].queryset = korMedTilgang.distinct()
     else:
-        form.fields[field].queryset = form.fields[field].queryset\
-            .filter(kor__in=korMedTilgang)
+        # Dropdownen har queryset av en model med fk til kor modellen
+        if form.instance.pk and not getattr(form.instance, fieldNavn).kor in korMedTilgang:
+            # Om vi ikke har tilgang til selected option
+            disableForm(form)
+            return
+        else:
+            # Om vi har tilgang til selected option
+            form.fields[fieldNavn].queryset = form.fields[fieldNavn].queryset.filter(kor__in=korMedTilgang)
     
-    if not form.fields[field].queryset.exists():
+    if not form.fields[fieldNavn].queryset.exists():
         disableForm(form)

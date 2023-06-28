@@ -3,7 +3,7 @@ from django.forms import FileField
 from django.utils.safestring import mark_safe
 
 from mytxs.models import Logg
-from mytxs.utils.formAccess import fieldIsVisible
+from mytxs.utils.formAccess import formIsEnabled as FormIsEnabled, formIsVisible as FormIsVisible
 
 # Her legg vi til custom template tags and filters
 
@@ -11,7 +11,7 @@ register = template.Library()
 
 @register.simple_tag(takes_context=True)
 def setURLParams(context, **kwargs):
-    """Returns a link to the current page, with kwargs set as url parameters."""
+    'Returns a link to the current page, with kwargs set as url parameters'
     urlParams = context['request'].GET.copy()
 
     for key, value in kwargs.items():
@@ -19,31 +19,40 @@ def setURLParams(context, **kwargs):
 
     return '?' + urlParams.urlencode()
 
-@register.filter
-def logLink(instance):
-    'Returns the link to the logg corresponsing to the instance.'
-    return Logg.objects.getLoggLinkFor(instance)
+@register.simple_tag(takes_context=True)
+def addLoggLink(context, instance):
+    'Returns the link to the logg corresponsing to the instance, if the user has access to that page'
+    if instance:
+        logg = Logg.objects.getLoggFor(instance)
+        if logg and context['user'].medlem.harSideTilgang(logg):
+            return mark_safe(f'<a class="text-sm" href="{logg.get_absolute_url()}">(Logg)</a>')
+    return ''
 
-@register.filter
-def fixFileField(form):
-    'Adds \'enctype="multipart/form-data"\' to the form if form contains a filefield'
-    if any(list(map(lambda field: isinstance(field, FileField), form.fields.values()))):
-        return mark_safe('enctype="multipart/form-data"')
+@register.simple_tag()
+def fixFileField(*forms):
+    '''
+    Adds 'enctype="multipart/form-data"' to the form if form contains a filefield
+    Accepts forms, formsets, or lists of them as arguments
+    '''
+
+    for form in forms:
+        if hasattr(form, 'fields') and any(list(map(lambda field: isinstance(field, FileField), form.fields.values()))):
+            # Om det e et form
+            return mark_safe('enctype="multipart/form-data"')
+        if hasattr(form, 'forms'):
+            # Om det e et formset
+            if rtrn := fixFileField(*form.forms):
+                return rtrn
+        if hasattr(form, '__iter__'):
+            # Om det e en liste av noe
+            if rtrn := fixFileField(*form):
+                return rtrn
+    return ''
 
 @register.filter
 def formIsEnabled(form):
-    "Returne true om det e minst ett felt som ikke e disabled i formet/formsettet"
-    # Om det e et formset
-    if hasattr(form, 'forms') and form.forms != None:
-        return any(map(lambda form: formIsEnabled(form), form.forms))
-
-    return any(map(lambda field: not field.disabled and fieldIsVisible(field), form.fields.values()))
+    return FormIsEnabled(form)
 
 @register.filter
 def formIsVisible(form):
-    "Returne true om det e minst ett felt som ikke e visible i formet"
-    # Om det e et formset
-    if hasattr(form, 'forms') and form.forms != None:
-        return any(map(lambda form: formIsVisible(form), form.forms))
-
-    return any(map(lambda field: fieldIsVisible(field), form.fields.values()))
+    return FormIsVisible(form)

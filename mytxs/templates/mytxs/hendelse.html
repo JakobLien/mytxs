@@ -1,0 +1,23 @@
+{% extends "mytxs/instance.html" %}
+
+{% block betweenForms %}
+
+{% if egenFøringLink %}
+    <a href="{{ egenFøringLink }}"><img src="{{ egenFøringLink }}"></img></a>
+{% endif %}
+
+{% endblock %}
+
+{% block afterForms %}
+
+<h2 class="text-xl mt-4">Stemmefordeling</h2>
+
+<ul class="flex flex-col">
+    {% for stemmegruppe, antall in request.instance.getStemmeFordeling.items %}
+    <li>{{stemmegruppe}}: {{antall}}</li>
+    {% endfor %}
+</ul>
+
+
+
+{% endblock %}

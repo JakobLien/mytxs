@@ -31,7 +31,7 @@
     <li>InstancePK: {{request.instance.instancePK}}</li>
 </ul>
 
-<pre class="bg-white p-4 w-fit my-4">{{request.instance.formatValue|safe}}</pre>
+<pre class="bg-white p-4 w-fit my-4">{{request.instance.formatValue}}</pre>
 
 {% if request.instance.getReverseRelated %}
 <h2 class="text-xl">Logger som refererer til denne loggen: </h2>

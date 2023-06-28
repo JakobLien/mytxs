@@ -2,15 +2,15 @@
 Hei, dette er repoet til MyTXS 2.0, den neste versjonen av [MyTSS](https://mytss.mannskor.no/login.php) og [MiTKS](https://mitks.mannskor.no/login.php)!
 
 ## Oppsett
-Her er hvordan man setter opp nettsiden
+Her er hvordan man setter opp nettsiden enkelt lokalt
 1. Når du er der du vil ha repoet, clone repoet med `git clone https://github.com/JakobLien/mytxs.git`
+1. Installer [PostgreSQL](https://www.postgresql.org/download/)
 1. Utfør db-migrasjon med `python3 manage.py migrate`
-1. Kjør oppsett seed på databasen med `python3 mange.py seed`
-1. Opprett en superuser med `python3 manage.py createsuperuser --username admin --email admin@example.com`, og fyll inn et passord, f.eks. admin. Lokalt e det trygt å ha et dårlig passord, men ikke gjør dette i prod!!!
+1. Kjør seed på den lokale databasen med `python3 mange.py seed --userAdmin`. Dette to medlemmer (user og admin), der admin har en bruker med brukernavn og passord `admin`. Admin brukeren har tilgang til django admin panelet. 
 1. Kjør server med `python3 manage.py runserver`
 
 ### Postgres
-I [oppsett](#oppsett) opprette man i utgangspunktet en lokal sql-database ved å skriv `python3 manage.py migrate`. Dette funke om man bare ska inn og test eller fiks en liten greie, men til tross for at Django ORM-en prøver sitt beste er det ikke absolutt alt som støttes på tvers av databaser. Derfor anbefales det å kjør [innstaller postgres](https://www.postgresql.org/download/), og bytt til det ved å også sett en .env fil med følgende innhold [her](.env). Innholdet av fila burde da være:
+Grunnen til at PostgreSQL e nødvendig fordi vi bruke [jsonField](https://docs.djangoproject.com/en/4.2/ref/models/fields/#django.db.models.JSONField) for logging, og sqlite har ikke det by default. Heller enn å prøve å installere extentionen som gir det anbefaler jeg derfor å bare installere postgres så det blir samme database som prod. I[settings.py](mytxs/settings.py) skal være satt opp til koble til med default postgres credentials, men om du slit, bare opprett en [.env her](.env) og prøv deg fram. Innholdet av fila burde da være noe som ligner på følgende:
 
     DATABASE_ENGINE=django.db.backends.postgresql
     DATABASE_NAME=postgres
@@ -19,27 +19,41 @@ I [oppsett](#oppsett) opprette man i utgangspunktet en lokal sql-database ved å
     DATABASE_HOST=localhost
     DATABASE_PORT=5432
 
-- Om du under utvikling får feilmelding om at postgres alt kjøre på port 5432? Kjør `sudo pkill -u postgres`. 
-- For å resett innholdet i databasen (lokalt selvfølgelig), kjør (i psql shell):
+- Om du under utvikling får feilmelding om at postgres allerede kjøre på port 5432? Kjør `sudo pkill -u postgres`. 
+- For å resett innholdet i databasen (lokalt selvfølgelig), kjør (i psql shell, åpne med `python3 manage.py dbshell`):
 
         DROP SCHEMA public CASCADE;
         CREATE SCHEMA public;
 
 ## Struktur
-Her er kort sagt koss nettsida fungerer:
-1. Innkommende requests routes via [urls.py](mytxs/urls.py), som viser de videre til en handler i [views.py](mytxs/views.py). 
-1. I [views.py](mytxs/views.py) kjører python kode, og kan kjøre queries på databasen med struktur definert i [models.py](mytxs/models.py), før dataen gis videre til en template i [templates mappa](mytxs/templates/mytxs).
-1. Her definere vi hvordan dataen skal vises, og resten av siden. Alle templates trekker fra [base.html](mytxs/templates/mytxs/base.html), som definerer header, navbar og messages popup. Base henter også statiske filer (bilder, css og js) fra [static mappa](mytxs/static/mytxs). Styling er gjort med [Tailwind](#tailwind). 
+Her er strukturen av filene:
+1. Innkommende requests routes via [urls.py](mytxs/urls.py), som sender de til en handler i [views.py](mytxs/views.py).
+1. I [views.py](mytxs/views.py) kjører python kode, og her kan vi kjøre queries på databasen med struktur definert i [models.py](mytxs/models.py), før dataen gis videre til en template i [templates mappa](mytxs/templates/mytxs).
+1. I templates mappa definere vi hvordan dataen skal vises med html. Alle templates trekker fra [base.html](mytxs/templates/mytxs/base.html), som definerer header, navbar, messages popup. Base inkluderer også statiske filer (bilder, css og js) fra [static mappa](mytxs/static/mytxs). Styling er gjort med [Tailwind](#tailwind). 
+    - Nesten alle templates henter også fra [instance.html](mytxs/templates/mytxs/instance.html) eller [instanceListe.html](mytxs/templates/mytxs/instanceListe.html), som har generel logikk for visning av henholdsvis instanser med forms og formsets og lister av instanser med inndeling i sider man kan bla gjennom. 
 1. På clientside har vi noen små javascript filer, som skal gjøre siden mere brukervennlig, og gjøre det vanskeligere å gjøre feil:
     - [formSafety.js](mytxs/static/mytxs/formSafety.js) som gir henholdsvis mere brukervenlige forms. 
     - [searchDropdown.js](mytxs/static/mytxs/searchDropdown.js) som gir søkbare og mere brukervennlige select menyer. 
-1. Forøverig har vi [signals](mytxs/signals) som håndterer reaksjon på ting som filopplastninger og databaseendringer, [tests.py](mytxs/tests.py) der det skulle vært skrevet bedre tester, [forms.py](mytxs/forms.py), [fields.py](mytxs/fields.py) og [utils mappa](mytxs/utils) der det finnes diverse nyttige utilities for resten av kodebasen, og sist men ikke minst [seed.py](mytxs/management/commands/seed.py) som seeder databasen under utvikling. 
+1. Forøverig har vi:
+    - [signals](mytxs/signals) som håndterer reaksjon på ting som filopplastninger og databaseendringer. 
+    - [management](/Users/jakoblien/Desktop/mytxs/mytxs/management/commands) der vi definerer ekstra console kommandoer som [email](mytxs/management/commands/email.py) og [seed](mytxs/management/commands/seed.py).
+    - [tests.py](mytxs/tests.py) der det skulle vært skrevet bedre tester. 
+    - [forms.py](mytxs/forms.py), [fields.py](mytxs/fields.py) og [utils mappa](mytxs/utils) som definerer forms, felt og diverse utilities.
+    - [templateTags.py](mytxs/templateTags.py) som definerer ekstra [template tags](https://docs.djangoproject.com/en/4.2/ref/templates/builtins/) vi kan bruke. 
 
-### Signals
-Signals i prosjektet er gruppert i ulike filer, en for hvert formål, i [signals](mytxs/static/mytxs) mappa. Viktig at signal filer må stå oppgitt i [apps.py](mytxs/apps.py), om ikke kjører de ikke. 
+### Logging
+Logging er blitt en såpass stor del av prosjektet at e burda beskriv koss det funke her. Vi har 2 modeller for logging:
+- Logg som inneholder pk, model, tidspunkt, author osv, og et jsonfelt som er en json representasjon av objektet. I jsonfeltet representeres foreign key felt som pk av den nyeste loggen av det relaterte objektet, som er det som muliggjør navigering mellom ulike logger. 
+- LoggM2M som representerer mange til mange relasjoner mellom objekter. 
+
+Når noe skal lagres brukes nesten alltid [logAuthorAndSave](mytxs/utils/logAuthorUtils.py), som tar et form, lagrer, og når loggen er opprettet automatisk av [logSignals.py](mytxs/signals/logSignals.py) hiver denne på hvilken forfatter det var. Hvilken forfatter det var er praktisk umulig å få tak i i logSignals på en ryddig måte, så derfor får vi bare med det når endringen er gjort via views. Endringer gjort av admin eller seed.py har følgelig ikke author, men de har logger, siden signals kommer det uansett. 
+
+Grunnen til at vi ikke har LoggM2M som del av Logg er fordi m2m relasjoner kan endres på begge sider, og om vi lagre verv -> tilgang informasjonen på vervet som en liste, hvilket er mulig, blir det veldig mange logger av at man endrer fra tilgang siden, og mindre oversiktlig hva som faktisk ble endret. Slik det er nå kan man med stor sikkerhet si at "dersom vi har en logg på den modellen, er det den modellen sitt modelform som ble endret" (Det er også kodemessig enklere å gjøre det som en separat tabel.)
+
+Om signals er det forresten viktig at alle signal filer må stå oppgitt i [apps.py](mytxs/apps.py), om ikke kjører de ikke. 
 
 ### Tailwind
-Les om tailwind [her](tailwindcss.com/). For å få tailwind i django bruker vi [pytailwindcss](https://github.com/timonweb/pytailwindcss), ikke [django-tailwind](https://github.com/timonweb/django-tailwind), fordi dette virket som herk å sette opp. (Med pytailwindcss får vi tailwind til å kjøre i development. Dermed slipper vi å kjøre det i production bare vi committer [styles.css](mytxs/static/mytxs/styles.css) fila.) For å jobbe med css og kjør tailwind på endring av filer, åpne 2 terminaler og kjør henholdsvis
+Les om tailwind [her](tailwindcss.com/). For å få tailwind i django bruker vi [pytailwindcss](https://github.com/timonweb/pytailwindcss), ikke [django-tailwind](https://github.com/timonweb/django-tailwind), fordi dette virket som herk å sette opp. Med pytailwindcss får vi tailwind til å kjøre i development. Dermed slipper vi å kjøre det i production bare vi committer [styles.css](mytxs/static/mytxs/styles.css) fila. For å kjøre tailwind automatisk på endring av relevante filer, åpne 2 terminaler og kjør henholdsvis
 1. `python3 manage.py runserver`
 1. `tailwindcss -i mytxs/static/mytxs/inputStyles.css -o mytxs/static/mytxs/styles.css --watch --minify`
 
@@ -89,3 +103,6 @@ Her kommer jeg til å skrive ting som ikke har så my å si, men som er fint å 
 - Såvidt jeg vet er det ikke en standard for indentation av django html filer. Jeg velger fordi jeg syns det er ganske leselig at
     - Django tags bidrar ikke til indentation
     - HTML tags bidrar til indentation
+- I så stor grad som mulig bruker jeg enkle hermetegn i python, både på pydoc og i kode. 
+- Bruk postIfPost i views med mange forms. Det er ikke alltid strengt nødvendig, men løser noen problem og gjør forms lettere å debugge, siden de bare får dataen som er tiltenkt de. I views der det bare er et form, som liste views der eneste POST formet er å lage nye objekt, kan man bruke `request.POST or None`
+- Gjennomgående bruker liste views request.queryset mens instance views bruker request.instance. Det er veldig nyttig å å kunne generalisere over ulike typer objekt og forms, forenkler tilgangsstyringen og gjør at vi treng færre templates, og de vi treng kan ofte bare modifisere de to hoved templatesa [instance.html](mytxs/templates/mytxs/instance.html) og [instanceListe.html](mytxs/templates/mytxs/instanceListe.html)

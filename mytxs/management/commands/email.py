@@ -37,7 +37,7 @@ If this argument is set, all other functionality is skipped!'
 
     def handle(self, *args, **options):
         if options['missingUsers']:
-            medlemmer = Medlem.objects.filter(user__isnull=True, epost="")
+            medlemmer = Medlem.objects.filter(user__isnull=True, epost='')
 
             print(f'Missing users: {len(medlemmer)}')
 
@@ -58,7 +58,7 @@ If this argument is set, all other functionality is skipped!'
 
         if options['actualContent']:
 
-            medlemmer = Medlem.objects.filter(~Q(epost=""), user__isnull=True)
+            medlemmer = Medlem.objects.filter(~Q(epost=''), user__isnull=True)
 
             messages = {}
 
@@ -78,9 +78,9 @@ Jakob Lien'''
         with mail.get_connection(backend=backend) as connection:
             for recipient, message in messages.items():
                 mail.send_mail(
-                    "Registrering på MyTXS 2.0",
+                    'Registrering på MyTXS 2.0',
                     message,
-                    "mytxs@samfundet.no",
+                    'mytxs@samfundet.no',
                     [recipient],
                     fail_silently=False,
                     connection=connection

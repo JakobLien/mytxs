@@ -2,13 +2,12 @@ from django.core.management.base import BaseCommand
 
 from django.contrib.auth.models import User
 
-from mytxs.models import Dekorasjon, DekorasjonInnehavelse, Kor, Logg, LoggM2M, Medlem, Tilgang, Verv, VervInnehavelse
-from mytxs.consts import alleKorKortTittel, alleKorLangTittel, korTilStemmeFordeling, stemmeFordeling, tilganger, tilgangBeskrivelser, storkorTilganger, storkorTilgangBeskrivelser
+from mytxs.models import Dekorasjon, Kor, Medlem, Tilgang, Verv, VervInnehavelse
+from mytxs import consts
+
 from mytxs.utils.modelUtils import randomDistinct, stemmegruppeVerv
 
-
 import datetime
-
 
 class Command(BaseCommand):
     help = 'seed database for testing and development.'
@@ -73,30 +72,16 @@ class Command(BaseCommand):
         # run_seed(self)
 
 def clearData(self):
-    '''Deletes all the table data'''
-    
-    print('Delete DekorasjonInnehavelse instances')
-    DekorasjonInnehavelse.objects.all().delete()
-    print('Delete Dekorasjon instances')
-    Dekorasjon.objects.all().delete()
-
-    print('Delete VervInnehavelse instances')
-    VervInnehavelse.objects.all().delete()
-    print('Delete Tilgang instances')
-    Tilgang.objects.all().delete()
-    print('Delete Verv instances')
-    Verv.objects.all().delete()
-
-    print('Delete Kor instances')
-    Kor.objects.all().delete()
-    print('Delete Medlem instances')
-    Medlem.objects.all().delete()
+    'Deletes all data from Models that are not the Logg models'
+    for model in [m for m in consts.getAllModels() if m not in consts.getLoggModels()]:
+        print(f'Deleting {model.__name__} instances')
+        model.objects.all().delete()
 
 def clearLogs(self):
-    print('Delete Logg instances')
-    Logg.objects.all().delete()
-    print('Delete LoggM2M instances')
-    LoggM2M.objects.all().delete()
+    'Delete all data from logg models'
+    for model in consts.getLoggModels():
+        print(f'Deleting {model.__name__} instances')
+        model.objects.all().delete()
 
 def userAdmin(self):
     medlemmer = []
@@ -104,6 +89,10 @@ def userAdmin(self):
         user, created = User.objects.get_or_create(username=navn, defaults={'email':navn+'@example.com'})
         if created:
             user.set_password(navn)
+            user.save()
+        if user.username == 'admin' and not (user.is_superuser == True or user.is_staff == True):
+            user.is_superuser = True
+            user.is_staff = True
             user.save()
 
         medlem, created = Medlem.objects.get_or_create(user=user, defaults={
@@ -141,14 +130,14 @@ def userAdmin(self):
     )
 
 def korAdmin(self):
-    "Opprett medlemmer for alle korlederne, med ish realistiske stemmegruppeverv"
+    'Opprett medlemmer for alle korlederne, med ish realistiske stemmegruppeverv'
 
     korledere = ['Frode', 'Sivert', 'Anine', 'Hedda', 'Ingeborg', 'Adrian']
     storkor = ['TSS', 'TSS', 'TKS', 'TKS', 'TKS', 'TSS']
     korlederVerv = ['formann', 'pirumsjef', 'knausleder', 'toppcandisse', 'leder', 'barsjef']
 
-    for i in range(len(alleKorKortTittel)):
-        kor = Kor.objects.get(kortTittel=alleKorKortTittel[i])
+    for i in range(len(consts.alleKorKortTittel)):
+        kor = Kor.objects.get(kortTittel=consts.alleKorKortTittel[i])
         
         # Opprett medlememr for hver av de
         korleder, created = Medlem.objects.get_or_create(fornavn=korledere[i], defaults={
@@ -187,49 +176,27 @@ def korAdmin(self):
             )
 
 def runSeed(self):
-    ''' Seed database based on mode'''
+    'Seed database based on mode'
 	
     # For hvert kor
-    for i in range(len(alleKorKortTittel)):
+    for i in range(len(consts.alleKorKortTittel)):
         # Opprett koret
-        kor, korCreated = Kor.objects.get_or_create(kortTittel=alleKorKortTittel[i], defaults={'langTittel':alleKorLangTittel[i]})
+        kor, korCreated = Kor.objects.get_or_create(kortTittel=consts.alleKorKortTittel[i], defaults={'langTittel':consts.alleKorLangTittel[i]})
         if(korCreated):
             self.stdout.write('Created kor ' + kor.kortTittel + ' at id ' + str(kor.pk))
 
         # Opprett generelle tilganger
-        for t in range(len(tilganger)):
-            tilgang, tilgangCreated = Tilgang.objects.get_or_create(navn=tilganger[t], kor=kor, brukt=True, beskrivelse=tilgangBeskrivelser[t])
+        for t in range(len(consts.tilganger)):
+            tilgang, tilgangCreated = Tilgang.objects.get_or_create(navn=consts.tilganger[t], kor=kor, defaults={'bruktIKode': True, 'beskrivelse': consts.tilgangBeskrivelser[t]})
             if tilgangCreated:
                 print(f'Created tilgang {tilgang}')
 
         # Opprett storkor-tilganger
         if kor.kortTittel in ['TSS', 'TKS']:
-            for t in range(len(storkorTilganger)):
-                tilgang, tilgangCreated = Tilgang.objects.get_or_create(navn=storkorTilganger[t], kor=kor, brukt=True, beskrivelse=storkorTilgangBeskrivelser[t])
+            for t in range(len(consts.storkorTilganger)):
+                tilgang, tilgangCreated = Tilgang.objects.get_or_create(navn=consts.storkorTilganger[t], kor=kor, defaults={'bruktIKode': True, 'beskrivelse': consts.storkorTilgangBeskrivelser[t]})
                 if tilgangCreated:
                     print(f'Created tilgang {tilgang}')
-
-
-        # For hver stemmegruppe i koret, opprett top-level stemmegruppeverv
-        if i < len(korTilStemmeFordeling):
-            for stemmegruppe in stemmeFordeling[korTilStemmeFordeling[i]]:
-                for y in '12':
-                    # Opprett hovedstemmegruppeverv
-                    stemmegruppeVerv, stemmegruppeVervCreated = kor.verv.get_or_create(navn=y+stemmegruppe)
-                    if stemmegruppeVervCreated:
-                        self.stdout.write('Created verv ' + stemmegruppeVerv.navn + ' for kor ' + kor.kortTittel + ' at id ' + str(stemmegruppeVerv.pk))
-                    
-                    for x in '12':
-                        # Opprett understemmegruppeverv
-                        underStemmegruppeVerv, underStemmegruppeVervCreated = kor.verv.get_or_create(navn=x+y+stemmegruppe)
-                        if underStemmegruppeVervCreated:
-                            self.stdout.write('Created verv ' + underStemmegruppeVerv.navn + ' for kor ' + kor.kortTittel + ' at id ' + str(underStemmegruppeVerv.pk))
-
-            # Opprett dirrigent verv
-            dirrVerv, dirrVervCreated = kor.verv.get_or_create(navn='dirigent')
-            if(dirrVervCreated):
-                self.stdout.write('Created verv ' + dirrVerv.navn + ' for kor ' + kor.kortTittel + ' at id ' + str(dirrVerv.pk))
-
 
         # Opprett dekorasjoner
         for dekorasjon in ['ridder', 'kommandør', 'kommandør med storkors']:
@@ -237,3 +204,33 @@ def runSeed(self):
             dekorasjon, dekorasjonCreated = Dekorasjon.objects.get_or_create(navn=dekorasjon, kor=kor)
             if dekorasjonCreated:
                 print('Created dekorasjon ' + dekorasjon.navn + ' for kor ' + kor.kortTittel)
+        
+        # Om det e et kor (ikke Sangern)
+        if consts.alleKorKortTittel[i] in consts.bareKorKortTittel:
+
+            # Opprett dirrigent verv
+            dirrVerv, dirrVervCreated = kor.verv.get_or_create(navn='dirigent', bruktIKode=True)
+            if(dirrVervCreated):
+                self.stdout.write('Created verv ' + dirrVerv.navn + ' for kor ' + kor.kortTittel + ' at id ' + str(dirrVerv.pk))
+
+            # Opprett permisjon vervet
+            permisjonVerv, permisjonVervCreated = kor.verv.get_or_create(navn='permisjon', bruktIKode=True)
+            if permisjonVervCreated:
+                self.stdout.write('Created verv ' + permisjonVerv.navn + ' for kor ' + kor.kortTittel + ' at id ' + str(permisjonVerv.pk))
+
+            # Opprett stemmegrupper
+            for stemmegruppe in consts.stemmeFordeling[consts.korTilStemmeFordeling[i]]:
+                # For hver stemmegruppe i koret
+                for y in '12':
+                    # Opprett hovedstemmegruppeverv
+                    stemmegruppeVerv, stemmegruppeVervCreated = kor.verv.get_or_create(navn=y+stemmegruppe, bruktIKode=True)
+                    if stemmegruppeVervCreated:
+                        self.stdout.write('Created verv ' + stemmegruppeVerv.navn + ' for kor ' + kor.kortTittel + ' at id ' + str(stemmegruppeVerv.pk))
+                    
+                    if consts.stemmeFordeling[consts.korTilStemmeFordeling[i]] != 'SATB':
+                        # Dropp understemmegrupper for blandakor (altså KK)
+                        for x in '12':
+                            # Opprett understemmegruppeverv
+                            underStemmegruppeVerv, underStemmegruppeVervCreated = kor.verv.get_or_create(navn=x+y+stemmegruppe, bruktIKode=True)
+                            if underStemmegruppeVervCreated:
+                                self.stdout.write('Created verv ' + underStemmegruppeVerv.navn + ' for kor ' + kor.kortTittel + ' at id ' + str(underStemmegruppeVerv.pk))
