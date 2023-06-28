@@ -1,4 +1,5 @@
 import datetime
+from urllib.parse import unquote
 
 from django.contrib import messages
 from django.contrib.auth import login as auth_login, logout as auth_logout
@@ -805,8 +806,8 @@ def hendelse(request, hendelsePK):
     kwargs = {}
 
     if request.instance.startTime != None and abs(datetime.datetime.now() - request.instance.start).total_seconds() / 60 <= 30:
-        kwargs['egenFøringLink'] = f'https://zxing.org/w/chart?cht=qr&chs=350x350&chld=L&choe=UTF-8&chl=' + \
-            request.get_host() + reverse('egenFøring', args=[request.instance.pk]) + '?hash=' + \
+        kwargs['egenFøringLink'] = f'https://zxing.org/w/chart?cht=qr&chs=350x350&chld=L&choe=UTF-8&chl=http://' + \
+            request.get_host() + unquote(reverse('egenFøring', args=[request.instance.pk])) + '?hash=' + \
             getHash(reverse('egenFøring', args=[request.instance.pk]))
 
     return render(request, 'mytxs/hendelse.html', {
