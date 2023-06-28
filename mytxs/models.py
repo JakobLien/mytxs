@@ -811,11 +811,12 @@ END:VTIMEZONE
 
         # Split lines som e lenger enn 75 characters over fleir linja
         iCalLines = iCalString.split('\n')
-        l=0
+        l = 0
         while l < len(iCalLines):
             if len(iCalLines[l]) > 75:
                 iCalLines.insert(l+1, ' ' + iCalLines[l][75:])
                 iCalLines[l] = iCalLines[l][:75]
+            l += 1
         iCalString = '\n'.join(iCalLines)
 
         # Erstatt alle newlines med CRLF
@@ -910,7 +911,7 @@ class Hendelse(models.Model):
     def getVevent(self):
         vevent =  'BEGIN:VEVENT\n'
         vevent += f'UID:{self.UID}\n'
-        vevent += f'SUMMARY:{self}\n'
+        vevent += f'SUMMARY:{self.navn}\n'
         vevent += f'DESCRIPTION:{self.beskrivelse}'
         if self.kategori != Hendelse.FRIVILLIG:
             vevent += '\\n\\n' + self.getOppmøteLink()
