@@ -200,8 +200,8 @@ def sjekkheftet(request, gruppe, undergruppe=None):
 
     # Håndter vcard for de på denne siden dersom det var det
     if request.GET.get('vcard'):
-        file_data = generateVCard(request.queryset.exclude(tlf=''))
-        return downloadFile(f'{gruppe}.vcf', file_data)
+        content = generateVCard(request.queryset.exclude(tlf=''))
+        return downloadFile(f'{gruppe}.vcf', content)
     
     return render(request, 'mytxs/sjekkheftet.html', {
         'grupperinger': grupperinger, 
@@ -209,6 +209,7 @@ def sjekkheftet(request, gruppe, undergruppe=None):
         'gruppe': gruppe,
         'heading': 'Sjekkheftet'
     })
+
 
 @login_required()
 @user_passes_test(lambda user : 'medlemListe' in user.medlem.navBarTilgang, redirect_field_name=None)
@@ -323,8 +324,8 @@ def medlem(request, medlemPK):
 def semesterplan(request, kor):
     # Håndter ical dersom det var det
     if request.GET.get('iCal'):
-        file_data = Hendelse.objects.filter(kor__kortTittel=kor).generateICal()
-        return downloadFile(f'{kor}.ics', file_data)
+        content = Hendelse.objects.filter(kor__kortTittel=kor).generateICal()
+        return downloadFile(f'{kor}.ics', content, content_type='text/calendar')
     # Manuel implementasjon av @login_required for å slippe gjennom iCal
     elif not request.user.is_authenticated:
         return redirect('login')
@@ -787,10 +788,6 @@ def hendelse(request, hendelsePK):
         disableForm(oppmøteFormset)
     elif not request.instance.varighet:
         disableFields(oppmøteFormset, 'fravær')
-
-    if request.GET.get('qrKode'):
-        file_data = request.queryset.generateICal()
-        return downloadFile(f'{hendelse.kor.kortTittel}.ics', file_data)
 
     if request.method == 'POST':
         # Rekkefølgen her e viktig for at bruker skal kunne slette oppmøter nødvendig for å flytte hendelse på en submit:)

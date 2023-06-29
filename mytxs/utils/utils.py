@@ -23,8 +23,8 @@ end:vcard
 '''
     return vCardContent
 
-def downloadFile(fileName, content):
+def downloadFile(fileName, content, content_type='text/plain'):
     'I en view, return returnverdien av denne funksjonen'
-    response = HttpResponse(content, content_type='application/text charset=utf-8')
+    response = HttpResponse(content, content_type='{content_type}; charset=utf-8')
     response['Content-Disposition'] = f'attachment; filename="{fileName}"'
     return response
