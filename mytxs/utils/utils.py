@@ -27,5 +27,5 @@ def downloadFile(fileName, content, content_type='text/plain'):
     'I en view, return returnverdien av denne funksjonen'
     response = HttpResponse(content, content_type=f'{content_type}; charset=utf-8')
     response['Content-Disposition'] = f'attachment; filename="{fileName}"'
-    response['Content-Length'] = len(content)
+    response['Content-Length'] = len(response.content)
     return response
