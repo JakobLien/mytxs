@@ -25,6 +25,10 @@ def to_dict(instance, fields=None, exclude=None):
         if exclude and field.name in exclude:
             continue
 
+        if field.name == 'strRep':
+            # Ikke lagre strRep feltet i loggen
+            continue
+
         if isinstance(field, RelatedField):
             if getattr(instance, field.name) and (logg := Logg.objects.getLoggFor(getattr(instance, field.name))):
                 # Om det er en relasjon, lagre pk av den nyeste relaterte loggen (ikke av instansen)
@@ -72,7 +76,7 @@ def log_post_save(sender, instance, created, **kwargs):
             change=Logg.CREATE,
             value=to_dict(instance),
             strRep=str(instance),
-            kor=Kor.objects.korForInstance(instance)
+            kor=instance.kor
         )
     else:
         # This is change
@@ -82,7 +86,7 @@ def log_post_save(sender, instance, created, **kwargs):
             change=Logg.UPDATE,
             value=to_dict(instance),
             strRep=str(instance),
-            kor=Kor.objects.korForInstance(instance)
+            kor=instance.kor
         )
 
 @recieverWithModels(post_delete)
@@ -94,7 +98,7 @@ def log_post_delete(sender, instance, **kwargs):
         change=Logg.DELETE,
         value=to_dict(instance),
         strRep=str(instance),
-        kor=Kor.objects.korForInstance(instance)
+        kor=instance.kor
     )
 
 

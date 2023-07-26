@@ -51,7 +51,7 @@ class ModelTests(TestCase):
                 stemmegruppeVerv = kor.verv.create(navn=stemmegruppe)
                 stemmegruppeVerv.tilganger.add(aktivTilgang)
             
-            dirVerv = kor.verv.create(navn='dirigent')
+            dirVerv = kor.verv.create(navn='Dirigent')
 
             dirVerv.tilganger.add(aktivTilgang)
 

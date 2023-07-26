@@ -1,3 +1,4 @@
+from django.forms import BaseFormSet
 from django.utils import timezone
 
 from mytxs import consts
@@ -33,7 +34,7 @@ def logAuthorAndSave(form, author):
     satt før save. 
     '''
 
-    if not hasattr(form, 'forms'):
+    if not isinstance(form, BaseFormSet):
         # Om dette er et form (form.instance.pk er pk)
         if type(form.instance) not in consts.getLoggedModels():
             form.save()

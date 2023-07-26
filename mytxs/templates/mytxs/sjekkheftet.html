@@ -23,13 +23,13 @@
 {% endif %}
 
 {% if grupperinger|length > 1%}
-<div id="sjekkheftetNavigator" class="my-2 flex flex-row justify-between w-[40rem]">
+<div id="sjekkheftetNavigator" class="my-2 flex flex-row justify-between w-[56rem]">
     {% for gruppenavn, gruppe in grupperinger.items %}
     <div>
         <h2 class="text-3xl">{{ gruppenavn|capfirst }}</h2>
 
         {% for medlem in gruppe %}
-        <a href="#m_{{ medlem.pk }}">{{ medlem.navn }}</a><br>
+        <a class="text-sm" href="#m_{{ medlem.pk }}">{{ medlem.navn }}</a><br>
         {% endfor %}
     </div>
     {% endfor %}
@@ -44,7 +44,7 @@
 
 {% for medlem in gruppering %}
 <br>
-<div id="m_{{ medlem.pk }}" class="flex flex-row space-x-2 w-[40rem] p-2 backdrop-brightness-110 rounded-xl">
+<div id="m_{{ medlem.pk }}" class="flex flex-row space-x-2 w-[56rem] p-2 backdrop-brightness-110 rounded-xl">
     {% if medlem.bilde %}
     <img src="{{ medlem.bilde.url }}" class="h-44 aspect-[139/169] object-cover align-top border-2 border-black">
     {% else %}
@@ -56,21 +56,19 @@
             {% if 'medlemListe' in user.medlem.navBarTilgang %} <a href="{% url 'medlem' medlem.pk %}">Rediger</a> {% endif %}
         </li>
         <li>Karantenekor: {{ medlem.karantenekor }}</li>
+        {% comment %} <li>Stemmegruppe: 
+           {% for vervInnehavelse in medlem.vervInnehavelse.all %}
+           {% if vervInnehavelse.aktiv and vervInnehavelse.verv.stemmegruppeVerv and vervInnehavelse.verv.kor.kortTittel == request.resolver_match.kwargs.gruppe %} 
+           <span>{{ vervInnehavelse.verv }}</span>
+           {% endif %}
+           {% endfor %}
+       </li> {% endcomment %}
         <li>Fødselsdato: {{ medlem.fødselsdato|date }}</li>
         <li>Epost: <a href="mailto:{{ medlem.epost }}">{{ medlem.epost }}</a></li>
         <li>Telefon: <a href="tel:{{ medlem.tlf|cut:' ' }}">{{ medlem.tlf }}</a></li>
-        <li>Stemmegruppe: 
-            {% for vervInnehavelse in medlem.vervInnehavelse.all %}
-            {% comment %} and vervInnehavelse.verv.kor.kortTittel == gruppe {% endcomment %}
-            {% if vervInnehavelse.aktiv and vervInnehavelse.verv.stemmegruppeVerv %} 
-            <span>{{ vervInnehavelse.verv }}</span>
-            {% endif %}
-            {% endfor %}
-        </li>
         <li>Verv: 
             {% for vervInnehavelse in medlem.vervInnehavelse.all %}
-            {% comment %} and vervInnehavelse.verv.kor.kortTittel == gruppe {% endcomment %}
-            {% if vervInnehavelse.aktiv and not vervInnehavelse.verv.stemmegruppeVerv %} 
+            {% if vervInnehavelse.aktiv and not vervInnehavelse.verv.stemmegruppeVerv and vervInnehavelse.verv.kor.kortTittel == request.resolver_match.kwargs.gruppe %} 
             <span>{{ vervInnehavelse.verv }}</span>
             {% endif %}
             {% endfor %}
@@ -78,7 +76,9 @@
         {% if medlem.dekorasjonInnehavelse.all|length > 0 %}
         <li>Dekorasjoner: 
             {% for dekorasjonInnehavelse in medlem.dekorasjonInnehavelse.all %}
+            {% if dekorasjonInnehavelse.dekorasjon.kor.kortTittel == request.resolver_match.kwargs.gruppe%}
             <span> {{ dekorasjonInnehavelse.dekorasjon }}</span>
+            {% endif %}
             {% endfor %}
         </li>
         {% endif %}

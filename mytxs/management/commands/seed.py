@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 
 from django.contrib.auth.models import User
 
-from mytxs.models import Dekorasjon, Kor, Medlem, Tilgang, Verv, VervInnehavelse
+from mytxs.models import Kor, Medlem, Tilgang, Verv, VervInnehavelse
 from mytxs import consts
 
 from mytxs.utils.modelUtils import randomDistinct, stemmegruppeVerv
@@ -108,33 +108,34 @@ def userAdmin(self):
     )
     nettanvarlig.tilganger.add(*Tilgang.objects.filter(kor__kortTittel='TSS'))
     
-    tssStemmegruppe= randomDistinct(Verv.objects.filter(stemmegruppeVerv(''), kor__kortTittel='TSS'))
-    tksStemmegruppe = randomDistinct(Verv.objects.filter(stemmegruppeVerv(''), kor__kortTittel='TKS'))
-
     VervInnehavelse.objects.get_or_create(
         verv=nettanvarlig,
         medlem=medlemmer[0],
-        start=datetime.date.today()
+        defaults={'start': datetime.date.today()}
     )
 
-    VervInnehavelse.objects.get_or_create(
-        verv=tssStemmegruppe,
-        medlem=medlemmer[0],
-        start=datetime.date.today()
-    )
+    if not medlemmer[0].storkor:
+        tssStemmegruppe= randomDistinct(Verv.objects.filter(stemmegruppeVerv(''), kor__kortTittel='TSS'))
+        VervInnehavelse.objects.create(
+            verv=tssStemmegruppe,
+            medlem=medlemmer[0],
+            start=datetime.date.today()
+        )
 
-    VervInnehavelse.objects.get_or_create(
-        verv=tksStemmegruppe,
-        medlem=medlemmer[1],
-        start=datetime.date.today()
-    )
+    if not medlemmer[1].storkor:
+        tksStemmegruppe = randomDistinct(Verv.objects.filter(stemmegruppeVerv(''), kor__kortTittel='TKS'))
+        VervInnehavelse.objects.create(
+            verv=tksStemmegruppe,
+            medlem=medlemmer[1],
+            start=datetime.date.today()
+        )
 
 def korAdmin(self):
     'Opprett medlemmer for alle korlederne, med ish realistiske stemmegruppeverv'
 
     korledere = ['Frode', 'Ingeborg', 'Sivert', 'Anine', 'Hedda', 'Adrian']
     storkor = ['TSS', 'TKS', 'TSS', 'TKS', 'TKS', 'TSS']
-    korlederVerv = ['formann', 'leder', 'pirumsjef', 'knausleder', 'toppcandisse', 'barsjef']
+    korlederVerv = ['Formann', 'Leder', 'Pirumsjef', 'Knausleder', 'Toppcandisse', 'Barsjef']
 
     for i in range(len(consts.alleKorKortTittel)):
         kor = Kor.objects.get(kortTittel=consts.alleKorKortTittel[i])
@@ -192,31 +193,29 @@ def runSeed(self):
                 print(f'Created tilgang {tilgang}')
 
         # Opprett storkor-tilganger
-        if kor.kortTittel in ['TSS', 'TKS']:
+        if kor.kortTittel in consts.bareStorkorKortTittel:
             for t in range(len(consts.storkorTilganger)):
                 tilgang, tilgangCreated = Tilgang.objects.get_or_create(navn=consts.storkorTilganger[t], kor=kor, defaults={'bruktIKode': True, 'beskrivelse': consts.storkorTilgangBeskrivelser[t]})
                 if tilgangCreated:
                     print(f'Created tilgang {tilgang}')
 
-        # Opprett dekorasjoner
-        for dekorasjon in ['ridder', 'kommandør', 'kommandør med storkors']:
-            # Opprett dekorasjon tilgangen
-            dekorasjon, dekorasjonCreated = Dekorasjon.objects.get_or_create(navn=dekorasjon, kor=kor)
-            if dekorasjonCreated:
-                print('Created dekorasjon ' + dekorasjon.navn + ' for kor ' + kor.kortTittel)
-        
         # Om det e et kor (ikke Sangern)
-        if consts.alleKorKortTittel[i] in consts.bareKorKortTittel:
+        if kor.kortTittel in consts.bareKorKortTittel:
 
             # Opprett dirrigent verv
-            dirrVerv, dirrVervCreated = kor.verv.get_or_create(navn='dirigent', bruktIKode=True)
+            dirrVerv, dirrVervCreated = kor.verv.get_or_create(navn='Dirigent', bruktIKode=True)
             if(dirrVervCreated):
                 self.stdout.write('Created verv ' + dirrVerv.navn + ' for kor ' + kor.kortTittel + ' at id ' + str(dirrVerv.pk))
 
             # Opprett permisjon vervet
-            permisjonVerv, permisjonVervCreated = kor.verv.get_or_create(navn='permisjon', bruktIKode=True)
+            permisjonVerv, permisjonVervCreated = kor.verv.get_or_create(navn='Permisjon', bruktIKode=True)
             if permisjonVervCreated:
                 self.stdout.write('Created verv ' + permisjonVerv.navn + ' for kor ' + kor.kortTittel + ' at id ' + str(permisjonVerv.pk))
+
+            # Opprett ukjentStemmegruppe vervet
+            ukjentStemmegruppeVerv, ukjentStemmegruppeVervCreated = kor.verv.get_or_create(navn='ukjentStemmegruppe', bruktIKode=True)
+            if ukjentStemmegruppeVervCreated:
+                self.stdout.write('Created verv ' + ukjentStemmegruppeVerv.navn + ' for kor ' + kor.kortTittel + ' at id ' + str(ukjentStemmegruppeVerv.pk))
 
             # Opprett stemmegrupper
             for stemmegruppe in consts.stemmeFordeling[consts.korTilStemmeFordeling[i]]:

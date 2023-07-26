@@ -1,7 +1,12 @@
 import datetime
 import random
 import re
-from django.db.models import Q, Case, When
+
+from django.db import models
+from django.db.models import Q, Case, When, ManyToManyField, ManyToManyRel
+from django.db.models.fields.related import RelatedField
+from django.forms import ValidationError
+from django.utils.translation import gettext_lazy as _
 
 # Utils for modeller
 
@@ -28,17 +33,21 @@ def vervInnehavelseAktiv(pathToVervInnehavelse='vervInnehavelse', dato=None):
     if dato == None:
         dato = datetime.date.today()
 
-    if not pathToVervInnehavelse:
-        return (Q(slutt=None) | Q(slutt__gte=dato)) & Q(start__lte=dato)
-    else:
-        return ((Q(**{f'{pathToVervInnehavelse}__slutt':None}) |
-                 Q(**{f'{pathToVervInnehavelse}__slutt__gte':dato})) &
-                 Q(**{f'{pathToVervInnehavelse}__start__lte':dato}))
+    if pathToVervInnehavelse:
+        pathToVervInnehavelse += '__'
+
+    return (
+        Q(**{f'{pathToVervInnehavelse}start__lte': dato}) & 
+        (
+            Q(**{f'{pathToVervInnehavelse}slutt': None}) | 
+            Q(**{f'{pathToVervInnehavelse}slutt__gte': dato})
+        )
+    )
+
 
 stemmegruppeVervRegex = '^[12][12]?[SATB]$'
-hovedStemmegruppeVervRegex = '^[12][SATB]$'
 
-def stemmegruppeVerv(pathToStemmGruppeVerv='verv'):
+def stemmegruppeVerv(pathToStemmGruppeVerv='verv', includeUkjentStemmegruppe=True, includeDirr=False):
     '''
     Produsere et Q objekt som querye for stemmegruppeverv
     
@@ -48,20 +57,24 @@ def stemmegruppeVerv(pathToStemmGruppeVerv='verv'):
     - VervInnehavelse.objects.filter(stemmegruppeVerv())
     - Kor.objects.filter(vervInnehavelseAktiv())
     '''
-    if not pathToStemmGruppeVerv:
-        return Q(navn__regex=stemmegruppeVervRegex)
-    else:
-        return Q(**{f'{pathToStemmGruppeVerv}__navn__regex': stemmegruppeVervRegex})
 
-def hovedStemmeGruppeVerv(pathToStemmGruppeVerv='verv'):
-    'Produsere et Q objekt som querye for hoved stemmegruppeverv, se stemmegruppeVerv like over'
-    if not pathToStemmGruppeVerv:
-        return Q(navn__regex=hovedStemmegruppeVervRegex)
-    else:
-        return Q(**{f'{pathToStemmGruppeVerv}__navn__regex': hovedStemmegruppeVervRegex})
+    if pathToStemmGruppeVerv:
+        pathToStemmGruppeVerv += '__'
 
-def isStemmegruppeVervNavn(navn):
-    return re.match(stemmegruppeVervRegex, navn)
+    q = Q(**{f'{pathToStemmGruppeVerv}navn__regex': stemmegruppeVervRegex})
+    
+    if includeUkjentStemmegruppe:
+        q |= Q(**{f'{pathToStemmGruppeVerv}navn': 'ukjentStemmegruppe'})
+    
+    if includeDirr:
+        q |= Q(**{f'{pathToStemmGruppeVerv}navn': 'Dirigent'})
+    
+    return q
+
+
+def isStemmegruppeVervNavn(navn, includeUkjentStemmegruppe=True):
+    return re.match(stemmegruppeVervRegex, navn) or (includeUkjentStemmegruppe and navn == 'ukjentStemmegruppe')
+
 
 def orderStemmegruppeVerv():
     ordering = []
@@ -74,11 +87,14 @@ def orderStemmegruppeVerv():
             for x in '12':
                 ordering.append(When(navn=x+y+letter, then=count))
                 count += 1
-        
-    return Case(*ordering, default=count)
+    
+    ordering.append(When(navn='ukjentStemmegruppe', then=count))
+    return Case(*ordering, default=count+1)
+
 
 def toolTip(helpText):
     return f'<span title="{helpText}">(?)</span>'
+
 
 def groupBy(queryset, prop):
     '''
@@ -91,6 +107,7 @@ def groupBy(queryset, prop):
     for obj in queryset.all():
         groups.setdefault(str(getattr(obj, prop)), []).append(obj)
     return groups
+
 
 def randomDistinct(queryset, n=1):
     '''
@@ -115,3 +132,87 @@ def randomDistinct(queryset, n=1):
         # Shuffle resultatet for at vi skal få tilfeldig sortering på elementan
         random.shuffle(qs)
         return qs
+
+
+def getAllRelatedModels(model):
+    # Returne en liste av alle (forwards og backwards) relaterte modeller 
+    return [
+        *list(map(lambda f: f.related_model, filter(lambda f: isinstance(f, RelatedField), model._meta.get_fields()))),
+        *list(map(lambda f: f.related_model, list(filter(lambda f: isinstance(f, models.ForeignObjectRel), model._meta.get_fields()))))
+    ]
+
+
+def getAllRelatedModelsWithFieldName(model):
+    # Returne samme som over, men istedet touples med (fieldNavn, model)
+    return [
+        *list(map(lambda f: (f.name, f.related_model), filter(lambda f: isinstance(f, RelatedField), model._meta.get_fields()))),
+        *list(map(lambda f: (f.related_name, f.related_model), list(filter(lambda f: isinstance(f, models.ForeignObjectRel), model._meta.get_fields()))))
+    ]
+
+
+def getPathToKor(model):
+    'Returne lookup path til kor for denne modellen (funke ikkje på medlem)'
+    if model.__name__ == 'VervInnehavelse':
+        return 'verv__kor'
+    if model.__name__ == 'DekorasjonInnehavelse':
+        return 'dekorasjon__kor'
+    if model.__name__ == 'Oppmøte':
+        return 'hendelse__kor'
+    
+    # Alle andre modeller kan anntas å ha en direkte relasjon til kor
+    return 'kor'
+
+
+def getInstancesForKor(model, kor):
+    'Returne alle instanser av modellen for et queryset med kor'
+    if model.__name__ == 'Medlem':
+        return model.objects.filter(
+            stemmegruppeVerv('vervInnehavelse__verv', includeDirr=True), 
+            Q(vervInnehavelse__verv__kor__in=kor)
+        )
+    
+    if model.__name__ == 'Kor':
+        return kor
+    
+    return model.objects.filter(
+        **{f'{getPathToKor(model)}__in': kor}
+    )
+
+
+def validateStartSlutt(instance, canEqual=True):
+    '''
+    Validere rekkefølgen på start og slutt, raiser ValidationError om ikke. 
+    Skriver hjelpefunksjon fordi dette trengs i clean på tvers av flere modeller. 
+    Gjør ingenting om instance.slutt ikke er satt. 
+    '''
+    if instance.slutt:
+        if canEqual:
+            if instance.start >= instance.slutt:
+                raise ValidationError(
+                    _('Slutt må være etter eller lik start'),
+                    code='invalidDateOrder'
+                )
+        else:
+            if instance.start > instance.slutt:
+                raise ValidationError(
+                    _('Slutt må være etter start'),
+                    code='invalidDateOrder'
+                )
+
+
+qTrue = ~Q(pk__in=[])
+qFalse = Q(pk__in=[])
+
+def getQBool(value, trueOption=qTrue, falseOption=qFalse):
+    return trueOption if value else falseOption
+
+
+def getSourceM2MModel(model, fieldName):
+    'Gitt en av modellene og et fieldName skaffer denne modellen som m2m feltet står på'
+    modelFieldOrRel = model._meta.get_field(fieldName)
+    if isinstance(modelFieldOrRel, ManyToManyField):
+        return model
+    elif isinstance(modelFieldOrRel, ManyToManyRel):
+        return modelFieldOrRel.related_model
+    
+    raise Exception("M2M Field not found")

@@ -5,8 +5,11 @@
 
 {% block beforeForms %}{% endblock %}
 
+{% if forms or formsets %}
 <form action="{{ request.get_full_path }}" method="post" class="managedForm" {% fixFileField forms formsets %}>
     {% csrf_token %}
+    {% endif %}
+
     {% for form in forms %}
     {% if form|formIsVisible %}
     {{ form.as_p }}
@@ -16,18 +19,24 @@
     {% block betweenForms %}{% endblock %}
 
     {% for formset in formsets %}
-    <h2 class="text-xl mt-4">{{ formset.prefix|capfirst }}</h2>
     {% if formset|formIsVisible %}
+    
+    <h2 class="text-xl mt-4">{{ formset.prefix|capfirst }}</h2>
+    {% getPaginatorNavigation formset.queryset formset.prefix %}
+    
     {{ formset.management_form }}
     {% for form in formset %}
     {{ form }} {% addLoggLink form.instance %} <br>
     {% endfor %}
+
     {% endif %}
     {% endfor %}
 
+    {% if forms or formsets %}
     <input type="button" value="Angre" onclick="resetForm(this.form)">
     <input type="submit" value="Lagre">
 </form>
+{% endif %}
 
 {% block afterForms %}{% endblock %}
 

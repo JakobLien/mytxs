@@ -8,6 +8,7 @@
     <title>{% block title %}MyTXS 2.0{% endblock %}</title>
     
     <script src="{% static 'mytxs/formSafety.js' %}" defer></script>
+    {% if request.lazyDropdownData %}<script src="{% static 'mytxs/lazyDropdown.js' %}" defer data-json="{{ request.lazyDropdownData }}"></script>{% endif %}
     <script src="{% static 'mytxs/searchDropdown.js' %}" defer></script>
     <script src="{% static 'mytxs/imageHover.js' %}" defer></script>
     {% block jsHead %} {% endblock %}
@@ -16,7 +17,7 @@
 <body class="bg-customPurple h-screen">
     {% block messages %}
     {% if messages %}
-    <div class="fixed inset-x-0 top-4 text-center" onclick="this.classList.add('hidden');">
+    <div class="fixed inset-x-0 top-4 text-center z-10" onclick="this.classList.add('hidden');">
         {% for message in messages %}
         <span class="{% if 'error' in message.tags %}bg-red-400{% else %}bg-green-400{% endif %} rounded-md p-2">
             {{message.tags|capfirst}}: {{ message }}
@@ -56,9 +57,6 @@
 
             {% if user.medlem.storkor %}
             <a href="{% url 'semesterplan' user.medlem.storkor %}">
-            {% else %}
-            <a href="{% url 'semesterplan' 'TSS' %}">
-            {% endif %}
                 <svg class="w-1/2 fill-gray-400" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 29.237 29.237" xml:space="preserve">
                     <g>
                         <g>
@@ -73,8 +71,9 @@
                 </svg>
                 <p>Semesterplan</p>
             </a>
+            {% endif %}
 
-            {% if user.medlem.kor %}
+            {% if user.medlem.aktiveKor %}
             <a href="{% url 'lenker' %}">
                 <svg class="w-2/3 stroke-gray-400 fill-transparent" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <g id="Interface / Link">
@@ -127,8 +126,17 @@
                 <svg class="w-2/3 fill-transparent stroke-gray-400 stroke-1" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path d="M21 9L9.59309 9C9.59309 9 8.5 7 6 7C3.5 7 2 8.79086 2 11C2 13.2091 3.5 15 6 15C8.5 15 9.59309 13 9.59309 13L15 13L15 17L19 17L19 13L21 13L21 9Z" stroke-linecap="round" stroke-linejoin="round"/>
                     <path d="M6 12.5C5.17157 12.5 4.5 11.8284 4.5 11C4.5 10.1716 5.17157 9.5 6 9.5C6.82843 9.5 7.5 10.1716 7.5 11C7.5 11.8284 6.82843 12.5 6 12.5Z"/>
-                    </svg>
+                </svg>
                 <p>Tilganger</p>
+            </a>
+            {% endif %}
+
+            {% if 'turneListe' in user.medlem.navBarTilgang %}
+            <a href="{% url 'turneListe' %}">
+                <svg class="w-2/3 fill-gray-400" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 350 350" xml:space="preserve">
+                    <path id="XMLID_494_" d="M299.361,327.067c-0.445-0.715-23.208-37.612-45.34-88.403c7.156-1.138,12.631-7.318,12.631-14.795  c0-8.284-6.716-15-15-15h-9.827c-6.826-17.865-13.129-36.748-18.146-55.896c6.326-1.762,10.974-7.551,10.974-14.438  c0-8.284-6.716-15-15-15h-2.548c-2.078-11.43-3.556-22.814-4.275-34h6.823c8.284,0,15-6.716,15-15c0-8.284-6.716-15-15-15h-29.651  V15c0-8.284-6.716-15-15-15c-8.284,0-15,6.716-15,15v44.535h-29.651c-8.284,0-15,6.716-15,15c0,8.284,6.716,15,15,15h6.823  c-0.72,11.186-2.198,22.57-4.275,34h-2.548c-8.284,0-15,6.716-15,15c0,6.887,4.648,12.676,10.974,14.438  c-5.018,19.148-11.321,38.031-18.146,55.896h-9.827c-8.284,0-15,6.716-15,15c0,7.477,5.476,13.657,12.632,14.795  c-22.132,50.791-44.894,87.688-45.338,88.4c-2.883,4.624-3.031,10.449-0.387,15.215c2.645,4.765,7.666,7.721,13.116,7.721h74.42  c8.284,0,15-6.716,15-15c0-12.246,9.963-22.209,22.209-22.209c12.246,0,22.209,9.963,22.209,22.209c0,8.284,6.716,15,15,15h74.42  c5.449,0,10.468-2.956,13.113-7.72C302.387,337.518,302.241,331.692,299.361,327.067z M167.237,89.535h15.527  c0.62,10.917,1.907,22.258,3.85,34h-23.227C165.33,111.793,166.617,100.452,167.237,89.535z M157.208,153.535h35.586  c4.317,17.662,9.967,36.122,16.935,55.334h-69.457C147.24,189.657,152.89,171.197,157.208,153.535z M225.014,320  c-6.46-21.501-26.436-37.209-50.013-37.209c-23.577,0-43.553,15.708-50.013,37.209H89.389c8.633-15.625,20.453-38.31,32.351-65.204  c2.372-5.361,4.642-10.666,6.832-15.927h92.857c2.19,5.261,4.46,10.566,6.832,15.927c11.898,26.895,23.718,49.579,32.351,65.204  H225.014z"/>
+                </svg>
+                <p>Turneer</p>
             </a>
             {% endif %}
 

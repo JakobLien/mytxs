@@ -8,21 +8,23 @@ from django.contrib.auth.forms import AuthenticationForm, SetPasswordForm, UserC
 from django.db.models import Q, F, IntegerField
 from django.db.models.functions import Cast
 from django.forms import inlineformset_factory, modelform_factory, modelformset_factory
-from django.shortcuts import redirect, render, get_object_or_404
+from django.shortcuts import redirect, render
 from django.urls import reverse
-from django.http import Http404
+from django.http import Http404 
 
 from mytxs import consts
-from mytxs.models import Dekorasjon, DekorasjonInnehavelse, Hendelse, Kor, Lenke, Logg, Medlem, Tilgang, Verv, VervInnehavelse, Oppmøte
-from mytxs.forms import LoggFilterForm, MedlemFilterForm
-from mytxs.utils.formAccess import disableForm, disableFields, partiallyDisableFormsetKor, setRequiredDropdownOptions
+from mytxs.management.commands.transfer import transferByJWT
+from mytxs.models import Dekorasjon, DekorasjonInnehavelse, Hendelse, Kor, Lenke, Logg, Medlem, Tilgang, Turne, Verv, VervInnehavelse, Oppmøte
+from mytxs.forms import LoggFilterForm, MedlemFilterForm, NavnKorFilterForm, TurneFilterForm
+from mytxs.utils.formAccess import disableBrukt, disableFields, disableForm, disableFormMedlem
 from mytxs.utils.formAddField import addDeleteCheckbox, addReverseM2M
-from mytxs.utils.formFilter import applyLoggFilterForm, applyMedlemFilterForm
-from mytxs.utils.formUtils import filesIfPost, postIfPost, formsetArgs
+from mytxs.utils.lazyDropdown import lazyDropdown
+from mytxs.utils.formUtils import filesIfPost, postIfPost, inlineFormsetArgs
 from mytxs.utils.hashUtils import testHash, getHash
 from mytxs.utils.logAuthorUtils import logAuthorAndSave, logAuthorInstance
-from mytxs.utils.modelUtils import randomDistinct, vervInnehavelseAktiv, hovedStemmeGruppeVerv, stemmegruppeVerv
-from mytxs.utils.utils import downloadFile, getPaginatorPage, generateVCard
+from mytxs.utils.modelUtils import randomDistinct, vervInnehavelseAktiv, stemmegruppeVerv
+from mytxs.utils.pagination import getPaginatedInlineFormSet, addPaginatorPage
+from mytxs.utils.utils import downloadFile, generateVCard
 
 # Create your views here.
 
@@ -55,9 +57,11 @@ def login(request):
         'loginForm': AuthenticationForm
     })
 
+
 def logout(request):
     auth_logout(request)
     return redirect('login')
+
 
 def registrer(request, medlemPK):
     medlem = Medlem.objects.filter(pk=medlemPK, user=None).first()
@@ -82,6 +86,18 @@ def registrer(request, medlemPK):
         'heading': 'MedlemPK: ' + str(medlemPK)
     })
 
+
+def overfør(request, jwt):
+    medlem = transferByJWT(jwt)
+
+    messages.info(request, 'Data overført!')
+    
+    if not medlem.user:
+        return redirect(reverse('registrer', args=[medlem.pk]) + '?hash=' + getHash(reverse('registrer', args=[medlem.pk])))
+    else:
+        return redirect('login')
+
+
 @login_required
 def endrePassord(request):
     endrePassordForm = SetPasswordForm(user=request.user, data=request.POST or None)
@@ -103,7 +119,7 @@ def sjekkheftet(request, gruppe, undergruppe=None):
     # Gruperinger er visuelle grupperinger i sjekkheftet på samme side, klassisk stemmegrupper gruppe 
     # argumentet og grupper under refererer til sider på sjekkheftet, altså en for hvert kor også litt ekstra
     korGrupper = consts.bareKorKortTittel
-    if request.user.medlem.storkor.kortTittel == 'TKS':
+    if (storkor := request.user.medlem.storkor) and storkor.kortTittel == 'TKS':
         korGrupper = consts.bareKorKortTittelTKSRekkefølge
     grupper = korGrupper + ['søk', 'jubileum', 'sjekkhefTest']
 
@@ -130,6 +146,7 @@ def sjekkheftet(request, gruppe, undergruppe=None):
         else:
             # Om det e heile koret
             request.queryset = Medlem.objects.distinct().filter(
+                stemmegruppeVerv('vervInnehavelse__verv'),
                 vervInnehavelseAktiv(),
                 vervInnehavelse__verv__kor=kor
             )
@@ -137,16 +154,16 @@ def sjekkheftet(request, gruppe, undergruppe=None):
                 # Grupper KK på SATB
                 for stemmegruppe in 'SATB':
                     grupperinger[stemmegruppe] = request.queryset.filter(
+                        vervInnehavelse__verv__kor=kor, # Denne linjen ser dumt ut, men det må til
                         vervInnehavelse__verv__navn__endswith=stemmegruppe,
-                        vervInnehavelse__verv__kor=kor
-                    ).all()
+                    ).prefetchVervDekorasjonKor()
             else:
                 # Grupper øverige kor på 1S, 2T osv
-                for stemmegruppe in Verv.objects.filter(hovedStemmeGruppeVerv(''), kor=kor):
+                for stemmegruppe in Verv.objects.filter(navn__in=consts.hovedStemmegrupper, kor=kor):
                     grupperinger[stemmegruppe.navn] = request.queryset.filter(
+                        vervInnehavelse__verv__kor=kor, # Denne linjen ser dumt ut, men det må til
                         vervInnehavelse__verv__navn__endswith=stemmegruppe.navn,
-                        vervInnehavelse__verv__kor=kor
-                    ).all()
+                    ).prefetchVervDekorasjonKor()
     
     elif gruppe == 'søk':
         request.queryset = Medlem.objects.distinct().filter(
@@ -156,10 +173,12 @@ def sjekkheftet(request, gruppe, undergruppe=None):
 
         medlemFilterForm = MedlemFilterForm(request.GET)
 
-        request.queryset = applyMedlemFilterForm(medlemFilterForm, request.queryset)
+        request.queryset = medlemFilterForm.applyFilter(request.queryset)
+
+        request.queryset = request.queryset.prefetchVervDekorasjonKor()
 
         return render(request, 'mytxs/sjekkheftetSøk.html', {
-            'grupperinger': {'': request.queryset.all()}, 
+            'grupperinger': {'': request.queryset}, 
             'grupper': grupper,
             'gruppe': gruppe,
             'heading': 'Sjekkheftet',
@@ -178,9 +197,13 @@ def sjekkheftet(request, gruppe, undergruppe=None):
         # Så må vi bare ta modulus 403 (den maksimale 12*31+31), også har vi det:)
         today = datetime.date.today()
         today = today.month*31 + today.day
-        
+
+        request.queryset = request.queryset\
+            .order_by(Cast((F('fødselsdato__month') * 31 + F('fødselsdato__day') - today + 403), output_field=IntegerField()) % 403)\
+            .prefetchVervDekorasjonKor()
+
         grupperinger = {'':
-            request.queryset.order_by(Cast((F('fødselsdato__month') * 31 + F('fødselsdato__day') - today + 403), output_field=IntegerField()) % 403).all()
+            request.queryset
         }
         # Gud veit koffor serveren ikke ønske å tolke enten day eller month som en integer i utgangspunktet. Har ikke det problemet lokalt...
 
@@ -214,11 +237,11 @@ def sjekkheftet(request, gruppe, undergruppe=None):
 @login_required()
 @user_passes_test(lambda user : 'medlemListe' in user.medlem.navBarTilgang, redirect_field_name=None)
 def medlemListe(request):
-    request.queryset = request.user.medlem.tilgangQueryset(Medlem)
+    request.queryset = request.user.medlem.sideTilgangQueryset(Medlem).distinct()
 
     medlemFilterForm = MedlemFilterForm(request.GET)
 
-    request.queryset = applyMedlemFilterForm(medlemFilterForm, request.queryset)
+    request.queryset = medlemFilterForm.applyFilter(request.queryset)
 
     NyttMedlemForm = modelform_factory(Medlem, fields=['fornavn', 'mellomnavn', 'etternavn'])
 
@@ -226,8 +249,11 @@ def medlemListe(request):
         'fornavn': '', 'mellomnavn': '', 'etternavn': ''
     })
 
-    if not request.user.medlem.tilganger.filter(navn='medlemsdata'):
-        disableForm(nyttMedlemForm)
+    if disableFormMedlem(request.user.medlem, nyttMedlemForm):
+        # Krev at man må ha tversAvKor tilgangen for å opprett nye medlemma. 
+        # Om ikkje vil man ikkje ha tilgang til det nye medlemmet, siden det er uten kormedlemskap
+        if not request.user.medlem.tilganger.filter(navn='tversAvKor').exists():
+            disableForm(nyttMedlemForm)
 
     if request.method == 'POST':
         if nyttMedlemForm.is_valid():
@@ -235,9 +261,10 @@ def medlemListe(request):
             messages.info(request, f'{nyttMedlemForm.instance} opprettet!')
             return redirect(nyttMedlemForm.instance)
     
+    addPaginatorPage(request)
+    
     return render(request, 'mytxs/instanceListe.html', {
         'filterForm': medlemFilterForm,
-        'paginatorPage': getPaginatorPage(request),
         'heading': 'Medlemmer',
         'newForm': nyttMedlemForm
     })
@@ -255,10 +282,19 @@ def medlem(request, medlemPK):
         messages.error(request, f'Du har ikke tilgang til dette medlemmet')
         return redirect('medlemListe')
     
-    # Lag FormsetFactories
-    MedlemsDataForm = modelform_factory(Medlem, exclude=['user'])
-    VervInnehavelseFormset = inlineformset_factory(Medlem, VervInnehavelse, **formsetArgs)
-    DekorasjonInnehavelseFormset = inlineformset_factory(Medlem, DekorasjonInnehavelse, **formsetArgs)
+    if not request.user.medlem.redigerTilgangQueryset(Medlem).contains(request.instance):
+        # Om du ikke har redigeringstilgang på medlemmet, skjul dataen demmers
+        MedlemsDataForm = modelform_factory(Medlem, fields=['fornavn', 'mellomnavn', 'etternavn'])
+    else:
+        # Om du ikke har medlemsdata tilgangen, ikke vis død feltet
+        if not request.user.medlem.tilganger.filter(navn='medlemsdata').exists():
+            MedlemsDataForm = modelform_factory(Medlem, exclude=['user', 'gammeltMedlemsnummer', 'død'])
+        else:
+            MedlemsDataForm = modelform_factory(Medlem, exclude=['user', 'gammeltMedlemsnummer'])
+    VervInnehavelseFormset = inlineformset_factory(Medlem, VervInnehavelse, formset=getPaginatedInlineFormSet(request), **inlineFormsetArgs)
+    DekorasjonInnehavelseFormset = inlineformset_factory(Medlem, DekorasjonInnehavelse, formset=getPaginatedInlineFormSet(request), **inlineFormsetArgs)
+
+    MedlemsDataForm = addReverseM2M(MedlemsDataForm, 'turneer')
 
     medlemsDataForm = MedlemsDataForm(
         postIfPost(request, 'medlemdata'), 
@@ -277,26 +313,18 @@ def medlem(request, medlemPK):
         prefix='dekorasjonInnehavelse'
     )
 
-    # Disable medlemsDataForm: Om det ikkje e deg sjølv, eller noen du har tilgang til 
-    # (alle med medlemsdata tilgangen kan redigere folk som ikke har et storkor)
-    if not (request.instance == request.user.medlem or
-        request.user.medlem.tilganger.filter(navn='medlemsdata', kor=request.instance.storkor or None).exists() or
-        request.user.medlem.tilganger.filter(navn='medlemsdata').exists() and not request.instance.storkor):
-        disableForm(medlemsDataForm)
+    if disableFormMedlem(request.user.medlem, medlemsDataForm):
+        if 'notis' in medlemsDataForm.fields and not request.user.medlem.tilganger.filter(navn='medlemsdata').exists():
+            disableFields(medlemsDataForm, 'notis')
+    
+    disableFormMedlem(request.user.medlem, vervInnehavelseFormset)
 
-    # Disable vervInnehavelser
-    partiallyDisableFormsetKor(
-        vervInnehavelseFormset,
-        Kor.objects.filter(tilganger__in=request.user.medlem.tilganger.filter(navn='vervInnehavelse')),
-        'verv'
-    )
+    disableFormMedlem(request.user.medlem, dekorasjonInnehavelseFormset)
 
-    # Disable dekorasjonInnehavelser
-    partiallyDisableFormsetKor(
-        dekorasjonInnehavelseFormset,
-        Kor.objects.filter(tilganger__in=request.user.medlem.tilganger.filter(navn='dekorasjonInnehavelse')),
-        'dekorasjon'
-    )
+    if res := lazyDropdown(request, vervInnehavelseFormset, 'verv'):
+        return res
+    if res := lazyDropdown(request, dekorasjonInnehavelseFormset, 'dekorasjon'):
+        return res
 
     if request.method == 'POST':
         if medlemsDataForm.is_valid():
@@ -308,17 +336,15 @@ def medlem(request, medlemPK):
         if medlemsDataForm.is_valid() and vervInnehavelseFormset.is_valid() and dekorasjonInnehavelseFormset.is_valid():
             return redirect(request.instance)
 
-    kwargs = {}
-
     if not request.instance.user:
-        kwargs['registreringLink'] = request.get_host() + reverse('registrer', args=[request.instance.pk]) + '?hash=' + \
+        request.registreringLink = request.get_host() + reverse('registrer', args=[request.instance.pk]) + '?hash=' + \
             getHash(reverse('registrer', args=[request.instance.pk]))
 
     return render(request, 'mytxs/medlem.html', {
         'forms': [medlemsDataForm], 
         'formsets': [vervInnehavelseFormset, dekorasjonInnehavelseFormset],
-        **kwargs
     })
+
 
 # Ikke login_required her for å slippe gjennom kalender-apper som spør om iCal fila
 def semesterplan(request, kor):
@@ -326,11 +352,11 @@ def semesterplan(request, kor):
     if request.GET.get('iCal'):
         content = Hendelse.objects.filter(kor__kortTittel=kor).generateICal()
         return downloadFile(f'{kor}.ics', content, content_type='text/calendar')
-    # Manuel implementasjon av @login_required for å slippe gjennom iCal
+    # Manuel implementasjon av @login_required for å slippe gjennom iCal requests
     elif not request.user.is_authenticated:
         return redirect('login')
 
-    if not request.user.medlem.kor.filter(kortTittel=kor).exists():
+    if not request.user.medlem.aktiveKor.filter(kortTittel=kor).exists():
         messages.error(request, f'Du har ikke tilgang til andre kors kalender')
         return redirect(request.user.medlem)
 
@@ -389,21 +415,19 @@ def egenFøring(request, hendelsePK):
         messages.error(request, 'Kan ikke føre fravær på hendelser uten varighet')
         return redirect('semesterplan', kor=hendelse.kor.kortTittel)
     
-    if not hendelse.getMedlemmer().filter(pk=request.user.medlem.pk).exists():
-        messages.error(request, 'Du er ikke blant de som skal føres fravær på')
-        return redirect('semesterplan', kor=hendelse.kor.kortTittel)
-    
     if not testHash(request):
         messages.error(request, 'Feil eller manglende hash')
         return redirect('semesterplan', kor=hendelse.kor.kortTittel)
     
-    # get_or_create bare at man ikke lagre det
-
     request.instance = Oppmøte.objects.filter(medlem=request.user.medlem, hendelse=hendelse).first()
     
     if not request.instance:
-        messages.error(request, 'Ditt oppmøte finnes ikke selv om det burde det, meld fra om dette!')
-        return redirect('semesterplan', kor=hendelse.kor.kortTittel)
+        if not hendelse.getMedlemmer().contains(request.user.medlem):
+            messages.error(request, 'Du er ikke blant de som skal føres fravær på')
+            return redirect('semesterplan', kor=hendelse.kor.kortTittel)
+        else:
+            messages.error(request, 'Ditt oppmøte finnes ikke selv om det burde det, meld fra om dette!')
+            return redirect('semesterplan', kor=hendelse.kor.kortTittel)
     
     if abs(datetime.datetime.now() - hendelse.start).total_seconds() / 60 > 30 or datetime.datetime.now() > hendelse.slutt:
         messages.error(request, 'For sent eller tidlig å føre fravær selv')
@@ -417,8 +441,6 @@ def egenFøring(request, hendelsePK):
         (min(hendelse.slutt, datetime.datetime.now()) - hendelse.start).total_seconds() / 60, 
         0
     ))
-
-    request.instance.save()
     
     logAuthorInstance(request.instance, request.user.medlem)
 
@@ -426,50 +448,138 @@ def egenFøring(request, hendelsePK):
     
     return redirect('semesterplan', kor=hendelse.kor.kortTittel)
 
+
+@login_required()
+@user_passes_test(lambda user : 'hendelseListe' in user.medlem.navBarTilgang, redirect_field_name=None)
+def hendelseListe(request):
+    request.queryset = request.user.medlem.sideTilgangQueryset(Hendelse).distinct()
+
+    NyHendelseForm = modelform_factory(Hendelse, fields=['navn', 'kor', 'kategori', 'startDate'])
+
+    nyHendelseForm = NyHendelseForm(request.POST or None, prefix='nyttEvent')
+    
+    disableFormMedlem(request.user.medlem, nyHendelseForm)
+
+    if request.method == 'POST':
+        if nyHendelseForm.is_valid():
+            logAuthorAndSave(nyHendelseForm, request.user.medlem)
+            messages.info(request, f'{nyHendelseForm.instance} opprettet!')
+            return redirect(nyHendelseForm.instance)
+
+    addPaginatorPage(request)
+    
+    return render(request, 'mytxs/instanceListe.html', {
+        'newForm': nyHendelseForm,
+        'heading': 'Hendelser'
+    })
+
+
+@login_required()
+def hendelse(request, hendelsePK):
+    request.instance = Hendelse.objects.filter(pk=hendelsePK).first()
+
+    if not request.instance:
+        messages.error(request, 'Hendelse ikke funnet')
+        return redirect('hendelseListe')
+    
+    if not request.user.medlem.harSideTilgang(request.instance):
+        messages.error(request, f'Du har ikke tilgang til denne hendelsen')
+        return redirect('hendelseListe')
+    
+    HendelseForm = modelform_factory(Hendelse, exclude=['kor'])
+    OppmøteFormset = inlineformset_factory(Hendelse, Oppmøte, formset=getPaginatedInlineFormSet(request), exclude=[], extra=0, can_delete=False)
+
+    HendelseForm = addDeleteCheckbox(HendelseForm)
+
+    hendelseForm = HendelseForm(postIfPost(request, 'hendelse'), instance=request.instance, prefix='hendelse')
+    oppmøteFormset = OppmøteFormset(postIfPost(request, 'oppmøte'), instance=request.instance, prefix='oppmøte')
+
+    disableFormMedlem(request.user.medlem, hendelseForm)
+
+    if disableFormMedlem(request.user.medlem, oppmøteFormset): 
+        disableFields(oppmøteFormset, 'medlem')
+        if not request.instance.varighet:
+            disableFields(oppmøteFormset, 'fravær')
+
+    if request.method == 'POST':
+        # Rekkefølgen her e viktig for at bruker skal kunne slette oppmøter nødvendig for å flytte hendelse på en submit:)
+        if oppmøteFormset.is_valid():
+            logAuthorAndSave(oppmøteFormset, request.user.medlem)
+        if hendelseForm.is_valid():
+            logAuthorAndSave(hendelseForm, request.user.medlem)
+            if hendelseForm.cleaned_data['DELETE']:
+                messages.info(request, f'{hendelseForm.instance} slettet')
+                return redirect('hendelseListe')
+        # Formsets som har lengde 0 er tydeligvis invalid, så for at ting ska funk slik man forvente må vi hiv på denne sjekken
+        # Særlig viktig fordi her e det lett å end opp med ingen oppmøter spørs på når man tar det (pga permisjon o.l.)
+        if hendelseForm.is_valid() and (oppmøteFormset.is_valid() or len(oppmøteFormset.forms) == 0):
+            return redirect(request.instance)
+
+    if request.instance.startTime != None and abs(datetime.datetime.now() - request.instance.start).total_seconds() / 60 <= 30:
+        request.egenFøringLink = f'https://zxing.org/w/chart?cht=qr&chs=350x350&chld=L&choe=UTF-8&chl=http://' + \
+            request.get_host() + unquote(reverse('egenFøring', args=[request.instance.pk])) + '?hash=' + \
+            getHash(reverse('egenFøring', args=[request.instance.pk]))
+
+    return render(request, 'mytxs/hendelse.html', {
+        'forms': [hendelseForm],
+        'formsets': [oppmøteFormset],
+    })
+
+
 @login_required()
 def lenker(request):
     request.queryset = Lenke.objects.distinct().filter(
-        Q(kor__in=request.user.medlem.kor) | # Lenker fra kor man er i
+        Q(kor__in=request.user.medlem.aktiveKor) | # Lenker fra kor man er i
         Q(kor__tilganger__in=request.user.medlem.tilganger.filter(navn='lenke')) # Lenker man kan endre på
     )
 
-    if request.user.medlem.kor.exists(): # Om man er minst et kor, hiv på Sangern sine lenker
+    # Om man er aktiv i minst et kor, hiv på Sangern sine lenker
+    if request.user.medlem.aktiveKor.exists(): 
         request.queryset |= Lenke.objects.distinct().filter(kor__kortTittel='Sangern')
+
+    # Om man ikke har tilgang til å redigere noen lenker, bare render her uten formsettet
+    if not request.user.medlem.tilganger.filter(navn='lenke').exists():
+        return render(request, 'mytxs/lenker.html', {
+            'heading': 'Lenker',
+        })
 
     LenkerFormset = modelformset_factory(Lenke, exclude=[], can_delete=True, extra=1)
 
     lenkerFormset = LenkerFormset(postIfPost(request, 'lenker'), prefix='lenker', 
         queryset=Lenke.objects.filter(kor__tilganger__in=request.user.medlem.tilganger.filter(navn='lenke')))
 
-    # Set kor alternativene
-    setRequiredDropdownOptions(lenkerFormset, 'kor', Kor.objects.filter(tilganger__in=request.user.medlem.tilganger.filter(navn='lenke')))
+    disableFormMedlem(request.user.medlem, lenkerFormset)
 
     if request.method == 'POST':
         if lenkerFormset.is_valid():
             logAuthorAndSave(lenkerFormset, request.user.medlem)
             return redirect('lenker')
-    
+
     return render(request, 'mytxs/lenker.html', {
         'formsets': [lenkerFormset],
         'heading': 'Lenker',
     })
 
+
 @login_required()
 @user_passes_test(lambda user : 'vervListe' in user.medlem.navBarTilgang, redirect_field_name=None)
 def vervListe(request):
-    NyttVervForm = modelform_factory(Verv, fields=['navn', 'kor'])
+    request.queryset = request.user.medlem.sideTilgangQueryset(Verv).distinct()
+
+    vervFilterForm = NavnKorFilterForm(request.GET)
+
+    request.queryset = vervFilterForm.applyFilter(request.queryset)
 
     # optionForm = OptionForm(request.GET, fields=['alleAlternativ'])
 
     # if not optionForm.is_valid():
     #     raise Exception('optionForm var ugyldig, ouf')
-    
-    request.queryset = request.user.medlem.tilgangQueryset(Verv)#, optionForm.cleaned_data['alleAlternativ'])
+
+    NyttVervForm = modelform_factory(Verv, fields=['navn', 'kor'])
 
     nyttVervForm = NyttVervForm(request.POST or None, prefix='nyttVerv')
     
-    # Set kor alternativene
-    setRequiredDropdownOptions(nyttVervForm, 'kor', Kor.objects.filter(tilganger__in=request.user.medlem.tilganger.filter(navn='verv')))
+    disableFormMedlem(request.user.medlem, nyttVervForm)
 
     if request.method == 'POST':
         if nyttVervForm.is_valid():
@@ -477,9 +587,11 @@ def vervListe(request):
             messages.info(request, f'{nyttVervForm.instance} opprettet!')
             return redirect(nyttVervForm.instance)
     
+    addPaginatorPage(request)
+    
     return render(request, 'mytxs/instanceListe.html', {
+        'filterForm': vervFilterForm,
         'newForm': nyttVervForm,
-        'paginatorPage': getPaginatorPage(request),
         'heading': 'Verv',
         #'optionForm': optionForm
     })
@@ -497,44 +609,23 @@ def verv(request, kor, vervNavn):
         messages.error(request, f'Du har ikke tilgang til dette vervet')
         return redirect('vervListe')
 
-    VervForm = modelform_factory(Verv, fields=['navn', 'tilganger'])
-    VervInnehavelseFormset = inlineformset_factory(Verv, VervInnehavelse, **formsetArgs)
+    VervForm = modelform_factory(Verv, exclude=['kor', 'bruktIKode'])
+    VervInnehavelseFormset = inlineformset_factory(Verv, VervInnehavelse, formset=getPaginatedInlineFormSet(request), **inlineFormsetArgs)
 
     VervForm = addDeleteCheckbox(VervForm)
-    
+
+    VervForm = addReverseM2M(VervForm, 'tilganger')
+
     vervForm = VervForm(postIfPost(request, 'vervForm'), instance=request.instance, prefix='vervForm')
     vervInnehavelseFormset = VervInnehavelseFormset(postIfPost(request, 'vervInnehavelse'), instance=request.instance, prefix='vervInnehavelse')
+
+    if disableFormMedlem(request.user.medlem, vervForm):
+        disableBrukt(vervForm)
     
-    # Disable vervForm dersom de ikke tilgang eller om det er stemmegruppeverv
-    if not (request.user.medlem.tilganger.filter(navn='verv', kor=request.instance.kor).exists()):
-        disableFields(vervForm, 'navn', 'DELETE')
-    if request.instance.bruktIKode:
-        disableFields(vervForm, 'navn', 'DELETE', helpText='Selv ikke de med tilgang kan endre på et brukt verv')
+    disableFormMedlem(request.user.medlem, vervInnehavelseFormset)
 
-    # Disable vervInnehavelseFormset
-    if not request.user.medlem.tilganger.filter(navn='vervInnehavelse', kor=request.instance.kor):
-        disableForm(vervInnehavelseFormset)
-
-    # # Disable vervInnehavelseFormset
-    # partiallyDisableFormset(
-    #     vervInnehavelseFormset,
-    #     Medlem.objects.filter(
-    #         stemmegruppeVerv('vervInnehavelse__verv'), 
-    #         vervInnehavelse__verv__kor__tilganger__in=request.user.medlem.tilganger.filter(navn='vervInnehavelse')
-    #     ),
-    #     'medlem'
-    # )
-    
-    # Sett tilgang options (kan fjerne men ikke legge til andre kors tilganger)
-    vervForm.fields['tilganger'].queryset = vervForm.fields['tilganger'].queryset.filter(
-        Q(kor=request.instance.kor) | Q(verv__pk=request.instance.pk)
-    ).distinct()
-
-    # Disable tilgang options
-    vervForm.fields['tilganger'].setEnableQuerysetKor(
-        Kor.objects.filter(tilganger__in=request.user.medlem.tilganger.filter(navn='tilgang')),
-        request.instance.tilganger.all()
-    )
+    if res := lazyDropdown(request, vervInnehavelseFormset, 'medlem'):
+        return res
 
     if request.method == 'POST':
         if vervForm.is_valid():
@@ -550,21 +641,24 @@ def verv(request, kor, vervNavn):
     
     return render(request, 'mytxs/instance.html', {
         'forms': [vervForm],
-        'formsets': [vervInnehavelseFormset]
+        'formsets': [vervInnehavelseFormset],
     })
 
 
 @login_required()
 @user_passes_test(lambda user : 'dekorasjonListe' in user.medlem.navBarTilgang, redirect_field_name=None)
 def dekorasjonListe(request):
-    request.queryset = request.user.medlem.tilgangQueryset(Dekorasjon)
+    request.queryset = request.user.medlem.sideTilgangQueryset(Dekorasjon).distinct()
+
+    dekorasjonFilterForm = NavnKorFilterForm(request.GET)
+
+    request.queryset = dekorasjonFilterForm.applyFilter(request.queryset)
 
     NyDekorasjonForm = modelform_factory(Dekorasjon, fields=['navn', 'kor'])
 
     nyDekorasjonForm = NyDekorasjonForm(request.POST or None, prefix='nyDekorasjon')
     
-    # Set kor alternativene
-    setRequiredDropdownOptions(nyDekorasjonForm, 'kor', Kor.objects.filter(tilganger__in=request.user.medlem.tilganger.filter(navn='dekorasjon')))
+    disableFormMedlem(request.user.medlem, nyDekorasjonForm)
 
     if request.method == 'POST':
         if nyDekorasjonForm.is_valid():
@@ -572,8 +666,10 @@ def dekorasjonListe(request):
             messages.info(request, f'{nyDekorasjonForm.instance} opprettet!')
             return redirect(nyDekorasjonForm.instance)
 
+    addPaginatorPage(request)
+    
     return render(request, 'mytxs/instanceListe.html', {
-        'paginatorPage': getPaginatorPage(request),
+        'filterForm': dekorasjonFilterForm,
         'newForm': nyDekorasjonForm,
         'heading': 'Dekorasjoner'
     })
@@ -592,30 +688,18 @@ def dekorasjon(request, kor, dekorasjonNavn):
         return redirect('dekorasjonListe')
 
     DekorasjonForm = modelform_factory(Dekorasjon, exclude=['kor'])
-    DekorasjonInnehavelseFormset = inlineformset_factory(Dekorasjon, DekorasjonInnehavelse, **formsetArgs)
+    DekorasjonInnehavelseFormset = inlineformset_factory(Dekorasjon, DekorasjonInnehavelse, formset=getPaginatedInlineFormSet(request), **inlineFormsetArgs)
 
     DekorasjonForm = addDeleteCheckbox(DekorasjonForm)
 
     dekorasjonForm = DekorasjonForm(postIfPost(request, 'dekorasjonForm'), instance=request.instance, prefix='dekorasjonForm')
     dekorasjonInnehavelseFormset = DekorasjonInnehavelseFormset(postIfPost(request, 'dekorasjonInnehavelse'), instance=request.instance, prefix='dekorasjonInnehavelse')
 
-    # Disable dekorasjonForm
-    if not request.user.medlem.tilganger.filter(navn='dekorasjon', kor=request.instance.kor).exists():
-        disableForm(dekorasjonForm)
+    disableFormMedlem(request.user.medlem, dekorasjonForm)
+    disableFormMedlem(request.user.medlem, dekorasjonInnehavelseFormset)
 
-    # Disable dekorasjonInnehavelseFormset
-    if not request.user.medlem.tilganger.filter(navn='dekorasjonInnehavelse', kor=request.instance.kor):
-        disableForm(dekorasjonInnehavelseFormset)
-
-    # # Disable dekorasjonInnehavelseFormset
-    # partiallyDisableFormset(
-    #     dekorasjonInnehavelseFormset,
-    #     Medlem.objects.filter(
-    #         stemmegruppeVerv('vervInnehavelse__verv'), 
-    #         vervInnehavelse__verv__kor__tilganger__in=request.user.medlem.tilganger.filter(navn='dekorasjonInnehavelse')
-    #     ),
-    #     'medlem'
-    # )
+    if res := lazyDropdown(request, dekorasjonInnehavelseFormset, 'medlem'):
+        return res
 
     if request.method == 'POST':
         if dekorasjonForm.is_valid():
@@ -638,14 +722,13 @@ def dekorasjon(request, kor, dekorasjonNavn):
 @login_required()
 @user_passes_test(lambda user : 'tilgangListe' in user.medlem.navBarTilgang, redirect_field_name=None)
 def tilgangListe(request):
-    request.queryset = request.user.medlem.tilgangQueryset(Tilgang)
+    request.queryset = request.user.medlem.sideTilgangQueryset(Tilgang).distinct()
 
     NyTilgangForm = modelform_factory(Tilgang, fields=['navn', 'kor'])
 
     nyTilgangForm = NyTilgangForm(request.POST or None, prefix='nyTilgang')
     
-    # Set kor alternativene
-    setRequiredDropdownOptions(nyTilgangForm, 'kor', Kor.objects.filter(tilganger__in=request.user.medlem.tilganger.filter(navn='tilgang')))
+    disableFormMedlem(request.user.medlem, nyTilgangForm)
 
     if request.method == 'POST':
         if nyTilgangForm.is_valid():
@@ -653,8 +736,9 @@ def tilgangListe(request):
             messages.info(request, f'{nyTilgangForm.instance} opprettet!')
             return redirect(nyTilgangForm.instance)
 
+    addPaginatorPage(request)
+    
     return render(request, 'mytxs/instanceListe.html', {
-        'paginatorPage': getPaginatorPage(request),
         'newForm': nyTilgangForm,
         'heading': 'Tilganger'
     })
@@ -679,22 +763,13 @@ def tilgang(request, kor, tilgangNavn):
     
     TilgangForm = modelform_factory(Tilgang, exclude=['kor', 'bruktIKode'])
 
-    TilgangForm = addReverseM2M(TilgangForm, 'verv')
-
     TilgangForm = addDeleteCheckbox(TilgangForm)
 
     tilgangForm = TilgangForm(request.POST or None, instance=request.instance)
 
-    # # Gjør så den bare vise samme kor eller selected, dersom vi ikke bruke alleAlternativ
-    # if not optionForm.cleaned_data['alleAlternativ']:
-    tilgangForm.fields['verv'].queryset = tilgangForm.fields['verv'].queryset.filter(
-        Q(kor=request.instance.kor) | Q(tilganger__pk=request.instance.pk)
-    ).distinct()
+    if disableFormMedlem(request.user.medlem, tilgangForm):
+        disableBrukt(tilgangForm)
 
-    # Disable navn og DELETE om brukt
-    if request.instance.bruktIKode:
-        disableFields(tilgangForm, 'navn', 'DELETE', helpText='Selv ikke de med tilgang kan endre på en brukt tilgang')
-    
     if request.method == 'POST':
         if tilgangForm.is_valid():
             logAuthorAndSave(tilgangForm, request.user.medlem)
@@ -710,20 +785,89 @@ def tilgang(request, kor, tilgangNavn):
 
 
 @login_required()
+@user_passes_test(lambda user : 'turneListe' in user.medlem.navBarTilgang, redirect_field_name=None)
+def turneListe(request):
+    request.queryset = request.user.medlem.sideTilgangQueryset(Turne).distinct()
+
+    turneFilterForm = TurneFilterForm(request.GET)
+
+    request.queryset = turneFilterForm.applyFilter(request.queryset)
+
+    NyTurneForm = modelform_factory(Turne, fields=['navn', 'kor', 'start'])
+
+    nyTurneForm = NyTurneForm(request.POST or None, prefix='nyTurne')
+    
+    disableFormMedlem(request.user.medlem, nyTurneForm)
+
+    if request.method == 'POST':
+        if nyTurneForm.is_valid():
+            logAuthorAndSave(nyTurneForm, request.user.medlem)
+            messages.info(request, f'{nyTurneForm.instance} opprettet!')
+            return redirect(nyTurneForm.instance)
+
+    addPaginatorPage(request)
+    
+    return render(request, 'mytxs/instanceListe.html', {
+        'filterForm': turneFilterForm,
+        'newForm': nyTurneForm,
+        'heading': 'Turneer'
+    })
+
+
+@login_required()
+def turne(request, kor, år, turneNavn):
+    request.instance = Turne.objects.filter(kor__kortTittel=kor, start__year=år, navn=turneNavn).first()
+
+    if not request.instance:
+        messages.error(request, 'Turne ikke funnet')
+        return redirect('turneListe')
+
+    if not request.user.medlem.harSideTilgang(request.instance):
+        messages.error(request, f'Du har ikke tilgang til denne turneen')
+        return redirect('turneListe')
+    
+    TurneForm = modelform_factory(Turne, exclude=['kor'])
+
+    TurneForm = addDeleteCheckbox(TurneForm)
+
+    turneForm = TurneForm(request.POST or None, instance=request.instance)
+
+    disableFormMedlem(request.user.medlem, turneForm)
+
+    if request.method == 'POST':
+        if turneForm.is_valid():
+            logAuthorAndSave(turneForm, request.user.medlem)
+            if turneForm.cleaned_data['DELETE']:
+                messages.info(request, f'{turneForm.instance} slettet')
+                return redirect('turneListe')
+            return redirect(request.instance)
+
+    return render(request, 'mytxs/instance.html', {
+        'forms': [turneForm],
+        # 'optionForm': optionForm
+    })
+
+
+@login_required()
 @user_passes_test(lambda user : 'loggListe' in user.medlem.navBarTilgang, redirect_field_name=None)
 def loggListe(request):
-    # GET forms skal tydeligvis ikkje ha 'or None' for å få is_valid() uten url params ¯\_(ツ)_/¯
+    request.queryset = request.user.medlem.sideTilgangQueryset(Logg).distinct()
+
     loggFilterForm = LoggFilterForm(request.GET)
 
-    request.queryset = request.user.medlem.tilgangQueryset(Logg)
+    request.queryset = loggFilterForm.applyFilter(request.queryset)
 
-    request.queryset = applyLoggFilterForm(loggFilterForm, request.queryset)
-
+    addPaginatorPage(request)
+    
     return render(request, 'mytxs/instanceListe.html', {
         'filterForm': loggFilterForm,
-        'paginatorPage': getPaginatorPage(request),
         'heading': 'Logger'
     })
+
+
+@login_required()
+def loggRedirect(request, modelName, instancePK):
+    return redirect(Logg.objects.getLoggForModelPK(modelName, instancePK))
 
 
 @login_required()
@@ -735,83 +879,3 @@ def logg(request, loggPK):
         return redirect('loggListe')
 
     return render(request, 'mytxs/logg.html')
-
-
-@login_required()
-@user_passes_test(lambda user : 'hendelseListe' in user.medlem.navBarTilgang, redirect_field_name=None)
-def hendelseListe(request):
-    request.queryset = request.user.medlem.tilgangQueryset(Hendelse)
-
-    NyHendelseForm = modelform_factory(Hendelse, fields=['navn', 'kor', 'kategori', 'startDate'])
-
-    nyHendelseForm = NyHendelseForm(request.POST or None, prefix='nyttEvent')
-    
-    # Set kor alternativene
-    setRequiredDropdownOptions(nyHendelseForm, 'kor', Kor.objects.filter(tilganger__in=request.user.medlem.tilganger.filter(navn='semesterplan')))
-
-    if request.method == 'POST':
-        if nyHendelseForm.is_valid():
-            logAuthorAndSave(nyHendelseForm, request.user.medlem)
-            messages.info(request, f'{nyHendelseForm.instance} opprettet!')
-            return redirect(nyHendelseForm.instance)
-
-    return render(request, 'mytxs/instanceListe.html', {
-        'paginatorPage': getPaginatorPage(request),
-        'newForm': nyHendelseForm,
-        'heading': 'Hendelser'
-    })
-
-@login_required()
-def hendelse(request, hendelsePK):
-    request.instance = Hendelse.objects.filter(pk=hendelsePK).first()
-
-    if not request.instance:
-        messages.error(request, 'Hendelse ikke funnet')
-        return redirect('hendelseListe')
-    
-    if not request.user.medlem.harSideTilgang(request.instance):
-        messages.error(request, f'Du har ikke tilgang til denne hendelsen')
-        return redirect('hendelseListe')
-    
-    HendelseForm = modelform_factory(Hendelse, exclude=['kor'])
-    OppmøteFormset = inlineformset_factory(Hendelse, Oppmøte, exclude=[], extra=0)
-
-    HendelseForm = addDeleteCheckbox(HendelseForm)
-
-    hendelseForm = HendelseForm(postIfPost(request, 'hendelse'), instance=request.instance, prefix='hendelse')
-    oppmøteFormset = OppmøteFormset(postIfPost(request, 'oppmøte'), instance=request.instance, prefix='oppmøte')
-
-    if not request.user.medlem.tilganger.filter(navn='semesterplan', kor=request.instance.kor).exists():
-        disableForm(hendelseForm)
-
-    if not request.user.medlem.tilganger.filter(navn='fravær', kor=request.instance.kor).exists():
-        disableForm(oppmøteFormset)
-    elif not request.instance.varighet:
-        disableFields(oppmøteFormset, 'fravær')
-
-    if request.method == 'POST':
-        # Rekkefølgen her e viktig for at bruker skal kunne slette oppmøter nødvendig for å flytte hendelse på en submit:)
-        if oppmøteFormset.is_valid():
-            logAuthorAndSave(oppmøteFormset, request.user.medlem)
-        if hendelseForm.is_valid():
-            logAuthorAndSave(hendelseForm, request.user.medlem)
-            if hendelseForm.cleaned_data['DELETE']:
-                messages.info(request, f'{hendelseForm.instance} slettet')
-                return redirect('hendelseListe')
-        # Formsets som har lengde 0 er tydeligvis invalid, så for at ting ska funk slik man forvente må vi hiv på denne sjekken
-        # Særlig viktig fordi her e det lett å end opp med ingen oppmøter spørs på når man tar det (pga permisjon o.l.)
-        if hendelseForm.is_valid() and (oppmøteFormset.is_valid() or len(oppmøteFormset.forms) == 0):
-            return redirect(request.instance)
-    
-    kwargs = {}
-
-    if request.instance.startTime != None and abs(datetime.datetime.now() - request.instance.start).total_seconds() / 60 <= 30:
-        kwargs['egenFøringLink'] = f'https://zxing.org/w/chart?cht=qr&chs=350x350&chld=L&choe=UTF-8&chl=http://' + \
-            request.get_host() + unquote(reverse('egenFøring', args=[request.instance.pk])) + '?hash=' + \
-            getHash(reverse('egenFøring', args=[request.instance.pk]))
-
-    return render(request, 'mytxs/hendelse.html', {
-        'forms': [hendelseForm],
-        'formsets': [oppmøteFormset],
-        **kwargs
-    })

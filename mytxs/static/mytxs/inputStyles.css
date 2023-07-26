@@ -29,6 +29,11 @@ input[type=number] {
     @apply w-28
 }
 
+/* Gjør at multiselects vises finar når dem e disabled */
+select[multiple][disabled] {
+    @apply h-[22px] w-40 
+}
+
 /* Gjør at select markerer checked elementer */
 option:checked {
     @apply bg-gray-300
@@ -52,7 +57,7 @@ p > textarea {
     @apply w-80 h-40
 }
 
-/* Gjør at hover ikke triggere på labels */
+/* Gjør at hover ikke triggere på labels, e wack for dropdowns */
 label {
     pointer-events:none;
 }

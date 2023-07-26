@@ -3,7 +3,7 @@
 
 {% block content %}
 
-{% for kor in request.user.medlem.kor %}
+{% for kor in request.user.medlem.aktiveKor %}
     <a href="{% url 'semesterplan' kor %}">{{kor.kortTittel}}</a>
 {% endfor %}
 

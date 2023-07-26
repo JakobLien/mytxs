@@ -18,7 +18,7 @@ function getInitialValue(element){
         if(element.hasAttribute('multiple')){
             return [...element.options].filter(option => option.defaultSelected).map(option => option.text);
         }else{
-            return element.querySelector('option[selected]').text;
+            return element.querySelector('option[selected]')?.text || null;
         }
     }else if(element.type === 'checkbox'){
         return element.defaultChecked;
@@ -31,7 +31,7 @@ function getValue(element){
         if(element.hasAttribute('multiple')){
             return [...element.options].filter(option => option.selected).map(option => option.text);
         }else{
-            return element.options[element.selectedIndex].text;
+            return element.options[element.selectedIndex]?.text || null;
         }
     }else if(element.type === 'checkbox'){
         return element.checked;
@@ -61,7 +61,7 @@ function getActualElements(form){
 }
 
 function arrayEqual(o1, o2){
-    if(o1.constructor.name === 'Array'){
+    if(o1 && o1.constructor.name === 'Array'){
         if(o1.length !== o2.length){
             return false
         }

@@ -1,6 +1,7 @@
 from django import template
-from django.forms import FileField
+from django.forms import BaseForm, BaseFormSet, FileField
 from django.utils.safestring import mark_safe
+from django.urls import reverse
 
 from mytxs.models import Logg
 from mytxs.utils.formAccess import formIsEnabled as FormIsEnabled, formIsVisible as FormIsVisible
@@ -11,7 +12,7 @@ register = template.Library()
 
 @register.simple_tag(takes_context=True)
 def setURLParams(context, **kwargs):
-    'Returns a link to the current page, with kwargs set as url parameters'
+    'Returne link til den nåværende siden, med url parameters satt fra kwargs.'
     urlParams = context['request'].GET.copy()
 
     for key, value in kwargs.items():
@@ -21,11 +22,18 @@ def setURLParams(context, **kwargs):
 
 @register.simple_tag(takes_context=True)
 def addLoggLink(context, instance):
-    'Returns the link to the logg corresponsing to the instance, if the user has access to that page'
-    if instance:
-        logg = Logg.objects.getLoggFor(instance)
-        if logg and context['user'].medlem.harSideTilgang(logg):
-            return mark_safe(f'<a class="text-sm" href="{logg.get_absolute_url()}">(Logg)</a>')
+    '''
+    Returne link til loggen, dersom brukeren har tilgang til den. 
+
+    Kompleksiteten her va at om vi laste inn hver logg for å sjekk om vi har tilgang til loggen e det 
+    veldig treigt. Istedet sjekke vi derfor om brukeren har tilgang til instansen (som alt e lasta inn), 
+    og sie at isåfall har brukeren også tilgan til loggen. 
+    '''
+
+    if instance.pk and not isinstance(instance, Logg):
+        medlem = context['request'].user.medlem
+        if instance in medlem.redigerTilgangQueryset(type(instance)):
+            return mark_safe(f'<a class="text-sm" href="{reverse("loggRedirect", args=[type(instance).__name__, instance.pk])}">(Logg)</a>')
     return ''
 
 @register.simple_tag()
@@ -36,10 +44,10 @@ def fixFileField(*forms):
     '''
 
     for form in forms:
-        if hasattr(form, 'fields') and any(list(map(lambda field: isinstance(field, FileField), form.fields.values()))):
+        if isinstance(form, BaseForm) and any(list(map(lambda field: isinstance(field, FileField), form.fields.values()))):
             # Om det e et form
             return mark_safe('enctype="multipart/form-data"')
-        if hasattr(form, 'forms'):
+        if isinstance(form, BaseFormSet):
             # Om det e et formset
             if rtrn := fixFileField(*form.forms):
                 return rtrn
@@ -56,3 +64,23 @@ def formIsEnabled(form):
 @register.filter
 def formIsVisible(form):
     return FormIsVisible(form)
+
+@register.simple_tag(takes_context=True)
+def getPaginatorNavigation(context, paginatorPage, navName=''):
+    'Produsere en meny med linker for å navigere paginatoren'
+    if not hasattr(paginatorPage, 'has_other_pages') or not paginatorPage.has_other_pages():
+        return ''
+    
+    navName = navName+'Page' if navName else 'page'
+
+    pages = []
+
+    for pageNumber in paginatorPage.paginator.get_elided_page_range(number=paginatorPage.number, on_ends=1):
+        if pageNumber == paginatorPage.number:
+            pages.append(f'<span class="text-3xl">{pageNumber}</span>')
+        elif isinstance(pageNumber, int):
+            pages.append(f'<a href="{setURLParams(context, **{navName: pageNumber})}">{pageNumber}</a>')
+        else:
+            pages.append(f'<span>{pageNumber}</span>')
+
+    return mark_safe(f'<div>Sider: {" ".join(pages)}</div>')

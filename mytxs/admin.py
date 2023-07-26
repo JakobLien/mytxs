@@ -1,8 +1,10 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User
+from django.forms import modelform_factory
 
 from mytxs.models import *
+from mytxs.utils.formAddField import addReverseM2M
 
 class VervInnehavelseInline(admin.StackedInline):
     model = VervInnehavelse
@@ -14,37 +16,24 @@ class DekorasjonInnehavelseInline(admin.StackedInline):
     extra = 1
     show_change_link = True
 
-class VervInline(admin.StackedInline):
-    model = Verv.tilganger.through
-    extra = 1
-
 @admin.register(Medlem)
 class MedlemAdmin(admin.ModelAdmin):
     inlines = [VervInnehavelseInline, DekorasjonInnehavelseInline]
-
-@admin.register(Tilgang)
-class TilgangAdmin(admin.ModelAdmin):
-    inlines = [VervInline]
+    form = addReverseM2M(modelform_factory(Medlem, exclude=[]), 'turneer')
 
 @admin.register(Verv)
 class VervAdmin(admin.ModelAdmin):
     inlines = [VervInnehavelseInline]
+    form = addReverseM2M(modelform_factory(Verv, exclude=[]), 'tilganger')
 
 @admin.register(Dekorasjon)
 class DekorasjonAdmin(admin.ModelAdmin):
     inlines = [DekorasjonInnehavelseInline]
 
-
 @admin.register(Logg)
 class LoggingAdmin(admin.ModelAdmin):
     fields = ['timeStamp', 'instancePK', 'author', 'model', 'kor', 'change',  'value']
     readonly_fields = fields
-
-
-
-
-
-
 
 class MedlemInline(admin.StackedInline):
     model = Medlem
@@ -64,4 +53,4 @@ class CustomUserAdmin(UserAdmin):
     inlines = [MedlemInline]
 
 # Register øverige modeller vi ikkje treng å gjør nå med
-admin.site.register([Kor, VervInnehavelse, DekorasjonInnehavelse, LoggM2M, Hendelse, Oppmøte, Lenke])
+admin.site.register([Kor, VervInnehavelse, DekorasjonInnehavelse, LoggM2M, Hendelse, Oppmøte, Lenke, Turne, Tilgang])

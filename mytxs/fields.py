@@ -24,25 +24,25 @@ class MyTimeField(models.TimeField):
         return super().formfield(**defaults)
 
 class MySelectMultiple(forms.widgets.SelectMultiple):
-    'Et widget som bare displaye de som er i enableQueryset (om det er satt)'
-    enableQueryset = False
+    'Et widget som disable alle options ikkje i enableQuerysetPKs'
+    enableQuerysetPKs = False
 
     def create_option(self, *args, **kwargs):
         options_dict = super().create_option(*args, **kwargs)
         
-        if self.enableQueryset != False and options_dict['value'].instance not in self.enableQueryset:
-            # print(f'Disabling: {options_dict['value'].instance}')
+        # Det e veldig my raskar å sjekk PKer enn instances, en merkbar forskjell altså
+        if self.enableQuerysetPKs != False and options_dict['value'] not in self.enableQuerysetPKs:
             options_dict['attrs']['disabled'] = ''
 
         return options_dict
 
 class MyModelMultipleChoiceField(forms.ModelMultipleChoiceField):
-    'Et form field som har setEnableQueryset og setEnableQuerysetKor metodene'
+    'Et form field som bruke enableQueryset for å disable alle options'
     widget = MySelectMultiple
 
     initialValue = False
     'Queryset av alternativ som er selected initially'
-    enableQueryset = False
+    enableQuerysetPKs = False
     'Queryset av de som skal enables (ikke vær disabled)'
 
     def setEnableQueryset(self, enableQueryset, initialValue):
@@ -50,8 +50,8 @@ class MyModelMultipleChoiceField(forms.ModelMultipleChoiceField):
         Sett hvilke verdier som skal vær enabled basert på queryset. 
         For initialValue er det lettest å si request.instance.tilganger.all()
         '''
-        self.enableQueryset = enableQueryset
-        self.widget.enableQueryset = enableQueryset
+        self.enableQuerysetPKs = enableQueryset.values_list('pk', flat=True)
+        self.widget.enableQuerysetPKs = enableQueryset.values_list('pk', flat=True)
 
         self.initialValue = initialValue
 
@@ -79,10 +79,9 @@ class MyModelMultipleChoiceField(forms.ModelMultipleChoiceField):
         # E fann ingen bedre måte å gjør det på enn å si at når man kjøre setEnableQuerySet må man også gi en initialValue.
         # Kjipt, men trur virkelig ikke det va en lurar måte å gjør det på.
         
-        if self.enableQueryset != False:
-            enablePKs = self.enableQueryset.values_list('pk', flat=True)
-            returnValue = (returnValue.filter(pk__in=enablePKs)) | (self.initialValue.exclude(pk__in=enablePKs)).distinct()
-            
+        if self.enableQuerysetPKs != False:
+            returnValue = (returnValue.filter(pk__in=self.enableQuerysetPKs)).distinct() | (self.initialValue.exclude(pk__in=self.enableQuerysetPKs)).distinct()
+        
         return returnValue
 
 class MyManyToManyField(models.ManyToManyField):

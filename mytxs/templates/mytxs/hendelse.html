@@ -1,12 +1,14 @@
 {% extends "mytxs/instance.html" %}
 
+
 {% block betweenForms %}
 
-{% if egenFøringLink %}
-    <a href="{{ egenFøringLink }}"><img src="{{ egenFøringLink }}"></img></a>
+{% if request.egenFøringLink %}
+    <a href="{{ request.egenFøringLink }}"><img src="{{ request.egenFøringLink }}"></img></a>
 {% endif %}
 
 {% endblock %}
+
 
 {% block afterForms %}
 
@@ -17,7 +19,5 @@
     <li>{{stemmegruppe}}: {{antall}}</li>
     {% endfor %}
 </ul>
-
-
 
 {% endblock %}

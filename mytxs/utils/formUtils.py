@@ -1,10 +1,20 @@
 # Alt forøverig om forms
 
-formsetArgs = {
+from django.forms import BaseFormSet
+
+
+inlineFormsetArgs = {
     'exclude': [],
     'extra': 1,
-    'can_delete_extra': False,
+    'can_delete_extra': False
 }
+'Args for inline formsets'
+
+formsetArgs = {
+    'extra': 1,
+    'can_delete_extra': False
+}
+'Args for formsets forøvrig'
 
 def postIfPost(request, prefix=''):
     '''
@@ -44,7 +54,7 @@ def callForEveryForm(func, formset, *args, **kwargs):
     if callForEveryForm(hideFields, form, *fieldNames):
         return
     '''
-    if hasattr(formset, 'forms') and formset.forms != None:
+    if isinstance(formset, BaseFormSet):
         for form in formset.forms:
             func(form, *args, **kwargs)
         return True

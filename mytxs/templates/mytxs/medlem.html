@@ -3,9 +3,9 @@
 {% block content %}
 {{ block.super }}
 
-{% if registreringLink %}
+{% if request.registreringLink %}
 <p class="max-w-2xl mt-4">Dette medlemmet har ingen registrert bruker på seg. Send denne lenken til den aktuelle koristen, for å la de registrere seg på medlemmet: 
-<br><a class="" href="//{{ registreringLink }}">{{ registreringLink }}</a></p>
+<br><a class="" href="//{{ request.registreringLink }}">{{ request.registreringLink }}</a></p>
 {% endif %}
 
 {% endblock %}

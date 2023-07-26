@@ -11,6 +11,9 @@ for(const select of document.querySelectorAll('select:not([disabled])')){
     // Style dem
     parent.classList.add('inline', 'relative');
     input.classList.add('peer', 'mb-0');
+    if (Array.from(select.options).every(o => o.hasAttribute('disabled'))){
+        input.classList.add('opacity-40');
+    }
 
     //Set anntall element som skal vises (gjør at select vises som multiselect)
     select.setAttribute('size', Math.min(10, select.options.length));
@@ -28,8 +31,14 @@ for(const select of document.querySelectorAll('select:not([disabled])')){
 
     // Implementer søkefunksjonen
     input.oninput = e => {
+        let words = input.value.toLowerCase().split(' ')
+        let onlySelected = words.includes('!');
+        if(onlySelected){
+            words.splice(words.indexOf('!'), 1);
+        }
+
         for(option of select.options){
-            option.hidden = !input.value.split(' ').every(word => word ? option.text.toLowerCase().includes(word.toLowerCase()) : true);
+            option.hidden = (!words.every(word => option.text.toLowerCase().includes(word)) || (onlySelected && !option.selected));
         }
     }
 
