@@ -4,12 +4,11 @@
 
 <p>Her kan du filtrere på de som nå er aktive i korene.</p>
 
-<form action="{{ request.path }}" method="get" onChange="this.submit()">
-    {{ filterForm.as_p }}
-</form>
-
 <form action="{{ request.path }}" method="get">
-    <input type="submit" value="Clear">
+    {{ filterForm.as_p }}
+
+    <input type="button" value="Clear" onclick="window.location='?';"/>
+    <input type="submit" value="Søk">
 </form>
 
 {% endblock %}

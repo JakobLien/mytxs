@@ -1,8 +1,10 @@
+from django.db.models import ManyToManyField, ManyToManyRel
+from django.db.models import Q
 from django.forms import BaseFormSet
 from django.utils import timezone
 
 from mytxs import consts
-from mytxs.models import Logg
+from mytxs.models import Logg, LoggM2M
 
 # For å sette author på endringer
 
@@ -14,14 +16,32 @@ def logAuthorInstance(instance, author, pk=None):
     noen andre tilfeldigvis gjør en save på samme objekt som ikke endrer noe, 
     må det ha vært innad samme minutt for å feilaktig sette author. 
     '''
-    if log := Logg.objects.filter(
-            instancePK=pk or instance.pk,
-            model=type(instance).__name__,
-            author__isnull=True,
-            timeStamp__gte=timezone.now() - timezone.timedelta(minutes=1)
+    if logg := Logg.objects.filter(
+        instancePK=pk or instance.pk,
+        model=type(instance).__name__,
+        author__isnull=True,
+        timeStamp__gte=timezone.now() - timezone.timedelta(minutes=1)
     ).order_by('-timeStamp').first():
-        log.author = author
-        log.save()
+        logg.author = author
+        logg.save()
+
+    # Også logg author på M2M relasjona, Merk at vi ofte opprette M2M uten å opprette 
+    # loggs for M2M uten å opprette loggs for noen av de relaterte objektene. 
+    for field in type(instance)._meta.get_fields():
+        if (
+            (isinstance(field, ManyToManyField) or isinstance(field, ManyToManyRel)) and 
+            type(instance) in consts.getLoggedModels() and field.related_model in consts.getLoggedModels()
+        ):
+            lastLogg = Logg.objects.getLoggFor(instance)
+
+            for M2Mlogg in LoggM2M.objects.filter(
+                Q(fromLogg=lastLogg) | Q(toLogg=lastLogg),
+                author__isnull=True,
+                timeStamp__gte=timezone.now() - timezone.timedelta(minutes=1)
+            ):
+                M2Mlogg.author = author
+                M2Mlogg.save()
+
 
 def logAuthorAndSave(form, author):
     '''

@@ -46,17 +46,13 @@
                 <p>Endre passord</p>
             </a>
 
-            {% if user.medlem.storkor %}
-            <a href="{% url 'sjekkheftet' user.medlem.storkor %}">
-            {% else %}
-            <a href="{% url 'sjekkheftet' 'TSS' %}">
-            {% endif %}
+            <a href="{% url 'sjekkheftet' user.medlem.navBar.sjekkheftet|firstKey %}">
                 <img src="{% static 'mytxs/sjekkheftet.png' %}" border="0">
                 <p>Sjekkheftet</p>
             </a>
 
-            {% if user.medlem.storkor %}
-            <a href="{% url 'semesterplan' user.medlem.storkor %}">
+            {% if user.medlem.navBar.semesterplan %}
+            <a href="{% url 'semesterplan' user.medlem.navBar.semesterplan|firstKey %}">
                 <svg class="w-1/2 fill-gray-400" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 29.237 29.237" xml:space="preserve">
                     <g>
                         <g>
@@ -84,21 +80,28 @@
             </a>
             {% endif %}
 
-            {% if 'hendelseListe' in user.medlem.navBarTilgang %}
-            <a href="{% url 'hendelseListe' %}">
+            {% if user.medlem.navBar.hendelseListe %}
+            <a href="{% url 'hendelseListe' %}?start={% now 'Y-m-d' %}">
                 <img src="{% static 'mytxs/arkiv.png' %}" border="0">
                 <p>Hendelser</p>
             </a>
             {% endif %}
             
-            {% if 'medlemListe' in user.medlem.navBarTilgang %}
+            {% if user.medlem.navBar.medlemListe %}
             <a href="{% url 'medlemListe' %}">
                 <img src="{% static 'mytxs/arkiv.png' %}" border="0">
                 <p>Medlemmer</p>
             </a>
             {% endif %}
 
-            {% if 'dekorasjonListe' in user.medlem.navBarTilgang %}
+            {% if user.medlem.navBar.fraværListe %}
+            <a href="{% url 'fraværListe' user.medlem.navBar.fraværListe|firstKey %}">
+                <img src="{% static 'mytxs/arkiv.png' %}" border="0">
+                <p>Fravær</p>
+            </a>
+            {% endif %}
+
+            {% if user.medlem.navBar.dekorasjonListe %}
             <a href="{% url 'dekorasjonListe' %}">
                 <svg class="w-2/3 fill-gray-400" version="1.0" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 64 64" xml:space="preserve">
                     <g>
@@ -111,7 +114,7 @@
             </a>
             {% endif %}
 
-            {% if 'vervListe' in user.medlem.navBarTilgang %}
+            {% if user.medlem.navBar.vervListe %}
             <a href="{% url 'vervListe' %}">
                 <svg class="w-2/3 fill-transparent stroke-gray-400" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path d="M4 16V5L8 9L12 5L16 9L20 5V16H4Z"/>
@@ -121,7 +124,7 @@
             </a>
             {% endif %}
 
-            {% if 'tilgangListe' in user.medlem.navBarTilgang %}
+            {% if user.medlem.navBar.tilgangListe %}
             <a href="{% url 'tilgangListe' %}">
                 <svg class="w-2/3 fill-transparent stroke-gray-400 stroke-1" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path d="M21 9L9.59309 9C9.59309 9 8.5 7 6 7C3.5 7 2 8.79086 2 11C2 13.2091 3.5 15 6 15C8.5 15 9.59309 13 9.59309 13L15 13L15 17L19 17L19 13L21 13L21 9Z" stroke-linecap="round" stroke-linejoin="round"/>
@@ -131,7 +134,7 @@
             </a>
             {% endif %}
 
-            {% if 'turneListe' in user.medlem.navBarTilgang %}
+            {% if user.medlem.navBar.turneListe %}
             <a href="{% url 'turneListe' %}">
                 <svg class="w-2/3 fill-gray-400" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 350 350" xml:space="preserve">
                     <path id="XMLID_494_" d="M299.361,327.067c-0.445-0.715-23.208-37.612-45.34-88.403c7.156-1.138,12.631-7.318,12.631-14.795  c0-8.284-6.716-15-15-15h-9.827c-6.826-17.865-13.129-36.748-18.146-55.896c6.326-1.762,10.974-7.551,10.974-14.438  c0-8.284-6.716-15-15-15h-2.548c-2.078-11.43-3.556-22.814-4.275-34h6.823c8.284,0,15-6.716,15-15c0-8.284-6.716-15-15-15h-29.651  V15c0-8.284-6.716-15-15-15c-8.284,0-15,6.716-15,15v44.535h-29.651c-8.284,0-15,6.716-15,15c0,8.284,6.716,15,15,15h6.823  c-0.72,11.186-2.198,22.57-4.275,34h-2.548c-8.284,0-15,6.716-15,15c0,6.887,4.648,12.676,10.974,14.438  c-5.018,19.148-11.321,38.031-18.146,55.896h-9.827c-8.284,0-15,6.716-15,15c0,7.477,5.476,13.657,12.632,14.795  c-22.132,50.791-44.894,87.688-45.338,88.4c-2.883,4.624-3.031,10.449-0.387,15.215c2.645,4.765,7.666,7.721,13.116,7.721h74.42  c8.284,0,15-6.716,15-15c0-12.246,9.963-22.209,22.209-22.209c12.246,0,22.209,9.963,22.209,22.209c0,8.284,6.716,15,15,15h74.42  c5.449,0,10.468-2.956,13.113-7.72C302.387,337.518,302.241,331.692,299.361,327.067z M167.237,89.535h15.527  c0.62,10.917,1.907,22.258,3.85,34h-23.227C165.33,111.793,166.617,100.452,167.237,89.535z M157.208,153.535h35.586  c4.317,17.662,9.967,36.122,16.935,55.334h-69.457C147.24,189.657,152.89,171.197,157.208,153.535z M225.014,320  c-6.46-21.501-26.436-37.209-50.013-37.209c-23.577,0-43.553,15.708-50.013,37.209H89.389c8.633-15.625,20.453-38.31,32.351-65.204  c2.372-5.361,4.642-10.666,6.832-15.927h92.857c2.19,5.261,4.46,10.566,6.832,15.927c11.898,26.895,23.718,49.579,32.351,65.204  H225.014z"/>
@@ -140,7 +143,7 @@
             </a>
             {% endif %}
 
-            {% if 'loggListe' in user.medlem.navBarTilgang %}
+            {% if user.medlem.navBar.loggListe %}
             <a href="{% url 'loggListe' %}">
                 <svg class="w-4/5 fill-gray-400" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 511 511" xml:space="preserve">
                     <g>
@@ -190,10 +193,15 @@
                         {{heading}}
                         {% elif request.instance %}
                         {{request.instance|capfirst}}
+
+                        {% if user.medlem.tilganger %}
                         {% addLoggLink request.instance %}
+                        {% endif %}
+
                         {% endif %}
                     </h1>
                 </div>
+                {% addSubNavigation %}
                 {% endblock %}
 
                 {% block content %} [Default Content] {% endblock %}
@@ -203,10 +211,12 @@
 
     {% endblock %}
 
-    {% if optionForm %}
-    <div class="fixed right-6 bottom-6 p-2 rounded-md bg-gray-400 border-2 border-red-700 group">
-        <form class="hidden group-hover:block" action="{{ request.get_full_path }}" method="get" onChange="this.submit()">
-            {{ optionForm.as_p }}
+    {% if request.optionForm %}
+    <div class="fixed right-6 bottom-6 p-2 rounded-md bg-customPurple border-2 border-red-700 group">
+        <div class="block group-hover:hidden">Innstillinger</div>
+        <form class="hidden group-hover:block" action="{{ request.get_full_path }}" method="post" onChange="this.submit()">
+            {% csrf_token %}
+            {{ request.optionForm.as_p }}
         </form>
     </div>
     {% endif %}

@@ -10,10 +10,10 @@ from django.utils.translation import gettext_lazy as _
 
 # Utils for modeller
 
-def vervInnehavelseAktiv(pathToVervInnehavelse='vervInnehavelse', dato=None):
+def vervInnehavelseAktiv(pathToVervInnehavelse='vervInnehavelser', dato=None):
     '''
     Produsere et Q object som querye for aktive vervInnehavelser. Siden man 
-    ikke kan si Tilganger.objects.filter(verv__vervInnehavelse=Q(...)) er dette en funksjon.
+    ikke kan si Tilganger.objects.filter(verv__vervInnehavelser=Q(...)) er dette en funksjon.
 
     Argumentet er query lookup pathen til vervInnehavelsene.
     - Om man gir ingen argument anntar den at vi filtrere på Medlem eller Verv (som vi som oftest gjør).
@@ -21,10 +21,10 @@ def vervInnehavelseAktiv(pathToVervInnehavelse='vervInnehavelse', dato=None):
     - Alternativt kan man gi en full path, f.eks. i Tilgang.objects.filter(vervInnehavelseAktiv('verv__vervInnehavelse'))
 
     Eksempel:
-    - Verv.objects.filter(vervInnehavelseAktiv(), vervInnehavelse__medlem__in=medlemmer)
-    - Medlem.objects.filter(vervInnehavelseAktiv(), vervInnehavelse__verv__in=verv)
+    - Verv.objects.filter(vervInnehavelseAktiv(), vervInnehavelser__medlem__in=medlemmer)
+    - Medlem.objects.filter(vervInnehavelseAktiv(), vervInnehavelser__verv__in=verv)
     - VervInnehavelse.objects.filter(vervInnehavelseAktiv(''))
-    - Tilgang.objects.filter(vervInnehavelseAktiv('verv__vervInnehavelse'))
+    - Tilgang.objects.filter(vervInnehavelseAktiv('verv__vervInnehavelser'))
     '''
 
     # Må skriv dette fordi default parameters bare evalueres når funksjonen defineres. 
@@ -47,27 +47,27 @@ def vervInnehavelseAktiv(pathToVervInnehavelse='vervInnehavelse', dato=None):
 
 stemmegruppeVervRegex = '^[12][12]?[SATB]$'
 
-def stemmegruppeVerv(pathToStemmGruppeVerv='verv', includeUkjentStemmegruppe=True, includeDirr=False):
+def stemmegruppeVerv(pathToVerv='verv', includeUkjentStemmegruppe=True, includeDirr=False):
     '''
     Produsere et Q objekt som querye for stemmegruppeverv
     
     Eksempel:
     - Verv.objects.filter(stemmegruppeVerv(''))
-    - Medlem.objects.filter(stemmegruppeVerv('vervInnehavelse__verv'))
+    - Medlem.objects.filter(stemmegruppeVerv('vervInnehavelser__verv'))
     - VervInnehavelse.objects.filter(stemmegruppeVerv())
-    - Kor.objects.filter(vervInnehavelseAktiv())
+    - Kor.objects.filter(stemmegruppeVerv())
     '''
 
-    if pathToStemmGruppeVerv:
-        pathToStemmGruppeVerv += '__'
+    if pathToVerv:
+        pathToVerv += '__'
 
-    q = Q(**{f'{pathToStemmGruppeVerv}navn__regex': stemmegruppeVervRegex})
+    q = Q(**{f'{pathToVerv}navn__regex': stemmegruppeVervRegex})
     
     if includeUkjentStemmegruppe:
-        q |= Q(**{f'{pathToStemmGruppeVerv}navn': 'ukjentStemmegruppe'})
+        q |= Q(**{f'{pathToVerv}navn': 'ukjentStemmegruppe'})
     
     if includeDirr:
-        q |= Q(**{f'{pathToStemmGruppeVerv}navn': 'Dirigent'})
+        q |= Q(**{f'{pathToVerv}navn': 'Dirigent'})
     
     return q
 
@@ -90,10 +90,6 @@ def orderStemmegruppeVerv():
     
     ordering.append(When(navn='ukjentStemmegruppe', then=count))
     return Case(*ordering, default=count+1)
-
-
-def toolTip(helpText):
-    return f'<span title="{helpText}">(?)</span>'
 
 
 def groupBy(queryset, prop):
@@ -158,6 +154,8 @@ def getPathToKor(model):
         return 'dekorasjon__kor'
     if model.__name__ == 'Oppmøte':
         return 'hendelse__kor'
+    if model.__name__ == 'Medlem':
+        return None
     
     # Alle andre modeller kan anntas å ha en direkte relasjon til kor
     return 'kor'
@@ -167,8 +165,8 @@ def getInstancesForKor(model, kor):
     'Returne alle instanser av modellen for et queryset med kor'
     if model.__name__ == 'Medlem':
         return model.objects.filter(
-            stemmegruppeVerv('vervInnehavelse__verv', includeDirr=True), 
-            Q(vervInnehavelse__verv__kor__in=kor)
+            stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True), 
+            vervInnehavelser__verv__kor__in=kor
         )
     
     if model.__name__ == 'Kor':
@@ -200,11 +198,58 @@ def validateStartSlutt(instance, canEqual=True):
                 )
 
 
+def validateM2MFieldEmpty(instance, *fieldNames):
+    '''
+    Gitt en liste av M2M fields sjekke denne om noen har relaterte instances, og raise isåfall ValidationError
+    Tiltenkt å settes inn i delete override der vi har M2M fields vi skulle likt å si on_delete=models.PROTECT
+    '''
+    for fieldName in fieldNames:
+        if getattr(instance, fieldName).exists():
+            raise ValidationError(
+                _('For å slette denne instansen må du fjerne alle M2M relasjoner.'),
+                code='nonEmptyM2M'
+            )
+
+
+def validateBruktIKode(instance):
+    '''
+    Sjekke om lagringen hadde krasjet med instanser som er bruktIKode. 
+    Denne sjekker bruktIKode intensjonelt uavhengig av kor, slik at småkor ikke kan opprette en medlemsdata
+    tilgang, for selv om vi kunne lagt inn en special case for det er det mye enklere å si at de bare ikke får lov. 
+    '''
+    if not instance.bruktIKode and type(instance).objects.filter(bruktIKode=True, navn=instance.navn).exists():
+        raise ValidationError(
+            _('Kan ikke opprette eller endre navn til noe som er brukt i kode'),
+            code='bruktIKodeError',
+        )
+
+
 qTrue = ~Q(pk__in=[])
 qFalse = Q(pk__in=[])
 
-def getQBool(value, trueOption=qTrue, falseOption=qFalse):
+def qBool(value, trueOption=qTrue, falseOption=qFalse):
+    'Return et Q objekt som tilsvare True eller False, til bruk i sammensatte filters'
     return trueOption if value else falseOption
+
+
+def joinQ(*Qs, joinOp='|'):
+    '''
+    Slår sammen en liste av Q objekt med operator
+    
+    Default joinOp er OR fordi om man treng AND kan man bare spre Q objektan inn i filteret. 
+    '''
+    if len(Qs) == 1:
+        return Qs[0]
+    
+    resQ = Qs.pop()
+
+    while len(resQ) > 0:
+        if joinOp == '|':
+            resQ |= Qs.pop()
+        else:
+            resQ |= Qs.pop()
+    
+    return resQ
 
 
 def getSourceM2MModel(model, fieldName):
@@ -216,3 +261,42 @@ def getSourceM2MModel(model, fieldName):
         return modelFieldOrRel.related_model
     
     raise Exception("M2M Field not found")
+
+
+def bareAktiveDecorator(func):
+    'Legges før sideTilgangQueryset og redigerTilgangQueryset for å implementere bareAktive innstillingen'
+    def _decorator(self, *args, **kwargs):
+        qs = func(self, *args, **kwargs)
+
+        if qs.model.__name__ == 'Medlem' and self.innstillinger.get('bareAktive', False):
+            qs = qs.filter(vervInnehavelseAktiv(), stemmegruppeVerv('vervInnehavelser__verv'))
+        return qs
+
+    return _decorator
+
+
+def korLookup(kor, path=''):
+    'Returne et Q lookup for å spør om kor=kor, der vi omformer til kor__kortTittel=kor dersom kor er en string'
+    if isinstance(kor, str):
+        return Q(**{path+'__kortTittel': kor})
+    return Q(**{path: kor})
+
+
+def annotateInstance(instance, annotateFunction, *args, **kwargs):
+    '''
+    Annotater en instance gitt en annotateFunction, som kan være en Manager/QuerySet funksjon, eller
+    en lambda funksjon. Må uansett være en funksjon som kjører på samme modellen og returne et annotated 
+    queryset. *args og **kwargs e passed direkte videre til annotateFunction. 
+    '''
+
+    annotatedQS = annotateFunction(type(instance).objects.filter(pk=instance.pk), *args, **kwargs)
+    annotatedInstance = annotatedQS.first()
+
+    for name in annotatedQS.query.annotations.keys():
+        setattr(instance, name, getattr(annotatedInstance, name))
+
+
+def refreshQueryset(queryset):
+    # Om man treng å filter basert på noe som allerede er filtrert bort, så må man
+    # refresh querysettet ved å si pk__in=values_list('pk', flat=True)
+    return queryset.model.objects.filter(pk__in=queryset.values_list('pk', flat=True))

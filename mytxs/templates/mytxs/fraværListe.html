@@ -1,0 +1,23 @@
+{% extends "mytxs/base.html" %}
+{% load mytxsTags %}
+
+{% block content %}
+
+<table>
+    <tr class="[&>*]:w-52 border-b-[1px] border-black">
+        <th>Hvem</th>
+        <th>Gyldig fravær</th>
+        <th>Ugyldig fravær</th>
+        <th>Semesterplan</th>
+    </tr>
+    {% for medlem in request.queryset %}
+    <tr class="border-b-[1px] border-black">
+        <td>{{ medlem.navn }}</td>
+        <td>{{ medlem|showFravær:True }}</td>
+        <td>{{ medlem|showFravær:False }}</td>
+        <td><a href="{% url 'fravær' request.resolver_match.kwargs.kor medlem.pk %}?gammelt=True">Se semesterplan</a></td>
+    </tr>
+    {% endfor %}
+</table>
+
+{% endblock %}

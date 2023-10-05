@@ -4,6 +4,8 @@ from mytxs.settings import SECRET_KEY
 
 from urllib.parse import unquote
 
+# For å generere og verifisere hash av request sine paths
+
 def getHash(path):
     '''
     Tanken her er at om vi hashe pathen sammen med django sin SECRET_KEY, blir det både
@@ -32,6 +34,9 @@ def getHash(path):
     hash = base64.b64encode(hashGen.digest(), altchars=b'-_').decode()[:32]
 
     return hash
+
+def addHash(path):
+    return path + '?hash=' + getHash(path)
 
 def testHash(request):
     'Returne True om hashen stemme for requesten'

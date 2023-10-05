@@ -21,17 +21,18 @@ input[type=submit], input[type=button] {
 
 /* Generell input styling */
 input, select, textarea {
-    @apply !py-0 pl-1 my-1 !text-sm disabled:opacity-40
+    @apply !py-0 pl-1 my-1 !text-sm
+}
+
+/* Få input og textarea til å vises annerledes når dem e disabled. 
+Alle selects er popup, så de skal ikke være gjennomsiktige. */
+input, textarea {
+    @apply disabled:opacity-40
 }
 
 /* Gjør number inputs kortere (7 siffer bredt i firefox) */
 input[type=number] {
     @apply w-28
-}
-
-/* Gjør at multiselects vises finar når dem e disabled */
-select[multiple][disabled] {
-    @apply h-[22px] w-40 
 }
 
 /* Gjør at select markerer checked elementer */
@@ -51,8 +52,13 @@ Så disse to statementene er basicly:
 - Om ikke, vær stor
 */
 textarea {
-    @apply mb-0 w-20 h-5 focus:w-80 focus:h-40 resize-none
+    @apply mb-0 resize-none
 }
+
+:not(p) > textarea {
+    @apply w-20 h-5 transition-all duration-300 focus:w-80 focus:h-40 focus:fixed focus:z-20 focus:left-1/2 focus:top-1/2 focus:-ml-40 focus:-mt-40 focus:shadow-2xl
+}
+
 p > textarea {
     @apply w-80 h-40
 }

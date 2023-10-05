@@ -3,37 +3,62 @@
 
 {% block content %}
 
-{% for kor in request.user.medlem.aktiveKor %}
-    <a href="{% url 'semesterplan' kor %}">{{kor.kortTittel}}</a>
-{% endfor %}
-
+{% if request.iCalLink %}
+<a href="{{ request.iCalLink }}">Last ned iCal fil</a>
+<a href="https://www.google.com/calendar/render?cid={{ request.iCalLink }}">Legg til i google Calendar</a>
 <br>
+{% endif %}
 
-<a href="{% setURLParams iCal='true' %}">Last ned iCal fil</a>
-<a href="https://www.google.com/calendar/render?cid=http://{{ request.get_host }}{{ request.path }}{% setURLParams iCal='true' %}">Legg til i google Calendar</a>
-
+{% toggleURLparam 'gammelt' 'vis gammelt' %}
 <br>
+<span>Minutter gyldig fravær: {{ medlem|showFravær:True }}</span>
+<br>
+<span>Minutter ugyldig fravær: {{ medlem|showFravær:False }}</span>
 
-<a href="{% setURLParams gammelt='true' %}">Vis tidligere hendelser</a>
-
-<div class="[&>*]:border-b [&>*]:border-black [&>*]:mt-2">
-    <div class="[&>*]:w-52 [&>*]:inline-block">
-        <span>Hva</span>
-        <span>Når</span>
-        <span>Hvor</span>
-        <span>Fravær</span>
-    </div>
+<table>
+    <tr class="[&>*]:w-52 border-b-[1px] border-black">
+        <th>Hva</th>
+        <th>Når</th>
+        <th>Hvor</th>
+        <th>Fravær</th>
+    </tr>
     {% for hendelse in request.queryset %}
-    <div class="[&>*]:w-52 [&>*]:inline-block [&>*]:align-top">
-        <span>{{ hendelse.navn }} {% if 'hendelseListe' in user.medlem.navBarTilgang %}<a href="{% url 'hendelse' hendelse.pk %}">Rediger</a>{% endif %}</span>
-        <span>{{ hendelse.start }}{% if hendelse.slutt %}<br> - {{ hendelse.slutt }}{% endif %}</span>
-        <span>{{ hendelse.sted }}</span>
-        {% if hendelse.getOppmøteLink and request.user.medlem in hendelse.getMedlemmer %}
-        <span><a href="{% url 'meldFravær' hendelse.pk %}">
-            {% if hendelse.kategori == 'O' %}Søk fravær{% elif hendelse.kategori == 'P' %}Meld om du kommer{% endif %}
-        </a></span>
-        {% endif %}
-    </div>
+    <tr class="border-b-[1px] border-black">
+        <td>{{ hendelse.navn }} {% if medlem.navBar.hendelseListe %}<a href="{% url 'hendelse' hendelse.pk %}">Rediger</a>{% endif %}</td>
+        <td>
+            {{ hendelse.startDate|date:'D j. M' }}
+            {% if hendelse.startTime %}
+            {{ hendelse.startTime }}
+            {% endif %}
+
+            {% if hendelse.sluttDate %}
+            -
+            {% if hendelse.sluttDate != hendelse.startDate%}
+            <br>{{ hendelse.sluttDate|date:'D j. M' }}
+            {% endif %}
+            {% if hendelse.sluttTime %}
+            {{ hendelse.sluttTime}}
+            {% endif %}
+            {% endif %}
+        </td>
+        <td>{{ hendelse.sted }}</td>
+
+        {% with oppmøte=hendelse.oppmøter|filterMedlemFirst:medlem %}{% if oppmøte %}
+        {% ifAll %}<td>
+            <a href="{{oppmøte.get_absolute_url}}">{% ifAll %}
+                {% if oppmøte.minutterBorte and hendelse.start|past %}
+                    {{ oppmøte.minutterBorte }} min {% if not oppmøte.gyldig %}u{% endif %}gyldig fravær
+                {% elif not hendelse.start|past %}
+                    {% if hendelse.kategori == 'O' and oppmøte.ankomst == 1 %}
+                    Søk fravær
+                    {% elif hendelse.kategori == 'P' and oppmøte.ankomst == 0 %}
+                    Meld om du kommer
+                    {% else %}Se melding{% endif %}
+                {% endif %}
+            {% ifAll %}</a><br>
+        </td>{% endIfAll %}
+        {% endif %}{% endwith%}
+    </tr>
     {% endfor %}
-</div>
+</table>
 {% endblock %}

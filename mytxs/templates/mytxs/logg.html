@@ -1,4 +1,5 @@
 {% extends "mytxs/instance.html" %}
+{% load mytxsTags %}
 
 {% block content %}
 
@@ -36,8 +37,9 @@
 {% if request.instance.getReverseRelated %}
 <h2 class="text-xl">Logger som refererer til denne loggen: </h2>
 <ul>
-    {% for related in request.instance.getReverseRelated %}
-    <li><a href="{{related.get_absolute_url}}">{{related}}</a></li>
+    {% paginateList request.instance.getReverseRelated 'reverseRelated' %}
+    {% for related in reverseRelatedPage %}
+    <li><span>{{ related.timeStamp }}: </span><a href="{{related.get_absolute_url}}">{{related}}</a></li>
     {% endfor %}
 </ul>
 {% endif %}
@@ -48,10 +50,10 @@
 <h2 class="text-xl">{{m2mName}} M2M relasjoner</h2>
 <ul>
 
-{% for M2M in M2Ms %}
+{% paginateList M2Ms 'm2mRelated' %}
+{% for M2M in m2mRelatedPage %}
     <li id="m2m_{{M2M.pk}}">
-        {{ M2M.timeStamp }}: 
-        {{ M2M.get_change_display }} 
+        <span title="Author: {{M2M.author}}">{{ M2M.timeStamp }}: {{ M2M.get_change_display }}</span>
         
         {% if M2M.fromLogg.get_absolute_url != request.path %}
         <a href="{{ M2M.fromLogg.get_absolute_url }}#m2m_{{M2M.pk}}">{{ M2M.fromLogg.strRep }}</a>

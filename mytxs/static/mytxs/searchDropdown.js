@@ -2,7 +2,7 @@
     For multiselect (type="multiple") gjør denne fila også at toggle er default.
  */
 
-for(const select of document.querySelectorAll('select:not([disabled])')){
+for(const select of document.querySelectorAll('select')){
     // Lag parent, input og options
     let parent = document.createElement('div')
     let input = document.createElement('input');
@@ -11,7 +11,7 @@ for(const select of document.querySelectorAll('select:not([disabled])')){
     // Style dem
     parent.classList.add('inline', 'relative');
     input.classList.add('peer', 'mb-0');
-    if (Array.from(select.options).every(o => o.hasAttribute('disabled'))){
+    if (select.hasAttribute('disabled') || Array.from(select.options).every(o => o.hasAttribute('disabled'))){
         input.classList.add('opacity-40');
     }
 

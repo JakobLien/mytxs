@@ -1,6 +1,6 @@
 from django import forms
-from mytxs.utils.formUtils import callForEveryForm
-from mytxs.utils.modelUtils import getSourceM2MModel, toolTip
+from mytxs.utils.formUtils import addHelpText, formsetToForm
+from mytxs.utils.modelUtils import getSourceM2MModel
 
 # Alt relatert til om forms e hidden og disabled
 
@@ -24,10 +24,16 @@ def formIsVisible(form):
     return any(map(lambda field: fieldIsVisible(field), form.fields.values()))
 
 
+@formsetToForm
+def removeFields(form, *fieldNames):
+    'Fjerne fields fra formet'
+    for fieldName in fieldNames:
+        if fieldName in form.fields.keys():
+            del form.fields[fieldName]
+
+
+@formsetToForm
 def hideFields(form, *fieldNames):
-    if callForEveryForm(hideFields, form, *fieldNames):
-        return
-    
     if not fieldNames:
         fieldNames = form.fields.keys()
 
@@ -35,103 +41,40 @@ def hideFields(form, *fieldNames):
         form.fields[fieldName].widget = form.fields[fieldName].hidden_widget()
 
 
+@formsetToForm
 def hideDisabledFields(form):
-    if callForEveryForm(hideDisabledFields, form):
-        return
-    
     if not formIsEnabled(form):
         hideFields(form)
 
 
+@formsetToForm
 def disableFields(form, *fieldNames, helpText=None):
-    if callForEveryForm(disableFields, form, *fieldNames, helpText=helpText):
-        return
+    '''
+    Disable fields ved navn fieldNames på formet/formsetettet.
+    Om fieldNames er tom vil den kjøre på alle synlige fields. 
+    helpText er om man vil legge til en forklaring for hvorfor fields er disabled. 
+    '''
+    if not fieldNames:
+        fieldNames = list(map(lambda f: f.name, form.visible_fields()))
+    
+    if helpText:
+        addHelpText(form, *fieldNames, helpText=helpText)
 
     for fieldName in fieldNames:
         form.fields[fieldName].disabled = True
 
-        if helpText:
-            form.fields[fieldName].help_text = toolTip(helpText)
-
-        # Fjern unødvendige alternativ når en dropdown e disabled (funke pr no bare for ModelChoiceField, 
-        # fordi e ikkje klare å skaff selected option fra et vanlig form)
-        if hasattr(form, 'instance') and hasattr(form.fields[fieldName], 'queryset') and form.fields[fieldName].queryset.exists():
-            if getattr(form.instance, fieldName, None) != None and hasattr(getattr(form.instance, fieldName), 'pk'):
-                form.fields[fieldName].queryset = form.fields[fieldName].queryset.filter(pk=getattr(form.instance, fieldName).pk)
+        # Dersom det e en dropdown
+        if isinstance(form.fields[fieldName], forms.ModelChoiceField) and fieldIsVisible(form.fields[fieldName]):
+            if getattr(getattr(form, 'instance', None), 'pk', None) != None:
+                if isinstance(form.fields[fieldName], forms.ModelMultipleChoiceField):
+                    # Om det e en multiselect, vis selected options
+                    form.fields[fieldName].queryset = getattr(form.instance, fieldName).distinct()
+                else:
+                    # Om det e en select, vis selected option
+                    form.fields[fieldName].queryset = form.fields[fieldName].queryset.filter(pk=getattr(form.instance, fieldName).pk)
             else:
+                # Om det ikkje har en instance, bare fjern alle options
                 form.fields[fieldName].queryset = form.fields[fieldName].queryset.none()
-            # print(f'{fieldName} {hasattr(form, 'instance')} {hasattr(form.fields[fieldName], 'queryset')} {len(form.fields[fieldName].queryset)}')
-
-
-def disableForm(form):
-    '''
-    Disable alle fields i formet (untatt id, for da funke det ikkje på modelformsets)
-    Funke på forms og formsets. 
-    '''
-    if callForEveryForm(disableForm, form):
-        return
-    
-    for name, field in form.fields.items():
-        if name == 'DELETE':
-            form.fields['DELETE'].disabled = True
-            field.widget = field.hidden_widget()
-        elif fieldIsVisible(field):
-            disableFields(form, name)
-
-
-def partiallyDisableFormset(formset, queryset, fieldNavn):
-    'Sett queryset og disable forms som ikke er i det'
-    if not queryset.exists():
-        formset.extra = 0
-
-    for form in formset.forms:
-        if form.instance.pk and getattr(form.instance, fieldNavn) not in queryset:
-            # Om de ikke har tilgang: Disable formet
-            disableForm(form)
-        else:
-            # Om de har tilgang: Begrens verdiene de kan velge. 
-            form.fields[fieldNavn].queryset = queryset.distinct()
-
-
-def partiallyDisableFormsetKor(formset, korMedTilgang, fieldNavn):
-    'Disable fields som ikke tilhører et kor brukeren har den tilgangen i'
-    if not korMedTilgang.exists():
-        formset.extra = 0
-
-    for form in formset.forms:
-        if (not form.instance.pk or getattr(form.instance, fieldNavn).kor in korMedTilgang) and form.fields[fieldNavn].queryset.filter(kor__in=korMedTilgang):
-            form.fields[fieldNavn].queryset = form.fields[fieldNavn].queryset.filter(kor__in=korMedTilgang)
-        else:
-            disableForm(form)
-
-
-def setRequiredDropdownOptions(form, fieldNavn, korMedTilgang):
-    'Set options for dropdown, og disable formet dersom det er ingen options'
-
-    if callForEveryForm(setRequiredDropdownOptions, form, fieldNavn, korMedTilgang):
-        return
-
-    if form.fields[fieldNavn].queryset.model.__name__ == 'Kor':
-        # Dropdownen har queryset av kor modellen
-        if form.instance.pk and not getattr(form.instance, fieldNavn) in korMedTilgang:
-            # Om vi ikke har tilgang til selected option
-            disableForm(form)
-            return
-        else:
-            # Om vi har tilgang til selected option
-            form.fields[fieldNavn].queryset = korMedTilgang.distinct()
-    else:
-        # Dropdownen har queryset av en model med fk til kor modellen
-        if form.instance.pk and not getattr(form.instance, fieldNavn).kor in korMedTilgang:
-            # Om vi ikke har tilgang til selected option
-            disableForm(form)
-            return
-        else:
-            # Om vi har tilgang til selected option
-            form.fields[fieldNavn].queryset = form.fields[fieldNavn].queryset.filter(kor__in=korMedTilgang)
-    
-    if not form.fields[fieldNavn].queryset.exists():
-        disableForm(form)
 
 
 def disableFormMedlem(medlem, form):
@@ -147,10 +90,15 @@ def disableFormMedlem(medlem, form):
 
     # Om det e et formset
     if isinstance(form, forms.BaseFormSet):
+        # Dersom vi har brukt viewUtils.py sin extendedRedigerTilgangQueryset så må vi sett includeExtended til false.
+        includeExtendedKwarg = {}
+        if 'includeExtended' in medlem.redigerTilgangQueryset.__code__.co_varnames:
+            includeExtendedKwarg['includeExtended'] = False
+
         # Om det e et inlineFormset kan vi bare sjekk om vi har tilgang til form.instance, og om ikke fjern extra:)
-        if isinstance(form, forms.BaseInlineFormSet) and not medlem.redigerTilgangQueryset(form.queryset.model, type(form.instance), fieldType=forms.ModelChoiceField).contains(form.instance):
+        if isinstance(form, forms.BaseInlineFormSet) and not medlem.redigerTilgangQueryset(form.queryset.model, type(form.instance), fieldType=forms.ModelChoiceField, **includeExtendedKwarg).contains(form.instance):
             form.extra = 0
-            disableForm(form)
+            disableFields(form)
             return False
 
         # Ellers, gå gjennom instance for instance
@@ -196,9 +144,8 @@ def disableFormMedlem(medlem, form):
                 field.queryset = getattr(form.instance, fieldName).distinct() | tilgangQueryset.distinct()
                 field.setEnableQueryset(tilgangQueryset, getattr(form.instance, fieldName))
             else:
-                # Ellers, bare vis selected options og disable alle options
-                field.queryset = getattr(form.instance, fieldName).distinct()
-                field.setEnableQueryset(field.queryset.none(), getattr(form.instance, fieldName))
+                # Ellers bare disable fieldet
+                disableFields(form, fieldName)
 
         elif isinstance(field, forms.ModelChoiceField):
             # Sett querysettet til det du har tilgang til. 

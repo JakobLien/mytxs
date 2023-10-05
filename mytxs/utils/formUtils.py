@@ -1,7 +1,6 @@
-# Alt forøverig om forms
-
 from django.forms import BaseFormSet
 
+# Alt forøverig om forms
 
 inlineFormsetArgs = {
     'exclude': [],
@@ -10,11 +9,13 @@ inlineFormsetArgs = {
 }
 'Args for inline formsets'
 
+
 formsetArgs = {
     'extra': 1,
     'can_delete_extra': False
 }
 'Args for formsets forøvrig'
+
 
 def postIfPost(request, prefix=''):
     '''
@@ -35,6 +36,7 @@ def postIfPost(request, prefix=''):
         queryDict.pop(key)
     return queryDict
 
+
 def filesIfPost(request, prefix=''):
     'Return subset med prefix av request.FILES dersom request.method == "POST", ellers None.'
     if not request.method == 'POST':
@@ -45,16 +47,27 @@ def filesIfPost(request, prefix=''):
         queryDict.pop(key)
     return queryDict
 
-def callForEveryForm(func, formset, *args, **kwargs):
-    '''
-    Utility funksjon som kalle func for hvert form i formsettet. 
-    Dersom den returne true burde func return så resten av parent
-    funksjonen ikke burde kalles for selve formsettet. Eksempel kode:
 
-    if callForEveryForm(hideFields, form, *fieldNames):
-        return
+def formsetToForm(func):
     '''
-    if isinstance(formset, BaseFormSet):
-        for form in formset.forms:
-            func(form, *args, **kwargs)
-        return True
+    Decorator som dersom første argument er et formset, calle vi funksjonen fleir gong, 
+    en gong på hvert form i formsettet.  Ellers skjer ingenting spesielt
+    '''
+    def _decorator(formset, *args, **kwargs):
+        if isinstance(formset, BaseFormSet):
+            for form in formset.forms:
+                func(form, *args, **kwargs)
+        else:
+            func(formset, *args, **kwargs)
+
+    return _decorator
+
+
+def toolTip(helpText):
+    return f'<span title="{helpText}">(?)</span>'
+
+
+@formsetToForm
+def addHelpText(form, *fieldNames, helpText=''):
+    for fieldName in fieldNames:
+        form.fields[fieldName].help_text = toolTip(helpText)

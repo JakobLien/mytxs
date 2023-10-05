@@ -28,13 +28,18 @@ urlpatterns = [
     path('sjekkheftet/<str:gruppe>/<str:undergruppe>', views.sjekkheftet, name='sjekkheftet'),
 
     path('semesterplan/<str:kor>', views.semesterplan, name='semesterplan'),
-    path('meldFravær/<int:hendelsePK>', views.meldFravær, name='meldFravær'),
+    path('iCal/<str:kor>/<int:medlemPK>', views.iCal, name='iCal'),
+    path('meldFravær/<int:medlemPK>/<int:hendelsePK>', views.meldFravær, name='meldFravær'),
     path('egenFøring/<int:hendelsePK>', views.egenFøring, name='egenFøring'),
+
+    path('fravær/<str:kor>', views.fraværListe, name='fraværListe'),
+    path('fravær/<str:kor>/<int:medlemPK>', views.fravær, name='fravær'),
 
     path('hendelser', views.hendelseListe, name='hendelseListe'),
     path('hendelser/<int:hendelsePK>', views.hendelse, name='hendelse'),
 
     path('lenker', views.lenker, name='lenker'),
+    path('to/<str:kor>/<str:lenkeNavn>', views.lenkeRedirect, name='lenkeRedirect'),
 
     path('dekorasjon', views.dekorasjonListe, name='dekorasjonListe'),
     path('dekorasjon/<str:kor>/<path:dekorasjonNavn>', views.dekorasjon, name='dekorasjon'),

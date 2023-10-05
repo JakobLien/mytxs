@@ -2,9 +2,13 @@
 {% load mytxsTags %}
 
 {% block beforeForms %}
-
 {% for lenke in request.queryset %}
 <a href="{{ lenke.lenke }}" target="_blank">{{ lenke.kor }}: {{ lenke.navn }}</a><br>
 {% endfor %}
+{% endblock %}
 
+{% block inFormset %}
+{% if form.instance.redirectUrl %}
+<a href="{{ form.instance.redirectUrl }}">Forkortet lenke</a> <a href="https://zxing.org/w/chart?cht=qr&chs=350x350&chld=L&choe=UTF-8&chl={{ form.instance.redirectUrl }}">QR kode</a>
+{% endif %}
 {% endblock %}

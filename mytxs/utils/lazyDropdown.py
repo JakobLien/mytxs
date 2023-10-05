@@ -1,8 +1,8 @@
 import json
 from django import forms
+from django.db.models.fields import BLANK_CHOICE_DASH
 from django.http import JsonResponse
 
-from mytxs import consts
 from mytxs.utils.formAccess import formIsEnabled
 
 # Alt relatert til å gjør forms raskar å render
@@ -25,18 +25,18 @@ def formsetGroupQueries(formset, *fieldNames):
 
 
 def onlyRenderSelected(formset, fieldName):
-    'Gjør at fields bare renderes med defaultChoice og selected options'
+    'Gjør at fields bare renderes med BLANK_CHOICE_DASH og selected options'
     for form in formset.forms:
         if formIsEnabled(form):
             if not hasattr(form.instance, fieldName):
-                form.fields[fieldName].widget.choices = [consts.defaultChoice]
+                form.fields[fieldName].widget.choices = BLANK_CHOICE_DASH
             elif not hasattr(form.instance.medlem, '__iter__'):
                 # TODO: Liten bug med dette er at selects med options som er preselected men som ikkje er i model vil 
                 # forsvinne på render. Dette skjer f.eks. når valideringen ikke passer, så ikke krise, men liten bug da. 
-                form.fields[fieldName].widget.choices = [consts.defaultChoice, (getattr(form.instance, fieldName).pk, getattr(form.instance, fieldName))]
+                form.fields[fieldName].widget.choices = [*BLANK_CHOICE_DASH, (getattr(form.instance, fieldName).pk, getattr(form.instance, fieldName))]
             else:
                 raise Exception('Yoyo, implement me!')
-                # ish: form.fields['medlem'].widget.choices = [(m.pk, m) for m in [consts.defaultChoice, *form.instance.medlemmer]]
+                # ish: form.fields['medlem'].widget.choices = [(m.pk, m) for m in [*BLANK_CHOICE_DASH, *form.instance.medlemmer]]
 
 
 def getLazyDropdownOptions(request, formset, fieldName):
@@ -51,7 +51,7 @@ def getLazyDropdownOptions(request, formset, fieldName):
         # virke som den held godt for no, men vær bevisst på det!
         field = formset.forms[0].fields[fieldName]
         i = 1
-        while field.disabled:
+        while field.disabled and i < len(formset.forms):
             field = formset.forms[i].fields[fieldName]
             i += 1
         

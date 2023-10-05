@@ -18,11 +18,14 @@ def addReverseM2M(ModelForm, related_name):
 
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
-            self.fields[related_name].initial = getattr(self.instance, related_name).all().values_list('id', flat=True)
+            if self.instance.pk:
+                self.fields[related_name].initial = getattr(self.instance, related_name).all().values_list('id', flat=True)
 
         def save(self, *args, **kwargs):
             instance = super().save(*args, **kwargs)
-            getattr(instance, related_name).set(self.cleaned_data[related_name])
+            # Må ha inn dette for å ikkje krasje når vi sletter modelform.instance
+            if hasattr(instance, related_name):
+                getattr(instance, related_name).set(self.cleaned_data[related_name])
             return instance
 
     return NewForm

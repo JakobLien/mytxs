@@ -9,30 +9,24 @@ from mytxs.models import Medlem
 # https://stackoverflow.com/a/16041527
 @receiver(post_delete, sender=Medlem)
 def auto_delete_file_on_delete(sender, instance, **kwargs):
-    '''
-    Deletes file from filesystem
-    when corresponding `MediaFile` object is deleted.
-    '''
+    'Slette Medlem bilde når medlemmet slettes'
     if instance.bilde:
-        if os.path.isfile(instance.bilde.path):
-            os.remove(instance.bilde.path)
+        os.remove(instance.bilde.path)
+
 
 @receiver(pre_save, sender=Medlem)
 def auto_delete_file_on_change(sender, instance, **kwargs):
     '''
-    Deletes old file from filesystem
-    when corresponding `MediaFile` object is updated
-    with new file.
+    Slette Medlem bilde fra filsystemet når de laste opp et nytt bilde.
+    Om ikke dette gjøres får filnavnet (medlem.pk) ekstra characters på slutten,
+    som ikke endre koss det funke for resten av appen, men ser stygt ut.
     '''
-    if not instance.pk:
-        return
-
     try:
-        old_file = Medlem.objects.get(pk=instance.pk).bilde
+        gammeltBilde = Medlem.objects.get(pk=instance.pk).bilde
     except Medlem.DoesNotExist:
         return
 
     new_file = instance.bilde
-    if old_file and not old_file == new_file:
-        if os.path.isfile(old_file.path):
-            os.remove(old_file.path)
+    if gammeltBilde and not gammeltBilde == new_file:
+        if os.path.isfile(gammeltBilde.path):
+            os.remove(gammeltBilde.path)

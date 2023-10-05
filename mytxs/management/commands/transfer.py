@@ -1,20 +1,15 @@
-import os
-from django.core.management.base import BaseCommand, CommandError
-
+import base64
 import certifi
-import urllib3
+import datetime
+import json
+import os
 import re
+import urllib3
 
 from django.core.files.base import ContentFile
-
-import base64
-
-import json
+from django.core.management.base import BaseCommand, CommandError
 
 from mytxs.models import Dekorasjon, DekorasjonInnehavelse, Kor, Medlem, Turne, Verv, VervInnehavelse
-
-import datetime
-
 from mytxs.utils.modelUtils import stemmegruppeVerv
 
 class Command(BaseCommand):
@@ -104,7 +99,7 @@ def insertMedlem(medlemDict):
             'fornavn': medlemDict['fornavn'],
             'mellomnavn': medlemDict.get('mellomnavn', ''),
             'etternavn': medlemDict['etternavn'],
-            'ønskerVårbrev': medlemDict.get('status') == 'Sluttet (skal ha vårbrev)',
+            'ønskerVårbrev': medlemDict.get('status') == 'Sluttet (skal ha vårbrev)' or medlemDict.get('status') == 'Støttemedlem',
             'død': medlemDict.get('status') == 'Død'
         }
     )
@@ -149,14 +144,14 @@ def insertMedlem(medlemDict):
 
     stemmegruppe = None
 
-    if medlemDict.get('stemmegruppe', None) in stemmeGruppeMapping.keys():
+    if medlemDict.get('stemmegruppe') in stemmeGruppeMapping.keys():
         # Om de har en stemmegruppe, velg den tilsvarende
         stemmegruppe = Verv.objects.get(
             kor=kor,
             navn=stemmeGruppeMapping[medlemDict['stemmegruppe']]
         )
-    elif ((stemmeGruppeInt := int(medlemDict['medlemsnummer'][7:9]) // 20) < 4 and not feilMedlemsnummer(medlemDict)):
-        # Ellers, gjett på stemmegruppen deres basert på medlemsnummer
+    elif (stemmeGruppeInt := int(medlemDict['medlemsnummer'][7:9]) // 20) < 4 and not feilMedlemsnummer(medlemDict):
+        # Ellers, gjett på stemmegruppen deres basert på medlemsnummer, om medlemsnummeret ikke er før korets grunneggelse
         if kor.kortTittel == 'TSS':
             stemmeGruppeInt += 4
         
@@ -164,35 +159,48 @@ def insertMedlem(medlemDict):
             kor=kor,
             navn=[*stemmeGruppeMapping.values()][stemmeGruppeInt]
         )
-    elif 'Sluttet' in medlemDict.get('status', '') and not feilMedlemsnummer(medlemDict):
-        # Om det heller ikke gir en stemmegruppe, bare noter på medlemmet hva vi vet om når de startet, dersom vi vet noe
-        medlem.notis += f'{medlemDict["medlemsnummer"][:3]} fra år {medlemDict["medlemsnummer"][7:9]}\n'
+    elif ('Sluttet' in medlemDict.get('status', '') or medlemDict.get('sluttet')):
+        # Ellers, gi de ukjentStemmegruppe dersom de enten har status sluttet eller noe på sluttet feltet
+        stemmegruppe = Verv.objects.get(
+            kor=kor,
+            navn='ukjentStemmegruppe'
+        )
+    
+    # Dette er så mye vi fornuftig kan annta om folk var aktive. Om folk har en stemmegruppe bruker vi det. 
+    # Om ikkje ser vi på medlemsnummeret, dersom det er gyldig. Om ikke det heller sjekker vi om de har status 
+    # sluttet, eller noe skrevet på sluttet feltet, og da får de ukjentStemmegruppe. 
 
     if stemmegruppe:
-        # Om vi har et stemmegruppeverv
-        start = datetime.date(int(medlemDict['medlemsnummer'][3:7]), 9, 1)
+        if feilMedlemsnummer(medlemDict):
+            if stemmegruppe.navn != 'ukjentStemmegruppe':
+                medlem.notis += f'Ukjent start, sang antageligvis {stemmegruppe.navn}\n'
+            else:
+                medlem.notis += f'Ukjent start og stemmegruppe\n'
+        else:
+            # Om vi har et stemmegruppeverv
+            start = datetime.date(int(medlemDict['medlemsnummer'][3:7]), 9, 1)
 
-        slutt = parseSluttet(medlemDict.get('sluttet', None))
+            slutt = parseSluttet(medlemDict.get('sluttet'))
 
-        if slutt and slutt < start:
-            # Dersom vi tror de sluttet før start, gjett at de bare va med ett semester
-            slutt = datetime.date(start.year, 12, 31)
-            medlem.notis += f'Sluttet før start: "{medlemDict.get("sluttet", None)}", gjetter sluttet samme semster som start\n'
-        elif not slutt and medlemDict.get('status', None) not in ['Aktiv', 'Permittert']:
-            # Alle som ikke e aktiv eller permitert har sluttet, så gjett ett år seinar
-            slutt = datetime.date(start.year + 1, 5, 17)
-            medlem.notis += f'Ukjent sluttet: "{medlemDict.get("sluttet", None)}", gjetter etter ett år\n'
-        
-        VervInnehavelse.objects.get_or_create(
-            medlem=medlem,
-            verv=stemmegruppe,
-            start=start,
-            slutt=slutt
-        )
+            if slutt and slutt < start:
+                # Dersom vi tror de sluttet før start, gjett at de bare va med ett semester
+                slutt = datetime.date(start.year, 12, 31)
+                medlem.notis += f'Sluttet før start: "{medlemDict.get("sluttet")}", gjetter sluttet samme semester som start\n'
+            elif not slutt and medlemDict.get('status') not in ['Aktiv', 'Permittert']:
+                # Alle som ikke e aktiv eller permitert har sluttet, så gjett ett år seinar
+                slutt = datetime.date(start.year + 1, 5, 17)
+                medlem.notis += f'Ukjent sluttet: "{medlemDict.get("sluttet")}", gjetter etter ett år\n'
+            
+            VervInnehavelse.objects.get_or_create(
+                medlem=medlem,
+                verv=stemmegruppe,
+                start=start,
+                slutt=slutt
+            )
     
 
     # Dekorasjoner
-    if dekorasjonerDict := medlemDict.get('dekorasjoner', None):
+    if dekorasjonerDict := medlemDict.get('dekorasjoner'):
         for dekorasjonDict in dekorasjonerDict:
             dekorasjon, created = Dekorasjon.objects.get_or_create(
                 navn=dekorasjonDict['beskrivelse'],
@@ -212,7 +220,7 @@ def insertMedlem(medlemDict):
 
 
     # Turneer
-    if turneerDict := medlemDict.get('turne', None):
+    if turneerDict := medlemDict.get('turne'):
         for turneDict in turneerDict:
             turne, created = Turne.objects.get_or_create(
                 navn=turneDict['turne'],
@@ -229,7 +237,7 @@ def insertMedlem(medlemDict):
     # en vervInnehavelse med start og slutt som kan vare flere år. Derfor slår følgende kode
     # sammen samme vervInnehavelse over flere år, og hånterer også om vervet var bare våren eller 
     # høsten, ved å lese navnet og kommentaren. Tar også hånd om småkor/sangern verv. 
-    if vervsDict := medlemDict.get('verv', None):
+    if vervsDict := medlemDict.get('verv'):
         # Sorter så vervene kommer kronologisk
         vervsDict.sort(key=lambda v: v['aar'])
         # Tolk om vervet var bare høst eller vår basert på tittel og kommentar
@@ -272,9 +280,12 @@ def insertMedlem(medlemDict):
 
             verv = None
 
+            # disse keysa dekker (såvidt jeg ser) alle verv som åpenbart hører til et av småkorene. 
+            # Dette dekker ikke PC(TKS) og Kruser(TSS/TKS), men disse vil jeg sterkt råde korlederne om
+            # at vi sletter, siden å være ferdig i et småkor ikke er et verv, det er bare dataduplisering. 
             småkorKeywordToKor = {
                 'pirum': 'Pirum',
-                'knaus': 'KK',
+                'knaus': 'Knauskoret',
                 'candiss': 'Candiss'
             }
 
@@ -319,11 +330,11 @@ def insertMedlem(medlemDict):
     
 
     # Spesielle statuser
-    if innbudtVervInnehavelse := VervInnehavelse.objects.filter(
+    if (innbudtVervInnehavelse := VervInnehavelse.objects.filter(
         medlem=medlem,
         verv__navn='Innbudt medlem',
         verv__kor=kor
-    ).first() or medlemDict.get('status') == 'Innbudt':
+    ).first()) or medlemDict.get('status') == 'Innbudt':
         # Gi de med "Innbudt medlem" status eller vervInnehavelse den tilsvarende dekorasjonen på året de sluttet
         # Som del av dette bytter vi innbudt medlem fra å være et verv til å være en dekorasjon, fordi det gir 
         # vesentlig my meir meining. Etter overføring kan vi da bare slett vervet som ingen har, så e vi good:)
@@ -355,7 +366,7 @@ def insertMedlem(medlemDict):
         verv__navn='Dirigent',
         verv__kor=kor
     ).exists():
-        medlem.notis += f'Medlemmet har er Dirigent med ukjent periode\n'
+        medlem.notis += f'Medlemmet er Dirigent med ukjent periode\n'
 
     medlem.save()
 
@@ -453,24 +464,35 @@ def mergeVervSemester(vervsDict):
     '''
     for i, vervDict1 in enumerate(vervsDict):
         # Om vervet har semester
-        if s1 := vervDict1.get('semester'):
-            for vervDict2 in vervsDict[i+1:]:
-                if vervDict1['aar'] != vervDict2['aar']:
-                    break
-                if vervDict1['verv'] != vervDict2['verv']:
-                    continue
-                s2 = vervDict2.get('semester')
-                if not s2:
-                    # s2 e heilårs, fjern vervDict1
-                    vervsDict.remove(vervDict1)
-                    break
-                if s1 == s2:
-                    # Begge vervene har samme semester, fjern en av de
-                    vervsDict.remove(vervDict2)
-                    continue
-                # Om vi har kommet hit har vi to verv, som har vår og høst.
-                del vervDict1['semester']
+        for vervDict2 in vervsDict[i+1:]:
+            if vervDict1['aar'] != vervDict2['aar']:
+                # Om det e et anna år har denne vervInnehavelsen ingen duplicates
+                break
+            if vervDict1['verv'] != vervDict2['verv']:
+                # Om det e et anna verv, leit videre
+                continue
+
+            # Om det e samme år og samme verv
+            if vervDict1.get('semester') == vervDict2.get('semester'):
+                # Begge vervene har samme semester (eller ingen semester), fjern en av de
                 vervsDict.remove(vervDict2)
+                continue
+            if not vervDict2.get('semester'):
+                # Bare vervDict2 e heilårs, fjern vervDict1
+                vervsDict.remove(vervDict1)
+                # Med vervDict1 fjernet kan vi trygt gå videre til neste vervDict
+                break
+            if not vervDict1.get('semester'):
+                # Bare vervDict1 e heilårs, fjern vervDict2
+                vervsDict.remove(vervDict2)
+                # Leit videre etter fleire duplicates av dette vervet
+                continue
+
+            # Om vi har kommet hit har vi to verv, som har vår og høst.
+            # Da endre vi så vervDict1 vare heile året, og slette vervDict2
+            del vervDict1['semester']
+            vervsDict.remove(vervDict2)
+    
     return vervsDict
 
 
@@ -515,7 +537,7 @@ def getDomainWithCount(dictOrList, currProp, *path, includeNone=True):
                 returnDict.setdefault(value, 0)
                 returnDict[value] += count
         return returnDict
-    currValue = dictOrList.get(currProp, None)
+    currValue = dictOrList.get(currProp)
     if not currValue:
         if includeNone:
             return {None: 1}
@@ -538,10 +560,10 @@ def getDomainWithCountByKor(dictOrList, currProp, *path, includeNone=True, kor=N
                     returnDict[navn][korNavn] += count
         return returnDict
     
-    if medlemsnummer := dictOrList.get('medlemsnummer', None):
+    if medlemsnummer := dictOrList.get('medlemsnummer'):
         kor = medlemsnummer[:3]
 
-    currValue = dictOrList.get(currProp, None)
+    currValue = dictOrList.get(currProp)
     if not currValue:
         if includeNone:
             return {None: {kor: 1}}

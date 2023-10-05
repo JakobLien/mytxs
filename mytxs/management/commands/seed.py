@@ -182,20 +182,29 @@ def runSeed(self):
     # For hvert kor
     for i in range(len(consts.alleKorKortTittel)):
         # Opprett koret
-        kor, korCreated = Kor.objects.get_or_create(kortTittel=consts.alleKorKortTittel[i], defaults={'langTittel':consts.alleKorLangTittel[i]})
+        kor, korCreated = Kor.objects.get_or_create(kortTittel=consts.alleKorKortTittel[i], defaults={
+            'langTittel': consts.alleKorLangTittel[i], 
+            'stemmefordeling': consts.alleKorStemmeFordeling[i]
+        })
         if(korCreated):
             self.stdout.write('Created kor ' + kor.kortTittel + ' at id ' + str(kor.pk))
 
         # Opprett generelle tilganger
         for t in range(len(consts.tilganger)):
-            tilgang, tilgangCreated = Tilgang.objects.get_or_create(navn=consts.tilganger[t], kor=kor, defaults={'bruktIKode': True, 'beskrivelse': consts.tilgangBeskrivelser[t]})
+            tilgang, tilgangCreated = kor.tilganger.get_or_create(navn=consts.tilganger[t], defaults={
+                'bruktIKode': True, 
+                'beskrivelse': consts.tilgangBeskrivelser[t]
+            })
             if tilgangCreated:
                 print(f'Created tilgang {tilgang}')
 
         # Opprett storkor-tilganger
         if kor.kortTittel in consts.bareStorkorKortTittel:
             for t in range(len(consts.storkorTilganger)):
-                tilgang, tilgangCreated = Tilgang.objects.get_or_create(navn=consts.storkorTilganger[t], kor=kor, defaults={'bruktIKode': True, 'beskrivelse': consts.storkorTilgangBeskrivelser[t]})
+                tilgang, tilgangCreated = kor.tilganger.get_or_create(navn=consts.storkorTilganger[t], defaults={
+                    'bruktIKode': True, 
+                    'beskrivelse': consts.storkorTilgangBeskrivelser[t]
+                })
                 if tilgangCreated:
                     print(f'Created tilgang {tilgang}')
 
@@ -218,7 +227,7 @@ def runSeed(self):
                 self.stdout.write('Created verv ' + ukjentStemmegruppeVerv.navn + ' for kor ' + kor.kortTittel + ' at id ' + str(ukjentStemmegruppeVerv.pk))
 
             # Opprett stemmegrupper
-            for stemmegruppe in consts.stemmeFordeling[consts.korTilStemmeFordeling[i]]:
+            for stemmegruppe in kor.stemmefordeling:
                 # For hver stemmegruppe i koret
                 for y in '12':
                     # Opprett hovedstemmegruppeverv
@@ -226,8 +235,8 @@ def runSeed(self):
                     if stemmegruppeVervCreated:
                         self.stdout.write('Created verv ' + stemmegruppeVerv.navn + ' for kor ' + kor.kortTittel + ' at id ' + str(stemmegruppeVerv.pk))
                     
-                    if consts.stemmeFordeling[consts.korTilStemmeFordeling[i]] != 'SATB':
-                        # Dropp understemmegrupper for blandakor (altså KK)
+                    if kor.stemmefordeling != 'SATB':
+                        # Dropp understemmegrupper for blandakor (altså Knauskoret)
                         for x in '12':
                             # Opprett understemmegruppeverv
                             underStemmegruppeVerv, underStemmegruppeVervCreated = kor.verv.get_or_create(navn=x+y+stemmegruppe, bruktIKode=True)

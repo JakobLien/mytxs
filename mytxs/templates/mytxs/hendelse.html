@@ -1,4 +1,5 @@
 {% extends "mytxs/instance.html" %}
+{% load mytxsTags %}
 
 
 {% block betweenForms %}
@@ -6,6 +7,8 @@
 {% if request.egenFøringLink %}
     <a href="{{ request.egenFøringLink }}"><img src="{{ request.egenFøringLink }}"></img></a>
 {% endif %}
+
+{% toggleURLparam 'alleOppmøter' 'vis alle oppmøter' %}
 
 {% endblock %}
 

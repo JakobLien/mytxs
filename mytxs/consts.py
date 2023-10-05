@@ -2,7 +2,7 @@
 
 from django.apps import apps
 
-alleKorKortTittel = ['TSS', 'TKS', 'Pirum', 'KK', 'Candiss', 'Sangern']
+alleKorKortTittel = ['TSS', 'TKS', 'Pirum', 'Knauskoret', 'Candiss', 'Sangern']
 alleKorLangTittel = [
     'Trondhjems Studentersangforening',
     'Trondhjems Kvinnelige Studentersangforening',
@@ -11,15 +11,13 @@ alleKorLangTittel = [
     'Candiss',
     'Sangern bar'
 ]
+alleKorStemmeFordeling = ['TB', 'SA', 'TB', 'SATB', 'SA', '']
 
 # Subsets av alleKorKortTittel
-bareKorKortTittel = ['TSS', 'TKS', 'Pirum', 'KK', 'Candiss']
+bareKorKortTittel = ['TSS', 'TKS', 'Pirum', 'Knauskoret', 'Candiss']
 bareStorkorKortTittel = ['TSS', 'TKS']
 
-bareKorKortTittelTKSRekkefølge = ['TKS', 'TSS', 'Candiss', 'KK', 'Pirum']
-
-korTilStemmeFordeling = [0, 2, 0, 1, 2]
-stemmeFordeling = ['TB', 'SATB', 'SA']
+bareKorKortTittelTKSRekkefølge = ['TKS', 'TSS', 'Candiss', 'Knauskoret', 'Pirum']
 
 tilganger = ['dekorasjon', 'dekorasjonInnehavelse', 'verv', 'vervInnehavelse', 'tilgang', 'semesterplan', 'fravær', 'lenke', 'turne', 'tversAvKor']
 tilgangBeskrivelser = [
@@ -39,6 +37,8 @@ storkorTilganger = ['medlemsdata']
 storkorTilgangBeskrivelser = [
     'For å kunne endre på medlemsdataene til de i ditt storkor.'
 ]
+
+alleTilganger = tilganger + storkorTilganger
 
 # Hold denne lista i en rekkefølge vi ønske å slett de i, for seed --clear sin del:)
 loggedModelNames = [
@@ -102,4 +102,18 @@ modelWithRelated = {
 
 hovedStemmegrupper = ['1S', '2S', '1A', '2A', '1T', '2T', '1B', '2B']
 
-defaultChoice = ('', '---------')
+# Denne brukes med BitmapMultipleChoiceField, så ALDRI (!!!) endre på rekkefølgen 
+# eller alternativene her. Dette fordi verdiene lagres som en bit på tilsavrende index.
+# Er trygt å gi nye navn til de, bare det forblir den samme informasjonen. 
+sjekkhefteSynligOptions = [
+    'fødselsdato', 
+    'epost',
+    'tlf',
+    'studieEllerJobb',
+    'boAdresse',
+    'foreldreAdresse'
+]
+
+# Denne brukes blant annet på hendelse siden for fraværsføring, 
+# bare hiv på en url på slutten så får du en qr kode som redirecte dit:)
+qrCodeLinkPrefix = 'https://zxing.org/w/chart?cht=qr&chs=350x350&chld=L&choe=UTF-8&chl='

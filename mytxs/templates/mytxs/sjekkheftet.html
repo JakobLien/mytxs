@@ -3,24 +3,9 @@
 
 {% block content %}
 
-{% for gruppe in grupper %}
-{% if gruppe == request.resolver_match.kwargs.gruppe %}
-<a class="text-3xl" href="{% url 'sjekkheftet' gruppe %}" >{{ gruppe|capfirst }}</a> 
-{% else %}
-<a href="{% url 'sjekkheftet' gruppe %}">{{ gruppe|capfirst }}</a> 
-{% endif %}
-{% endfor %}
-
 {% block beforeSjekkheftetContent %}{% endblock %}
 
 {% block sjekkheftetContent %}
-
-{% if request.undergrupper %}
-<br>
-{% for undergruppe in request.undergrupper %}
-<a href="{% url 'sjekkheftet' gruppe undergruppe %}">{{ undergruppe|capfirst }}</a> 
-{% endfor %}
-{% endif %}
 
 {% if grupperinger|length > 1%}
 <div id="sjekkheftetNavigator" class="my-2 flex flex-row justify-between w-[56rem]">
@@ -36,13 +21,13 @@
 </div>
 {% endif %}
 
-{% for gruppenavn, gruppering in grupperinger.items %}
+{% for gruppenavn, gruppe in grupperinger.items %}
 
 {% if gruppenavn %}
 <h2 class="text-3xl">{{ gruppenavn|capfirst }}: </h2>
 {% endif %}
 
-{% for medlem in gruppering %}
+{% for medlem in gruppe %}
 <br>
 <div id="m_{{ medlem.pk }}" class="flex flex-row space-x-2 w-[56rem] p-2 backdrop-brightness-110 rounded-xl">
     {% if medlem.bilde %}
@@ -52,36 +37,48 @@
     {% endif %}
 
     <ul>
-        <li>Navn: {{ medlem.navn }}
-            {% if 'medlemListe' in user.medlem.navBarTilgang %} <a href="{% url 'medlem' medlem.pk %}">Rediger</a> {% endif %}
+        <li class="text-2xl">{{ medlem.navn }}
+            {% if user.medlem.navBar.medlemListe %} <a class="text-sm" href="{% url 'medlem' medlem.pk %}">Rediger</a> {% endif %}
         </li>
-        <li>Karantenekor: {{ medlem.karantenekor }}</li>
-        {% comment %} <li>Stemmegruppe: 
-           {% for vervInnehavelse in medlem.vervInnehavelse.all %}
-           {% if vervInnehavelse.aktiv and vervInnehavelse.verv.stemmegruppeVerv and vervInnehavelse.verv.kor.kortTittel == request.resolver_match.kwargs.gruppe %} 
-           <span>{{ vervInnehavelse.verv }}</span>
-           {% endif %}
-           {% endfor %}
-       </li> {% endcomment %}
+        {% if request.resolver_match.kwargs.gruppe == 'Pirum' or request.resolver_match.kwargs.gruppe == 'Knauskoret' or request.resolver_match.kwargs.gruppe == 'Candiss' %}
+        <li>Tatt opp: {{ medlem.K }}</li>
+        {% else %}
+        <li>Karantenekor: {{ medlem.K }}</li>
+        {% endif %}
+        {% if medlem.sjekkhefteSynlig|bitIs1:0 %}
         <li>Fødselsdato: {{ medlem.fødselsdato|date }}</li>
+        {% endif %}
+        {% if medlem.sjekkhefteSynlig|bitIs1:1 %}
         <li>Epost: <a href="mailto:{{ medlem.epost }}">{{ medlem.epost }}</a></li>
+        {% endif %}
+        {% if medlem.sjekkhefteSynlig|bitIs1:2 %}
         <li>Telefon: <a href="tel:{{ medlem.tlf|cut:' ' }}">{{ medlem.tlf }}</a></li>
-        <li>Verv: 
-            {% for vervInnehavelse in medlem.vervInnehavelse.all %}
+        {% endif %}
+        {% if medlem.sjekkhefteSynlig|bitIs1:3 %}
+        <li>Studie eller jobb: {{medlem.studieEllerJobb}}</li>
+        {% endif %}
+        {% if medlem.sjekkhefteSynlig|bitIs1:4 %}
+        <li>Bostedsadresse: {{medlem.boAdresse}}</li>
+        {% endif %}
+        {% if medlem.sjekkhefteSynlig|bitIs1:5 %}
+        <li>Foreldreadresse: {{medlem.foreldreAdresse}}</li>
+        {% endif %}
+
+        {% ifAll %}<li>Verv: {% ifAll %}
+            {% for vervInnehavelse in medlem.vervInnehavelser.all %}
             {% if vervInnehavelse.aktiv and not vervInnehavelse.verv.stemmegruppeVerv and vervInnehavelse.verv.kor.kortTittel == request.resolver_match.kwargs.gruppe %} 
             <span>{{ vervInnehavelse.verv }}</span>
             {% endif %}
             {% endfor %}
-        </li>
-        {% if medlem.dekorasjonInnehavelse.all|length > 0 %}
-        <li>Dekorasjoner: 
+        {% ifAll %}</li>{% endIfAll%}
+
+        {% ifAll %}<li>Dekorasjoner: {% ifAll %}
             {% for dekorasjonInnehavelse in medlem.dekorasjonInnehavelse.all %}
-            {% if dekorasjonInnehavelse.dekorasjon.kor.kortTittel == request.resolver_match.kwargs.gruppe%}
+            {% if dekorasjonInnehavelse.dekorasjon.kor.kortTittel == request.resolver_match.kwargs.gruppe %}
             <span> {{ dekorasjonInnehavelse.dekorasjon }}</span>
             {% endif %}
             {% endfor %}
-        </li>
-        {% endif %}
+        {% ifAll %}</li>{% endIfAll %}
     </ul>
 </div>
 {% endfor %}

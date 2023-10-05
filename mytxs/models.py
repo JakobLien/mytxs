@@ -2,24 +2,27 @@ import datetime
 import os
 import json
 from urllib.parse import unquote
-from django import forms
 
+from django import forms
 from django.apps import apps
-from django.conf import settings
+from django.conf import settings as djangoSettings
 from django.db import models
-from django.db.models import Value as V, Q, Case, When, Min, Max
-from django.db.models.functions import Concat
+from django.db.models import Value as V, Q, Case, When, Min, Max, Sum, ExpressionWrapper, F
+from django.db.models.functions import Concat, ExtractMinute, ExtractHour
 from django.forms import ValidationError
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django.utils.safestring import mark_safe
 from django.utils.functional import cached_property
-from mytxs import consts
 
-from mytxs.fields import MyDateField, MyManyToManyField, MyTimeField
-from mytxs.settings import ALLOWED_HOSTS
-from mytxs.utils.modelCacheUtils import ModelWithStrRep, cachedMethod, clearCachedProperty, strDecorator
-from mytxs.utils.modelUtils import getQBool, groupBy, getInstancesForKor, isStemmegruppeVervNavn, orderStemmegruppeVerv, toolTip, validateStartSlutt, vervInnehavelseAktiv, stemmegruppeVerv
+from mytxs import consts
+from mytxs import settings as mytxsSettings
+from mytxs.fields import BitmapMultipleChoiceField, MyDateField, MyManyToManyField, MyTimeField
+from mytxs.utils.formUtils import toolTip
+from mytxs.utils.modelCacheUtils import ModelWithStrRep, clearCachedProperty, strDecorator
+from mytxs.utils.modelUtils import bareAktiveDecorator, qBool, groupBy, getInstancesForKor, isStemmegruppeVervNavn, korLookup, orderStemmegruppeVerv, validateBruktIKode, validateM2MFieldEmpty, validateStartSlutt, vervInnehavelseAktiv, stemmegruppeVerv
+from mytxs.utils.utils import cropImage
+
 
 class LoggQuerySet(models.QuerySet):
     def getLoggForModelPK(self, model, pk):
@@ -63,6 +66,7 @@ class Logg(models.Model):
     model = models.CharField(
         max_length=50
     )
+    'Dette er model.__name__'
 
     instancePK = models.PositiveIntegerField(
         null=False
@@ -154,7 +158,7 @@ class Logg(models.Model):
         return f'{self.model}{"-*+"[self.change+1]} {self.strRep}'
 
     class Meta:
-        ordering = ['-timeStamp']
+        ordering = ['-timeStamp', '-pk']
         verbose_name_plural = 'logger'
 
 
@@ -165,6 +169,13 @@ class LoggM2M(models.Model):
         max_length=50
     )
     'A string containing the m2m source model name and the m2m field name separated by an underscore'
+
+    author = models.ForeignKey(
+        'Medlem',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='M2Mlogger'
+    )
 
     fromLogg = models.ForeignKey(
         Logg,
@@ -211,12 +222,12 @@ class LoggM2M(models.Model):
         return f'{self.m2mName}{"-_+"[self.change+1]} {self.fromLogg.strRep} <-> {self.toLogg.strRep}'
 
     class Meta:
-        ordering = ['-timeStamp']
+        ordering = ['-timeStamp', '-pk']
 
 
 class MedlemQuerySet(models.QuerySet):
     def annotateFulltNavn(self):
-        'Annotate feltet "fulltNavn" med deres navn med korrekt mellomrom, viktig for søk på medlemmer'
+        'Annotate deres navn med korrekt mellomrom som "fulltNavn", viktig for søk på medlemmer'
         return self.annotate(
             fulltNavn=Case(
                 When(
@@ -227,45 +238,83 @@ class MedlemQuerySet(models.QuerySet):
             )
         )
 
-    def annotateKarantenekor(self, kor=None):
-        'Annotate feltet "K" med int året de startet i sitt storkor'
-        kVerv = Verv.objects.filter(stemmegruppeVerv('vervInnehavelse__verv', includeDirr=True))
-        if kor:
-            kVerv = kVerv.filter(kor=kor)
+    def annotateKarantenekor(self, kor=None, storkor=False):
+        '''
+        Annotate året de hadde sitt første stemmegruppe eller dirr verv. 
+        Gi kor argumentet for å spesifiser kor, eller gi storkor for å bruk storkor. 
+        Merk at man kanskje må refresh querysettet dersom man allerede har filtrert på stemmegruppeverv. 
+        '''
         return self.annotate(
             K=Min(
-                'vervInnehavelse__start__year', 
-                filter=Q(vervInnehavelse__verv__in=kVerv)
+                'vervInnehavelser__start__year',
+                filter=
+                    stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True) &
+                    (korLookup(kor, 'vervInnehavelser__verv__kor') if kor else qBool(True)) &
+                    (Q(vervInnehavelser__verv__kor__kortTittel__in=consts.bareStorkorKortTittel) if storkor else qBool(True))
             )
         )
 
     def filterIkkePermitert(self, kor, dato=None):
-        'Returne et queryset av (medlemmer som er aktive) and (ikke permiterte)'
+        'Returne et queryset av (medlemmer som er aktive) AND (ikke permiterte)'
         if dato == None:
             dato = datetime.datetime.today()
 
         permiterte = self.filter(
             vervInnehavelseAktiv(dato=dato),
-            Q(vervInnehavelse__verv__navn='Permisjon'),
-            Q(vervInnehavelse__verv__kor=kor)
-        ).values_list('pk', flat=True)
+            vervInnehavelser__verv__navn='Permisjon',
+            vervInnehavelser__verv__kor=kor
+        )
 
         return self.filter(# Skaff aktive korister...
             vervInnehavelseAktiv(dato=dato),
-            stemmegruppeVerv('vervInnehavelse__verv'),
-            vervInnehavelse__verv__kor=kor
+            stemmegruppeVerv('vervInnehavelser__verv'),
+            vervInnehavelser__verv__kor=kor
         ).exclude(# ...som ikke har permisjon
-            pk__in=permiterte
+            pk__in=permiterte.values_list('pk', flat=True)
         )
     
     def prefetchVervDekorasjonKor(self):
-        return self.prefetch_related('vervInnehavelse__verv__kor', 'dekorasjonInnehavelse__dekorasjon__kor')
+        return self.prefetch_related('vervInnehavelser__verv__kor', 'dekorasjonInnehavelse__dekorasjon__kor')
+    
+    def annotateFravær(self, kor):
+        'Annotater gyldigFravær, ugyldigFravær og hendelseVarighet'
+        def getDateTime(fieldName):
+            'Kombinere og returne separate Date og Time felt til ett DateTime felt'
+            return ExpressionWrapper(
+                F(f'{fieldName}Date') + F(f'{fieldName}Time'),
+                output_field=models.DateTimeField()
+            )
+
+        hendelseVarighet = ExpressionWrapper(
+            ExtractMinute(getDateTime('oppmøter__hendelse__slutt') - getDateTime('oppmøter__hendelse__start')) + 
+            ExtractHour(getDateTime('oppmøter__hendelse__slutt') - getDateTime('oppmøter__hendelse__start')) * 60,
+            output_field=models.IntegerField()
+        )
+
+        today = datetime.date.today()
+
+        filterQ = Q(
+            Q(oppmøter__hendelse__startDate__month__gte=7) if today.month >= 7 else Q(oppmøter__hendelse__startDate__month__lt=7),
+            korLookup(kor, 'oppmøter__hendelse__kor'),
+            oppmøter__hendelse__startDate__year=today.year,
+            oppmøter__hendelse__kategori=Hendelse.OBLIG,
+            oppmøter__hendelse__startDate__lt=datetime.date.today()
+        )
+
+        return self.annotate(
+            gyldigFravær = Sum('oppmøter__fravær', default=0, filter=Q(filterQ, oppmøter__gyldig=Oppmøte.GYLDIG)) + 
+                Sum(hendelseVarighet, default=0, filter=Q(filterQ, oppmøter__gyldig=Oppmøte.GYLDIG, oppmøter__fravær=None)),
+            ugyldigFravær = Sum('oppmøter__fravær', default=0, filter=Q(filterQ, ~Q(oppmøter__gyldig=Oppmøte.GYLDIG))) + 
+                Sum(hendelseVarighet, default=0, filter=Q(filterQ, ~Q(oppmøter__gyldig=Oppmøte.GYLDIG),oppmøter__fravær=None)),
+            hendelseVarighet = Sum(hendelseVarighet, default=0,filter=filterQ)
+        )
+
 
 class Medlem(ModelWithStrRep):
     objects = MedlemQuerySet.as_manager()
 
     user = models.OneToOneField(
-        settings.AUTH_USER_MODEL,
+        djangoSettings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         related_name='medlem',
@@ -295,6 +344,8 @@ class Medlem(ModelWithStrRep):
     boAdresse = models.CharField(max_length=100, blank=True)
     foreldreAdresse = models.CharField(max_length=100, blank=True)
 
+    sjekkhefteSynlig = BitmapMultipleChoiceField(choicesList=consts.sjekkhefteSynligOptions)
+
     def generateUploadTo(instance, fileName):
         path = 'sjekkhefteBilder/'
         format = f'{instance.pk}.{fileName.split(".")[-1]}'
@@ -307,19 +358,22 @@ class Medlem(ModelWithStrRep):
     død = models.BooleanField(default=False)
     notis = models.TextField(blank=True)
 
+    innstillinger = models.JSONField(null=False, default=dict, editable=False)
+    'For å lagre ting som endrer hvordan brukeren ser siden, f.eks. tversAvKor, disableTilganger osv'
+
     @cached_property
     def aktiveKor(self):
-        'Returne kor medlemmet er aktiv i'
+        'Returne kor medlemmet er aktiv i, sortert med storkor først. Ignorerer permisjon.'
         return Kor.objects.filter(
-            stemmegruppeVerv(),
-            vervInnehavelseAktiv('verv__vervInnehavelse'),
-            verv__vervInnehavelse__medlem=self
-        )
+            stemmegruppeVerv(includeDirr=True),
+            vervInnehavelseAktiv('verv__vervInnehavelser'),
+            verv__vervInnehavelser__medlem=self
+        ).orderKor()
 
     @cached_property
     def firstStemmegruppeVervInnehavelse(self):
         'Returne første stemmegruppeverv de hadde i et storkor'
-        return self.vervInnehavelse.filter(
+        return self.vervInnehavelser.filter(
             stemmegruppeVerv(),
             verv__kor__kortTittel__in=['TSS', 'TKS']
         ).order_by('start').first()
@@ -341,56 +395,123 @@ class Medlem(ModelWithStrRep):
                 return f'K{self.firstStemmegruppeVervInnehavelse.start.strftime("%Y")}'
         else:
             return ''
+    
+    @property
+    def faktiskeTilganger(self):
+        'Returne aktive tilganger, til bruk i addOptionForm som trenger å vite hvilke tilganger du har før innstillinger filtrering'
+        return Tilgang.objects.filter(vervInnehavelseAktiv('verv__vervInnehavelser'), verv__vervInnehavelser__medlem=self).distinct()
 
     @cached_property
     def tilganger(self):
-        'Returne aktive tilganger'
-        return Tilgang.objects.filter(vervInnehavelseAktiv('verv__vervInnehavelse'), verv__vervInnehavelse__medlem=self).distinct()
+        'Returne aktive tilganger etter å ha filtrert på innstillinger'
+        if self.innstillinger.get('disableTilganger', False):
+            return Tilgang.objects.none()
+        if not self.innstillinger.get('tversAvKor', False):
+            return self.faktiskeTilganger.exclude(navn='tversAvKor')
+        return self.faktiskeTilganger
     
     @cached_property
-    def navBarTilgang(self):
-        sider = set()
-        if self.tilganger.filter().exists():
-            sider.add('loggListe')
+    def navBar(self):
+        '''
+        Dette returne en dict som rekursivt inneheld flere dicts eller True basert på tilganger. Dette ugjør dermed
+        hvilke sider i navbar medlemmet får opp, samt hvilke undersider medlemmet får opp. 
+
+        For å sjekke om brukeren har tilgang til en side bruker vi medlem.navBar.[sidenavn] i template eller 
+        medlem.navBar.get(sidenavn) i python. Løvnodene er True slik at tilgang til siden skal funke likt med og uten 
+        subpages. Om det er ryddigere kan en løvnode settes til False. Den filtreres da bort før vi returne. 
         
-        if self.tilganger.filter(navn='tversAvKor').exists():
-            sider.add('medlemListe')
-            sider.add('vervListe')
-            sider.add('dekorasjonListe')
-            sider.add('turneListe')
-            sider.add('tilgangListe')
+        Veldig viktig at dette ikke returne noko som inneheld querysets, for da vil vi hitte databasen veldig mange ganger!
+        Dette e også en av få deler av kodebasen som faktisk kjører på alle sider, så fint å optimaliser denne koden 
+        så my som mulig mtp databaseoppslag. 
+        '''
 
-        if self.tilganger.filter(navn='medlemsdata').exists():
-            sider.add('medlemListe')
+        def toDict(iterable):
+            'Lage en dict av alle element i en iterable, med values True'
+            return dict.fromkeys(iterable, True)
 
-        if self.tilganger.filter(navn='semesterplan').exists():
-            sider.add('hendelseListe')
+        sider = dict()
 
-        if self.tilganger.filter(navn='fravær').exists():
-            sider.add('hendelseListe')
+        # Sjekkheftet
+        if self.storkor.kortTittel == 'TKS':
+            sider['sjekkheftet'] = toDict(consts.bareKorKortTittelTKSRekkefølge + ['søk', 'jubileum', 'sjekkhefTest'])
+        else:
+            sider['sjekkheftet'] = toDict(consts.bareKorKortTittel + ['søk', 'jubileum', 'sjekkhefTest'])
 
-        if self.tilganger.filter(navn='vervInnehavelse').exists():
-            sider.add('medlemListe')
-            sider.add('vervListe')
+        # Sjekkheftet undergrupper
+        for sjekkhefteSide in Tilgang.objects.filter(
+            ~Q(kor__kortTittel='Sangern'),
+            sjekkheftetSynlig=True
+        ).values('navn', 'kor__kortTittel'):
+            if sider['sjekkheftet'][sjekkhefteSide['kor__kortTittel']] == True:
+                sider['sjekkheftet'][sjekkhefteSide['kor__kortTittel']] = {}
+            sider['sjekkheftet'][sjekkhefteSide['kor__kortTittel']][sjekkhefteSide['navn']] = True
 
-        if self.tilganger.filter(navn='dekorasjonInnehavelse').exists():
-            sider.add('medlemListe')
-            sider.add('dekorasjonListe')
+        # Semesterplan
+        if aktiveKor := self.aktiveKor:
+            sider['semesterplan'] = toDict(aktiveKor.values_list('kortTittel', flat=True))
 
-        if self.tilganger.filter(navn='verv').exists():
-            sider.add('vervListe')
+        # Øverige
+        # Herunder hadd vi gjort mange queries av typen self.tilganger.filter(navn='...').exists()
+        # så istedet for å gjør det skaffe vi en liste av tilgangNavnan, og bruke det:)
+        tilgangNavn = list(self.tilganger.values_list('navn', flat=True))
 
-        if self.tilganger.filter(navn='dekorasjon').exists():
-            sider.add('dekorasjonListe')
-
-        if self.tilganger.filter(navn='tilgang').exists():
-            sider.add('vervListe')
-            sider.add('tilgangListe')
-
-        if self.tilganger.filter(navn='turne').exists():
-            sider.add('turneListe')
-            sider.add('medlemListe')
+        if tilgangNavn:
+            sider['loggListe'] = True
         
+        if 'tversAvKor' in tilgangNavn:
+            sider['medlemListe'] = True
+            sider['vervListe'] = True
+            sider['dekorasjonListe'] = True
+            sider['turneListe'] = True
+            sider['tilgangListe'] = True
+
+        if 'medlemsdata' in tilgangNavn:
+            sider['medlemListe'] = True
+
+        if 'semesterplan' in tilgangNavn:
+            sider['hendelseListe'] = True
+
+        if 'fravær' in tilgangNavn:
+            sider['hendelseListe'] = True
+            sider['fraværListe'] = toDict(Kor.objects.filter(tilganger__in=self.tilganger.filter(navn='fravær')).values_list('kortTittel', flat=True))
+
+        if 'vervInnehavelse' in tilgangNavn:
+            sider['medlemListe'] = True
+            sider['vervListe'] = True
+
+        if 'dekorasjonInnehavelse' in tilgangNavn:
+            sider['medlemListe'] = True
+            sider['dekorasjonListe'] = True
+
+        if 'verv' in tilgangNavn:
+            sider['vervListe'] = True
+
+        if 'dekorasjon' in tilgangNavn:
+            sider['dekorasjonListe'] = True
+
+        if 'tilgang' in tilgangNavn:
+            sider['vervListe'] = True
+            sider['tilgangListe'] = True
+
+        if 'turne' in tilgangNavn:
+            sider['turneListe'] = True
+            sider['medlemListe'] = True
+
+        # Før vi returne, gå over og fjern alle falsy verdier, rekursivt. 
+        def removeFalsy(sider):
+            for side in sider:
+                if not sider[side]:
+                    # Om det e falsy, fjern det
+                    del sider[side]
+                elif isinstance(sider[side], dict):
+                    # Fjern falsy children
+                    removeFalsy(sider[side])
+            if not sider:
+                # Om vi fjerna alle children, erstatt den tomme dicten med True
+                # Dette fordi å fjern alle undersider ikke betyr at vi skal fjerne en side
+                sider[side] = True
+        removeFalsy(sider)
+
         return sider
 
     def harRedigerTilgang(self, instance):
@@ -409,7 +530,7 @@ class Medlem(ModelWithStrRep):
         # Ellers, return om vi har noen tilgang til den typen objekt
         return self.tilganger.filter(navn=consts.modelTilTilgangNavn[type(instance).__name__]).exists()
 
-    @cachedMethod
+    @bareAktiveDecorator
     def redigerTilgangQueryset(self, model, resModel=None, fieldType=None):
         '''
         Returne et queryset av objekter vi har tilgang til å redigere. 
@@ -442,30 +563,43 @@ class Medlem(ModelWithStrRep):
         # Medlem er komplisert, både fordi man har redigeringstilgang på seg sjølv, 
         # og fordi medlem ikke har et enkelt forhold til kor. 
         if model == Medlem:
-            # Uten medlemsdatatilgangen har du tilgang til deg selv. 
-            if not self.tilganger.filter(navn='medlemsdata'):
-                return Medlem.objects.filter(pk=self.pk)
-            
-            # Ellers, skaff medlemmer i koret du har tilgangen
+            # Skaff medlemmer i koret du har tilgangen
             medlemmer = getInstancesForKor(resModel, Kor.objects.filter(tilganger__in=self.tilganger.filter(navn='medlemsdata')))
             
             # Dersom du har tversAvKor, hiv på alle medlemmer uten kor
             if resModel == Medlem and self.tilganger.filter(navn='tversAvKor').exists():
                 medlemmer |= Medlem.objects.exclude(
-                    stemmegruppeVerv('vervInnehavelse__verv')
+                    stemmegruppeVerv('vervInnehavelser__verv')
                 )
 
-            # Return disse + deg selv. 
-            return medlemmer | Medlem.objects.filter(pk=self.pk)
-        
+            return medlemmer
+
         # For alle andre modeller, bare skaff objektene for modellen og koret du evt har tilgangen. 
-        return getInstancesForKor(resModel, Kor.objects.filter(tilganger__in=self.tilganger.filter(navn=consts.modelTilTilgangNavn[model.__name__])))
+        returnQueryset = getInstancesForKor(resModel, Kor.objects.filter(tilganger__in=self.tilganger.filter(navn=consts.modelTilTilgangNavn[model.__name__])))
+
+        # Exclude Verv og VervInnehavelser som gir tilganger som medlemmet ikke har, dersom medlemmet ikke har tilgang tilgangen 
+        # i koret til vervet. Dette hindre at noen med vervInnehavelse tilgangen kan gjøre seg selv til Formann og gå løs på 
+        # medlemsregisteret, men fungere også for alle verv som gir tilganger man ikkje selv har. 
+        
+        if model in [Verv, VervInnehavelse] and resModel in [Verv, VervInnehavelse]:
+            if resModel == Verv:
+                return returnQueryset.exclude(
+                    ~Q(kor__in=self.tilganger.filter(navn='tilgang').values_list('kor', flat=True)),
+                    tilganger__in=Tilgang.objects.exclude(pk__in=self.tilganger),
+                )
+            if resModel == VervInnehavelse:
+                return returnQueryset.exclude(
+                    ~Q(verv__kor__in=self.tilganger.filter(navn='tilgang').values_list('kor', flat=True)),
+                    verv__tilganger__in=Tilgang.objects.exclude(pk__in=self.tilganger), 
+                )
+
+        return returnQueryset
     
     def harSideTilgang(self, instance):
         'Returne en boolean som sie om man har tilgang til denne siden'
         return self.sideTilgangQueryset(type(instance)).contains(instance)
 
-    @cachedMethod
+    @bareAktiveDecorator
     def sideTilgangQueryset(self, model):
         '''
         Returne queryset av objekt der vi har tilgang til noe på den tilsvarende siden.
@@ -525,17 +659,38 @@ class Medlem(ModelWithStrRep):
         return self.navn
     
     class Meta:
-        ordering = ['fornavn', 'mellomnavn', 'etternavn']
+        ordering = ['fornavn', 'mellomnavn', 'etternavn', '-pk']
         verbose_name_plural = 'medlemmer'
 
+    def save(self, *args, **kwargs):
+        # Crop bildet om det har endret seg
+        if self.pk and self.bilde and self.bilde != Medlem.objects.get(pk=self.pk).bilde:
+            self.bilde = cropImage(self.bilde, self.bilde.name, 270, 330)
+        super().save(*args, **kwargs)
 
-class Kor(ModelWithStrRep):
+    def delete(self, *args, **kwargs):
+        validateM2MFieldEmpty(self, 'turneer')
+        super().delete(*args, **kwargs)
+
+
+class KorQuerySet(models.QuerySet):
+    def orderKor(self, tksRekkefølge=False):
+        'Sorter kor på storkor først og deretter på kjønnsfordeling'
+        return self.order_by(Case(
+            *[When(kortTittel=kor, then=i) for i, kor in 
+                (enumerate(consts.bareKorKortTittel if not tksRekkefølge else consts.bareKorKortTittelTKSRekkefølge))
+            ]
+        ))
+
+
+class Kor(models.Model):
+    objects = KorQuerySet.as_manager()
+
     kortTittel = models.CharField(max_length=10)
     langTittel = models.CharField(max_length=50)
+    stemmefordeling = models.CharField(choices=[(sf, sf) for sf in ['SA', 'TB', 'SATB', '']], default='', blank=True)
 
-    # Teknisk sett depender sånn ca alt på kor, men vi dropper å sette inn dette, 
-    # siden kor sin strRep aldri skal endre seg.
-    @strDecorator
+    # Dropper å drive med strRep her, blir bare overhead for ingen fortjeneste
     def __str__(self):
         return self.kortTittel
     
@@ -575,12 +730,11 @@ class Verv(ModelWithStrRep):
         verbose_name_plural = 'verv'
 
     def clean(self, *args, **kwargs):
-        if not self.bruktIKode and Verv.objects.filter(bruktIKode=True, navn=self.navn).exists():
-            raise ValidationError(
-                _('Kan ikke opprette eller endre navn til noe som er brukt i kode'),
-                code='bruktIKodeError',
-            )
+        validateBruktIKode(self)
     
+    def delete(self, *args, **kwargs):
+        validateM2MFieldEmpty(self, 'tilganger')
+        super().delete(*args, **kwargs)
 
 
 class VervInnehavelse(ModelWithStrRep):
@@ -588,13 +742,13 @@ class VervInnehavelse(ModelWithStrRep):
         Medlem,
         on_delete=models.PROTECT,
         null=False,
-        related_name='vervInnehavelse'
+        related_name='vervInnehavelser'
     )
     verv = models.ForeignKey(
         Verv,
         on_delete=models.PROTECT,
         null=False,
-        related_name='vervInnehavelse'
+        related_name='vervInnehavelser'
     )
     start = MyDateField(blank=False)
     slutt = MyDateField(blank=True, null=True)
@@ -614,7 +768,7 @@ class VervInnehavelse(ModelWithStrRep):
     
     class Meta:
         unique_together = ('medlem', 'verv', 'start')
-        ordering = ['-start']
+        ordering = ['-start', '-slutt', '-pk']
         verbose_name_plural = 'vervinnehavelser'
 
     def clean(self, *args, **kwargs):
@@ -626,7 +780,7 @@ class VervInnehavelse(ModelWithStrRep):
                     ~Q(pk=self.pk),
                     stemmegruppeVerv(),
                     ~(Q(slutt__isnull=False) & Q(slutt__lt=self.start)),
-                    ~getQBool(self.slutt, trueOption=Q(start__gt=self.slutt)),
+                    ~qBool(self.slutt, trueOption=Q(start__gt=self.slutt)),
                     verv__kor=self.kor,
                     medlem=self.medlem,
                 ).exists():
@@ -638,7 +792,7 @@ class VervInnehavelse(ModelWithStrRep):
                 if VervInnehavelse.objects.filter(
                     ~Q(pk=self.pk),
                     ~(Q(slutt__isnull=False) & Q(slutt__lt=self.start)),
-                    ~getQBool(self.slutt, trueOption=Q(start__gt=self.slutt)),
+                    ~qBool(self.slutt, trueOption=Q(start__gt=self.slutt)),
                     medlem=self.medlem,
                     verv=self.verv,
                 ).exists():
@@ -742,17 +896,16 @@ class Tilgang(ModelWithStrRep):
         return self.navn
 
     class Meta:
-        ordering = ['kor', 'navn']
         unique_together = ('kor', 'navn')
+        ordering = ['kor', 'navn']
         verbose_name_plural = 'tilganger'
 
     def clean(self, *args, **kwargs):
-        if not self.bruktIKode and Tilgang.objects.filter(bruktIKode=True, navn=self.navn).exists():
-            raise ValidationError(
-                _('Kan ikke opprette eller endre navn til noe som er brukt i kode'),
-                code='bruktIKodeError',
-            )
+        validateBruktIKode(self)
 
+    def delete(self, *args, **kwargs):
+        validateM2MFieldEmpty(self, 'verv')
+        super().delete(*args, **kwargs)
 
 
 class Dekorasjon(ModelWithStrRep):
@@ -803,7 +956,7 @@ class DekorasjonInnehavelse(ModelWithStrRep):
     
     class Meta:
         unique_together = ('medlem', 'dekorasjon', 'start')
-        ordering = ['-start']
+        ordering = ['-start', '-pk']
         verbose_name_plural = 'dekorasjoninnehavelser'
 
 
@@ -818,6 +971,8 @@ class Turne(ModelWithStrRep):
 
     start = MyDateField(null=False)
     slutt = MyDateField(null=True, blank=True)
+
+    beskrivelse = models.TextField(blank=True)
 
     medlemmer = MyManyToManyField(
         Medlem,
@@ -835,8 +990,8 @@ class Turne(ModelWithStrRep):
         return self.navn
 
     class Meta:
-        ordering = ['kor', '-start', 'navn']
         unique_together = ('kor', 'navn', 'start')
+        ordering = ['kor', '-start', 'navn']
         verbose_name_plural = 'turneer'
     
     def clean(self, *args, **kwargs):
@@ -844,12 +999,15 @@ class Turne(ModelWithStrRep):
 
     def save(self, *args, **kwargs):
         self.clean()
-
         super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        validateM2MFieldEmpty(self, 'medlemmer')
+        super().delete(*args, **kwargs)
 
 
 class HendelseQuerySet(models.QuerySet):
-    def generateICal(self):
+    def generateICal(self, medlemPK):
         'Returne en (forhåpentligvis) rfc5545 kompatibel string'
         iCalString= f'''\
 BEGIN:VCALENDAR
@@ -879,7 +1037,7 @@ DTSTART:19701025T030000
 RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU
 END:STANDARD
 END:VTIMEZONE
-{''.join(map(lambda h: h.getVevent(), self))}END:VCALENDAR\n'''
+{''.join(map(lambda h: h.getVevent(medlemPK), self))}END:VCALENDAR\n'''
 
         # Split lines som e lenger enn 75 characters over fleir linja
         iCalLines = iCalString.split('\n')
@@ -911,6 +1069,20 @@ END:VTIMEZONE
             for hendelse in hendelser:
                 hendelse.save()
 
+    def filterSemester(self):
+        'Filtrere og returne bare hendelser for dette semesteret, enten januar-juni eller juli-desember'
+        today = datetime.date.today()
+        if today.month >= 7:
+            return self.filter(
+                startDate__year=today.year,
+                startDate__month__gte=7
+            )
+        else:
+            return self.filter(
+                startDate__year=today.year,
+                startDate__month__lt=7
+            )
+
 
 class Hendelse(ModelWithStrRep):
     objects = HendelseQuerySet.as_manager()
@@ -921,7 +1093,7 @@ class Hendelse(ModelWithStrRep):
 
     kor = models.ForeignKey(
         'Kor',
-        related_name='events',
+        related_name='hendelser',
         on_delete=models.SET_NULL,
         null=True
     )
@@ -931,9 +1103,12 @@ class Hendelse(ModelWithStrRep):
     # Frivilling e uten føring av oppmøte/fravær
     OBLIG, PÅMELDING, FRIVILLIG = 'O', 'P', 'F'
     KATEGORI_CHOICES = ((OBLIG, 'Oblig'), (PÅMELDING, 'Påmelding'), (FRIVILLIG, 'Frivillig'))
-    kategori = models.CharField(max_length=1, choices=KATEGORI_CHOICES, null=False)
+    kategori = models.CharField(max_length=1, choices=KATEGORI_CHOICES, null=False, blank=False, default=OBLIG, help_text=toolTip('Ikke endre dette uten grunn!'))
 
-    startDate = MyDateField(blank=False)
+    startDate = MyDateField(blank=False, help_text=toolTip(\
+        'Oppmøtene for hendelsen, altså for fraværsføring og fraværsmelding, ' + 
+        'genereres av hvilke medlemmer som er aktive i koret på denne datoen, ' + 
+        'og ikke har permisjon'))
     startTime = MyTimeField(blank=True, null=True)
 
     sluttDate = MyDateField(blank=True, null=True)
@@ -955,7 +1130,7 @@ class Hendelse(ModelWithStrRep):
 
     @property
     def varighet(self):
-        return (self.slutt - self.start).total_seconds() / 60 if self.sluttTime else None
+        return int((self.slutt - self.start).total_seconds() // 60) if self.sluttTime else None
 
     def getVeventStart(self):
         if self.startTime:
@@ -972,17 +1147,9 @@ class Hendelse(ModelWithStrRep):
             return (self.slutt + datetime.timedelta(days=1)).strftime('%Y%m%d')
         return None
 
-    @property
-    def UID(self):
-        return f'{self.kor}-{self.pk}@mytxs.samfundet.no'
-    
-    def getOppmøteLink(self):
-        if self.kategori != Hendelse.FRIVILLIG:
-            return ALLOWED_HOSTS[0] + unquote(reverse('meldFravær', args=[self.pk]))
-
-    def getVevent(self):
-        vevent =  'BEGIN:VEVENT\n'
-        vevent += f'UID:{self.UID}\n'
+    def getVevent(self, medlemPK):
+        vevent = 'BEGIN:VEVENT\n'
+        vevent += f'UID:{self.kor}-{self.pk}@mytxs.samfundet.no\n'
 
         if self.kategori == Hendelse.OBLIG:
             vevent += f'SUMMARY:[OBLIG]: {self.navn}\n'
@@ -995,7 +1162,8 @@ class Hendelse(ModelWithStrRep):
         if self.kategori != Hendelse.FRIVILLIG:
             if self.beskrivelse:
                 vevent += '\\n\\n'
-            vevent += self.getOppmøteLink()
+            vevent += mytxsSettings.ALLOWED_HOSTS[0] + unquote(reverse('meldFravær', args=[medlemPK, self.pk]))
+
         vevent += '\n'
 
         vevent += f'LOCATION:{self.sted}\n'
@@ -1015,14 +1183,18 @@ class Hendelse(ModelWithStrRep):
         vevent += 'END:VEVENT\n'
         return vevent
     
-    def getMedlemmer(self):
+    @property
+    def medlemmer(self):
+        'Dette gir deg basert på stemmegruppeverv og permisjon, hvilke medlemmer som forventes å dukke opp på hendelsen'
+        if self.kategori == Hendelse.FRIVILLIG:
+            return Medlem.objects.none()
         return Medlem.objects.filterIkkePermitert(kor=self.kor, dato=self.startDate)
 
     def getStemmeFordeling(self):
         'Returne stemmefordelingen på en hendelse, basert på Oppmøte.KOMMER.'
         stemmefordeling = {}
 
-        satbStemmer = consts.stemmeFordeling[consts.korTilStemmeFordeling[consts.bareKorKortTittel.index(self.kor.kortTittel)]]
+        satbStemmer = self.kor.stemmefordeling
         for stemme in satbStemmer:
             for i in '12':
                 stemmefordeling[i+stemme] = VervInnehavelse.objects.filter(
@@ -1035,6 +1207,12 @@ class Hendelse(ModelWithStrRep):
                 ).count()
         return stemmefordeling
     
+    @property
+    def defaultAnkomst(self):
+        if self.kategori == Hendelse.OBLIG:
+            return Oppmøte.KOMMER
+        return Oppmøte.KOMMER_KANSKJE
+    
     def get_absolute_url(self):
         return reverse('hendelse', args=[self.pk])
 
@@ -1043,7 +1221,9 @@ class Hendelse(ModelWithStrRep):
         return f'{self.navn}({self.startDate})'
 
     class Meta:
-        ordering = ['startDate', 'startTime']
+        unique_together = ('kor', 'navn', 'startDate')
+        ordering = ['startDate', 'startTime', 'navn', 'kor']
+        verbose_name_plural = 'hendelser'
 
     def clean(self, *args, **kwargs):
         # Validering av start og slutt
@@ -1061,45 +1241,98 @@ class Hendelse(ModelWithStrRep):
                 )
             
             validateStartSlutt(self, canEqual=False)
+
+        # Sjekk at varigheten på en obligatorisk hendelse ikke e meir enn 12 timer
+        if self.kategori == Hendelse.OBLIG and 720 < (self.varighet or 0):
+            raise ValidationError(
+                _('En obligatorisk hendelse kan ikke vare lengere enn 12 timer'),
+                code='tooLongDuration'
+            )
+
+        # Herunder kjem validering av relaterte oppmøter, om den ikkje e lagret ennå, skip dette
+        if not self.pk:
+            return
         
-        # Validering av relaterte oppmøter
-        if self.pk:
-            if oppmøter := self.oppmøter.filter(
-                ~Q(medlem__in=self.getMedlemmer()),
-                Q(fravær__isnull=False) | ~Q(melding='')
-            ):
-                raise ValidationError(
-                    _('Å flytte hendelsen til dette tidspunktet kommer til å slette oppmøtene til ' + 
-                      ", ".join(map(lambda o: str(o.medlem), oppmøter)) +
-                      ', slett fraværsmeldingen og fraværet deres først'),
-                    code='saveWouldDeleteRelated'
-                )
+        if self.oppmøter.filter(fravær__isnull=False).exists() and self.varighet == None:
+            raise ValidationError(
+                _(f'Kan ikke ha fravær på en hendelse uten varighet'),
+                code='fraværUtenVarighet'
+            )
 
-            if (lengsteFravær := self.oppmøter.filter(
-                Q(fravær__isnull=False) | ~Q(melding='')
-            ).aggregate(Max('fravær')).get('fravær__max')) and self.varighet < lengsteFravær:
-                raise ValidationError(
-                    _(f'Å lagre dette vil føre til at noen får mere fravær enn varigheten av hendelsen.'),
-                    code='merFraværEnnHendelse'
-                )
-
+        # Sjekk at hendelsen vare lenger enn det største fraværet
+        if (self.varighet or 0) < (self.oppmøter.filter(fravær__isnull=False).aggregate(Max('fravær')).get('fravær__max') or 0):
+            raise ValidationError(
+                _(f'Å lagre dette vil føre til at noen får mere fravær enn varigheten av hendelsen.'),
+                code='merFraværEnnHendelse'
+            )
+    
     def save(self, *args, **kwargs):
         self.clean()
 
+        oldSelf = Hendelse.objects.filter(pk=self.pk).first()
+
         # Fiksing av relaterte oppmøter
         super().save(*args, **kwargs)
-
-        medlemmer = self.getMedlemmer()
         
-        # Slett oppmøter som ikke skal være der
-        self.oppmøter.filter(~Q(medlem__in=medlemmer)).delete()
-
         # Legg til oppmøter som skal være der
-        for medlem in medlemmer.filter(~Q(oppmøter__hendelse=self)):
-            self.oppmøter.create(medlem=medlem, hendelse=self)
+        for medlem in self.medlemmer.filter(~Q(oppmøter__hendelse=self)):
+            self.oppmøter.create(medlem=medlem, hendelse=self, ankomst=self.defaultAnkomst)
+        
+        if oldSelf:
+            # Slett oppmøter som ikke skal være der (og ikke har noen informasjon assosiert med seg)
+            self.oppmøter.filter(
+                ~Q(medlem__in=self.medlemmer),
+                fravær__isnull=True,
+                ankomst=oldSelf.defaultAnkomst,
+                melding=''
+            ).delete()
+
+            # Bytt resten av oppmøtene sin ankomst til default ankomsten, dersom de ikke har en medling. 
+            if self.defaultAnkomst != oldSelf.defaultAnkomst:
+                for oppmøte in self.oppmøter.filter(melding=''):
+                    oppmøte.ankomst = self.defaultAnkomst
+                    oppmøte.save()
+
+
+class OppmøteQueryset(models.QuerySet):
+    def annotateHendelseVarighet(self):
+        'Annotate varighet av den relaterte hendelsen i minutt som hendelse__varighet'
+        # Ja, dette fungerer bare for hendelser som ikke varer mer enn 24 timer, men vi validerer det på hendelse.clean:)
+        return self.alias(
+            hendelse__startDateTime=ExpressionWrapper(
+                F('hendelse__startDate') + F('hendelse__startTime'),
+                output_field=models.DateTimeField()
+            ),
+            hendelse__sluttDateTime=ExpressionWrapper(
+                F('hendelse__sluttDate') + F('hendelse__sluttTime'),
+                output_field=models.DateTimeField()
+            )
+        ).annotate(
+            hendelse__varighet=ExtractMinute(
+                F('hendelse__sluttDateTime') - F('hendelse__startDateTime')
+            ) + ExtractHour(
+                F('hendelse__sluttDateTime') - F('hendelse__startDateTime')
+            ) * 60
+        )
+    
+    def filterSemester(self):
+        'Filtrere og returne bare oppmøter for dette semesteret, enten januar-juni eller juli-desember'
+        today = datetime.date.today()
+        if today.month >= 7:
+            return self.filter(
+                hendelse__startDate__year=today.year,
+                hendelse__startDate__month__gte=7
+            )
+        else:
+            return self.filter(
+                hendelse__startDate__year=today.year,
+                hendelse__startDate__month__lt=7
+            )
 
 
 class Oppmøte(ModelWithStrRep):
+    objects = OppmøteQueryset.as_manager()
+
     medlem = models.ForeignKey(
         Medlem,
         on_delete=models.CASCADE,
@@ -1115,7 +1348,12 @@ class Oppmøte(ModelWithStrRep):
     )
 
     fravær = models.PositiveSmallIntegerField(null=True, blank=True)
-    'Om det er None tolkes det som ikke møtt'
+    'Om fravær er None tolkes det som ikke møtt'
+
+    GYLDIG, IKKE_BEHANDLET, UGYLDIG = True, None, False
+    GYLDIG_CHOICES = ((GYLDIG, 'Gyldig'), (IKKE_BEHANDLET, 'Ikke behandlet'), (UGYLDIG, 'Ugyldig'))
+    gyldig = models.BooleanField(null=True, blank=True, choices=GYLDIG_CHOICES, default=IKKE_BEHANDLET)
+    'Om minuttene du hadde av fravær var gyldige'
 
     @property
     def minutterBorte(self):
@@ -1123,19 +1361,19 @@ class Oppmøte(ModelWithStrRep):
             return self.hendelse.varighet
         return self.fravær
 
-    KOMMER, KOMMER_KANSKJE, KOMMER_IKKE = 1, 0, -1
+    KOMMER, KOMMER_KANSKJE, KOMMER_IKKE = True, None, False
     ANKOMST_CHOICES = ((KOMMER, 'Kommer'), (KOMMER_KANSKJE, 'Kommer kanskje'), (KOMMER_IKKE, 'Kommer ikke'))
-    ankomst = models.IntegerField(choices=ANKOMST_CHOICES, null=False, default=KOMMER_KANSKJE)
+    ankomst = models.BooleanField(null=True, blank=True, choices=ANKOMST_CHOICES, default=KOMMER_KANSKJE)
 
     melding = models.TextField(blank=True)
-
-    gyldig = models.BooleanField(default=False)
-    'Om minuttene du hadde av fravær var gyldige'
 
     @property
     def kor(self):
         return self.hendelse.kor if self.pk else None
     
+    def get_absolute_url(self):
+        return reverse('meldFravær', args=[self.medlem.pk, self.hendelse.pk])
+
     affectedByStrRep = ['Hendelse', 'Medlem']
     @strDecorator
     def __str__(self):
@@ -1147,29 +1385,52 @@ class Oppmøte(ModelWithStrRep):
             return f'Oppmøte {self.medlem} -> {self.hendelse}'
 
     class Meta:
-        ordering = ['-hendelse', 'medlem']
         unique_together = ('medlem', 'hendelse')
+        ordering = ['-hendelse', 'medlem']
+        verbose_name_plural = 'oppmøter'
 
     def clean(self, *args, **kwargs):
         # Valider mengden fravær
-        if self.fravær and self.fravær > self.hendelse.varighet:
+        if self.fravær != None and self.hendelse.varighet == None:
+            raise ValidationError(
+                _(f'Kan ikke ha fravær på en hendelse uten varighet'),
+                code='fraværUtenVarighet'
+            )
+        
+        if self.fravær and self.fravær > (self.hendelse.varighet or 0):
             raise ValidationError(
                 _('Kan ikke ha mere fravær enn varigheten av hendelsen.'),
                 code='merFraværEnnHendelse'
             )
-    
+        
+        if self.hendelse.kategori == Hendelse.OBLIG and self.hendelse.defaultAnkomst != self.ankomst and self.melding == '':
+            raise ValidationError(
+                _('Kan ikke ha en spesiell ankomst på en oblig hendelse uten å skrive en melding'),
+                code='ankomstUtenMelding'
+            )
+
     def save(self, *args, **kwargs):
         self.clean()
 
-        # Sett et nytt oppmøte sin ankomst til KOMMER dersom hendelsen e OBLIG
-        if not Oppmøte.objects.filter(pk=self.pk).exists() and self.hendelse.kategori == Hendelse.OBLIG:
-            self.ankomst = Oppmøte.KOMMER
+        oldSelf = Oppmøte.objects.filter(pk=self.pk).first()
+
+        # Dersom melding har endret seg, og gyldig er Ugyldig, endre gyldig til Ikke behandlet.
+        if oldSelf and self.gyldig == Oppmøte.UGYLDIG and oldSelf.melding != self.melding:
+            self.gyldig = Oppmøte.IKKE_BEHANDLET
         
         super().save(*args, **kwargs)
+
 
 class Lenke(ModelWithStrRep):
     navn = models.CharField(max_length=255)
     lenke = models.CharField(max_length=255)
+    synlig = models.BooleanField(default=False, help_text=toolTip('Om denne lenken skal være synlig på MyTXS'))
+    redirect = models.BooleanField(default=False, help_text=toolTip('Om denne lenken skal kunne redirectes til'))
+
+    @property
+    def redirectUrl(self):
+        if self.pk and self.redirect:
+            return 'http://' + mytxsSettings.ALLOWED_HOSTS[0] + reverse('lenkeRedirect', args=[self.kor.kortTittel, self.navn])
 
     kor = models.ForeignKey(
         'Kor',
@@ -1183,4 +1444,6 @@ class Lenke(ModelWithStrRep):
         return f'{self.navn}({self.kor})'
     
     class Meta:
-        ordering = ['kor']
+        unique_together = ('kor', 'navn', 'lenke')
+        ordering = ['kor', 'navn', '-pk']
+        verbose_name_plural = 'lenker'
