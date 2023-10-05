@@ -432,7 +432,7 @@ class Medlem(ModelWithStrRep):
         sider = dict()
 
         # Sjekkheftet
-        if storkor := self.storkor and storkor.kortTittel == 'TKS':
+        if (storkor := self.storkor) and storkor.kortTittel == 'TKS':
             sider['sjekkheftet'] = toDict(consts.bareKorKortTittelTKSRekkefølge + ['søk', 'jubileum', 'sjekkhefTest'])
         else:
             sider['sjekkheftet'] = toDict(consts.bareKorKortTittel + ['søk', 'jubileum', 'sjekkhefTest'])
