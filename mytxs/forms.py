@@ -169,6 +169,10 @@ class OptionForm(BaseOptionForm):
 
 
 def addOptionForm(request):
+    if not request.user.medlem:
+        # Om de ikke har en user, skip dette. Det e mest nyttig for admin
+        return
+    
     faktiskeTilganger = request.user.medlem.faktiskeTilganger
 
     optionFormFields = ['optionFormSubmitted']

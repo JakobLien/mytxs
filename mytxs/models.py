@@ -383,7 +383,7 @@ class Medlem(ModelWithStrRep):
         'Returne koran TSS eller TKS eller en tom streng'
         if self.firstStemmegruppeVervInnehavelse:
             return self.firstStemmegruppeVervInnehavelse.verv.kor
-        return ''
+        return None
 
     @property
     def karantenekor(self):
@@ -432,7 +432,7 @@ class Medlem(ModelWithStrRep):
         sider = dict()
 
         # Sjekkheftet
-        if self.storkor.kortTittel == 'TKS':
+        if storkor := self.storkor and storkor.kortTittel == 'TKS':
             sider['sjekkheftet'] = toDict(consts.bareKorKortTittelTKSRekkefølge + ['søk', 'jubileum', 'sjekkhefTest'])
         else:
             sider['sjekkheftet'] = toDict(consts.bareKorKortTittel + ['søk', 'jubileum', 'sjekkhefTest'])
