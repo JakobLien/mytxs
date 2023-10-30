@@ -6,6 +6,12 @@ import os
 import re
 import urllib3
 
+# Så greia e at MyTXS 1.0 servern supporte ikkje ipv6, og samfundet har ipv6 som default.
+# Dette lede til at dersom vi ikkje eksplisit spesifisere at vi må bruk ipv4 får vi en bug
+# på servern som vi ikke får lokalt, og som e no har brukt 3 tima på å debug med itk. Ikke 
+# gjør samme feilen igjen!
+urllib3.util.connection.HAS_IPV6 = False
+
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand, CommandError
 
