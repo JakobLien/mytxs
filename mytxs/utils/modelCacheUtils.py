@@ -125,3 +125,42 @@ def cachedMethod(method):
             cacheDict[key] = method(self, *args, **kwargs)
         return cacheDict[key]
     return _decorator
+
+
+def cacheQS(qs, props=['navn']):
+    '''
+    Cache et queryset slik at man kan bruk filter og exists uten ytterligere db oppslag.
+    Primært tiltenkt brukt med medlem sine tilganger, siden vi filterer navn og exists på det querysettet ofte,
+    men kan også brukes til andre ting ved å endre props argumentet. En fremtidig utvikling er å utvide til å også 
+    håndtere exclude, men da igjen er det mye vanligere å bruke filter exists enn exclude exists. 
+    '''
+    # Populate queryset cachen om den ikkje alt e populated
+    qs._fetch_all()
+
+    def customFilter(actualFilter):
+        def _decorator(*args, **kwargs):
+            # Fortsatt gjør actual filter, slik at ting funke som forventa
+            # Filter i seg sjølv hitte ikke databasen, så bare vi populate _result_cache e vi good
+            narrowed_queryset = actualFilter(*args, **kwargs)
+
+            # Bare sett _result_cache dersom vi faktisk kan oppfyll queriet
+            if all(map(lambda k: (k.removesuffix('__in') in props), kwargs.keys())):
+                narrowed_queryset.filter = customFilter(narrowed_queryset.filter)
+
+                narrowed_queryset._result_cache = qs._result_cache
+
+                for key, value in kwargs.items():
+                    inKey = key.endswith('__in')
+                    if not inKey:
+                        narrowed_queryset._result_cache = list(filter(lambda r: getattr(r, key) == value, narrowed_queryset._result_cache))
+                    else:
+                        narrowed_queryset._result_cache = list(filter(lambda r: getattr(r, key[:-4]) in value, narrowed_queryset._result_cache))
+            else:
+                print(f'Queryset not cached with kwargs {str(kwargs)}')
+            
+            return narrowed_queryset
+        
+        return _decorator
+
+    qs.filter = customFilter(qs.filter)
+    return qs

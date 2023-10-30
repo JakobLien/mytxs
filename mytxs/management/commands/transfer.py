@@ -78,16 +78,66 @@ def transferByJWT(jwt):
         medlemDict = http.request("GET", f"https://mytss.mannskor.no/api/medlem/{medlemsnummer[3:]}?jwt={jwt}", headers={
             "Authorization": f"Bearer {os.environ['API_KEY']}"
         }).json()
-    else:
+    elif medlemsnummer.startswith('TKS'):
         medlemDict = http.request("GET", f"https://mitks.mannskor.no/api/medlem/{medlemsnummer[3:]}?jwt={jwt}", headers={
             "Authorization": f"Bearer {os.environ['API_KEY']}"
         }).json()
+    else:
+        print('Faulty jwt:', jwt)
+        return None
 
-    return insertMedlem(medlemDict)
+    # Her setter vi bare inn all data dersom medlemmet ikke allerede finnes. 
+    # Dette løser problemet med innsetting av verv som har endret start dato på, med overlappende periode. 
+    if Medlem.objects.filter(gammeltMedlemsnummer=medlemDict['medlemsnummer']).exists():
+        return insertMedlemOptional(medlemDict)
+    else:
+        insertMedlem(medlemDict)
+        return insertMedlemOptional(medlemDict)
+
+
+def insertMedlemOptional(medlemDict):
+    '''
+    Gitt en medlemDict fra MyTXS 1 sett denne funksjonen inn all optional overføringsdata. 
+    Er trygg å bruke flere ganger, vil i såfall ikke overskrive dataen som alt finnes på MyTXS 2.0. 
+    '''
+    medlem = Medlem.objects.filter(gammeltMedlemsnummer=medlemDict['medlemsnummer']).first()
+
+    if not medlem:
+        print('Medlem not found at insertMedlemOptional:', medlemDict['medlemsnummer'])
+        return None
+
+    # Sett inn medlemsdata som varierer om vi mottar pga avkrysning. Tanken er at om noen trykker på 
+    # registeringslenken flere ganger med ulik avkrysning skal ikke siden slette data pga det.
+    if not medlem.fødselsdato and (fødselsdato := medlemDict.get('fodselsdag')):
+        medlem.fødselsdato = fødselsdato
+    if not medlem.epost and (epost := medlemDict.get('email', '')):
+        medlem.epost = epost
+    if not medlem.tlf and (tlf := medlemDict.get('mobiltlf', '')):
+        medlem.tlf = tlf
+    if not medlem.studieEllerJobb and (studieEllerJobb := joinMaybeFalsy(' ved ', medlemDict.get('yrke'), medlemDict.get('arbeidssted'))):
+        medlem.studieEllerJobb = studieEllerJobb
+    if not medlem.boAdresse and (boAdresse := joinMaybeFalsy(', ', medlemDict.get('boligadresse'), medlemDict.get('boligpost'))):
+        medlem.boAdresse = boAdresse
+    if not medlem.foreldreAdresse and (foreldreAdresse := joinMaybeFalsy(', ', medlemDict.get('hjemadresse'), medlemDict.get('hjempost'))):
+        medlem.foreldreAdresse = foreldreAdresse
+    if not medlem.notis and (notis := medlemDict.get('anmerkninger', '')):
+        medlem.notis = notis + '\n'
+
+    # Lagre bildet
+    if not medlem.bilde and (imgData := medlemDict.get('passfoto')):
+        medlem.bilde.save(f'uploads/sjekkhefteBilder/{medlem.pk}.jpg', ContentFile(base64.b64decode(imgData)))
+    
+    medlem.save()
+
+    return medlem
 
 
 def insertMedlem(medlemDict):
-    'Gitt en medlemDict fra MyTXS 1 sett denne funksjonen inn all dataen. Skal være trygg å bruke flere ganger. '
+    '''
+    Gitt en medlemDict fra MyTXS 1 sett denne funksjonen inn all obligatosik overføringsdata. 
+    Er ikke trygg å bruke flere ganger, for dersom et verv har blitt endret startdato 
+    på, vil det bli forsøkt satt inn, og valideringen vil raise ValidationException. 
+    '''
     kor = Kor.objects.get(
         kortTittel=medlemDict['medlemsnummer'][:3]
     )
@@ -103,28 +153,6 @@ def insertMedlem(medlemDict):
             'død': medlemDict.get('status') == 'Død'
         }
     )
-
-    # Sett inn medlemsdata som varierer om vi mottar pga avkrysning. Tanken er at om noen trykker på 
-    # registeringslenken flere ganger med ulik avkrysning skal ikke siden slette data pga det.
-    if fødselsdato := medlemDict.get('fodselsdag'):
-        medlem.fødselsdato = fødselsdato
-    if epost := medlemDict.get('email', ''):
-        medlem.epost = epost
-    if tlf := medlemDict.get('mobiltlf', ''):
-        medlem.tlf = tlf
-    if studieEllerJobb := joinMaybeFalsy(' ved ', medlemDict.get('yrke'), medlemDict.get('arbeidssted')):
-        medlem.studieEllerJobb = studieEllerJobb
-    if boAdresse := joinMaybeFalsy(', ', medlemDict.get('boligadresse'), medlemDict.get('boligpost')):
-        medlem.boAdresse = boAdresse
-    if foreldreAdresse := joinMaybeFalsy(', ', medlemDict.get('hjemadresse'), medlemDict.get('hjempost')):
-        medlem.foreldreAdresse = foreldreAdresse
-    if notis := medlemDict.get('anmerkninger', ''):
-        medlem.notis = notis + '\n'
-
-    # Lagre bildet
-    if imgData := medlemDict.get('passfoto'):
-        medlem.bilde.save(f'uploads/sjekkhefteBilder/{medlem.pk}.jpg', ContentFile(base64.b64decode(imgData)))
-    
 
     # Stemmegrupper (i storkor)
     # Om noen har byttet stemmegruppe kan vi finne ut av dette ved å se på de to siste tallene av medlemsnummeret,

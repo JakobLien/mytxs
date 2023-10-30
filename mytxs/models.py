@@ -19,7 +19,7 @@ from mytxs import consts
 from mytxs import settings as mytxsSettings
 from mytxs.fields import BitmapMultipleChoiceField, MyDateField, MyManyToManyField, MyTimeField
 from mytxs.utils.formUtils import toolTip
-from mytxs.utils.modelCacheUtils import ModelWithStrRep, clearCachedProperty, strDecorator
+from mytxs.utils.modelCacheUtils import ModelWithStrRep, cacheQS, clearCachedProperty, strDecorator
 from mytxs.utils.modelUtils import bareAktiveDecorator, qBool, groupBy, getInstancesForKor, isStemmegruppeVervNavn, korLookup, orderStemmegruppeVerv, validateBruktIKode, validateM2MFieldEmpty, validateStartSlutt, vervInnehavelseAktiv, stemmegruppeVerv
 from mytxs.utils.utils import cropImage
 
@@ -407,8 +407,8 @@ class Medlem(ModelWithStrRep):
         if self.innstillinger.get('disableTilganger', False):
             return Tilgang.objects.none()
         if not self.innstillinger.get('tversAvKor', False):
-            return self.faktiskeTilganger.exclude(navn='tversAvKor')
-        return self.faktiskeTilganger
+            return cacheQS(self.faktiskeTilganger.exclude(navn='tversAvKor'))
+        return cacheQS(self.faktiskeTilganger)
     
     @cached_property
     def navBar(self):

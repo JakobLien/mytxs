@@ -91,6 +91,10 @@ def registrer(request, medlemPK):
 def overfør(request, jwt):
     medlem = transferByJWT(jwt)
 
+    if not medlem:
+        messages.error(request, 'Overføring feilet')
+        redirect('login')
+
     messages.info(request, 'Data overført!')
     
     if not medlem.user:
