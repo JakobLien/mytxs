@@ -12,6 +12,9 @@ import urllib3
 # gjør samme feilen igjen!
 urllib3.util.connection.HAS_IPV6 = False
 
+from PIL import Image
+
+from django.core.files import File
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand, CommandError
 
@@ -131,7 +134,7 @@ def insertMedlemOptional(medlemDict):
 
     # Lagre bildet
     if not medlem.bilde and (imgData := medlemDict.get('passfoto')):
-        medlem.bilde.save(f'uploads/sjekkhefteBilder/{medlem.pk}.jpg', ContentFile(base64.b64decode(imgData)))
+        medlem.bilde = File(ContentFile(base64.b64decode(imgData)), name=f'uploads/sjekkhefteBilder/{medlem.pk}.jpg')
     
     medlem.save()
 
