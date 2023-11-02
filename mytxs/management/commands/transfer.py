@@ -12,8 +12,6 @@ import urllib3
 # gjør samme feilen igjen!
 urllib3.util.connection.HAS_IPV6 = False
 
-from PIL import Image
-
 from django.core.files import File
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand, CommandError
