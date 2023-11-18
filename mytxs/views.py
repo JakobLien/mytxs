@@ -3,7 +3,8 @@ import datetime
 from django.contrib import messages
 from django.contrib.auth import login as auth_login, logout as auth_logout
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.contrib.auth.forms import AuthenticationForm, SetPasswordForm, UserCreationForm
+from django.contrib.auth.forms import AuthenticationForm, UserCreationForm, SetPasswordForm
+from django.contrib.auth.models import User as AuthUser
 from django.db.models import Q, F, IntegerField
 from django.db.models.functions import Cast
 from django.forms import inlineformset_factory, modelform_factory, modelformset_factory
@@ -95,6 +96,9 @@ def overfør(request, jwt):
         messages.error(request, 'Overføring feilet')
         redirect('login')
 
+    medlem.overførtData = True
+    medlem.save()
+
     messages.info(request, 'Data overført!')
     
     if not medlem.user:
@@ -104,18 +108,26 @@ def overfør(request, jwt):
 
 
 @login_required
-def endrePassord(request):
-    endrePassordForm = SetPasswordForm(user=request.user, data=request.POST or None)
+def endreLogin(request):
+    EndreBrukernavnForm = modelform_factory(AuthUser, fields=['username'])
+    endreBrukernavnForm = EndreBrukernavnForm(postIfPost(request, 'brukernavn'), instance=request.user, prefix='brukernavn')
+
+    endrePassordForm = SetPasswordForm(data=postIfPost(request, 'passord'), user=request.user, prefix='passord')
 
     if request.method == 'POST':
+        if endreBrukernavnForm.is_valid():
+            endreBrukernavnForm.save()
+            messages.info(request, 'Brukernavn endret!')
         if endrePassordForm.is_valid():
             endrePassordForm.save()
             messages.info(request, 'Passord endret!')
+        if endreBrukernavnForm.is_valid() or endrePassordForm.is_valid():
             return redirect(request.get_full_path())
 
-    return render(request, 'mytxs/endrePassord.html', {
+    return render(request, 'mytxs/endreLogin.html', {
+        'endreBrukernavnForm': endreBrukernavnForm,
         'endrePassordForm': endrePassordForm,
-        'heading': 'Endre passord'
+        'heading': 'Endre brukernavn/passord'
     })
 
 
@@ -830,3 +842,8 @@ def loggRedirect(request, modelName, instancePK):
 @harTilgang(instanceModel=Logg)
 def logg(request, loggPK):
     return render(request, 'mytxs/logg.html')
+
+
+@login_required()
+def om(request):
+    return render(request, 'mytxs/om.html')

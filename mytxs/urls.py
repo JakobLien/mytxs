@@ -22,7 +22,7 @@ urlpatterns = [
     path('medlem', views.medlemListe, name='medlemListe'),
     path('medlem/<int:medlemPK>', views.medlem, name='medlem'),
 
-    path('endrePassord', views.endrePassord, name='endrePassord'),
+    path('endreLogin', views.endreLogin, name='endreLogin'),
 
     path('sjekkheftet/<str:gruppe>', views.sjekkheftet, name='sjekkheftet'),
     path('sjekkheftet/<str:gruppe>/<str:undergruppe>', views.sjekkheftet, name='sjekkheftet'),
@@ -56,4 +56,6 @@ urlpatterns = [
     path('logg', views.loggListe, name='loggListe'),
     path('logg/<int:loggPK>', views.logg, name='logg'),
     path('logg/loggRedirect/<str:modelName>/<int:instancePK>', views.loggRedirect, name='loggRedirect'),
+
+    path('om', views.om, name='om'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

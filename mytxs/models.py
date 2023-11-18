@@ -333,18 +333,18 @@ class Medlem(ModelWithStrRep):
         else:
             return f'{self.fornavn} {self.etternavn}'
 
-    gammeltMedlemsnummer = models.CharField(max_length=9, default='', blank=True)
+    gammeltMedlemsnummer = models.CharField(max_length=9, default='', blank=True, verbose_name='Gammelt medlemsnummer')
     'Formatet for dette er "TSS123456" eller "TKS123456"'
 
     # Følgende fields er bundet av GDPR, vi må ha godkjennelse fra medlemmet for å lagre de. 
     fødselsdato = MyDateField(null=True, blank=True)
     epost = models.EmailField(max_length=100, blank=True)
     tlf = models.CharField(max_length=20, default='', blank=True)
-    studieEllerJobb = models.CharField(max_length=100, blank=True)
-    boAdresse = models.CharField(max_length=100, blank=True)
-    foreldreAdresse = models.CharField(max_length=100, blank=True)
+    studieEllerJobb = models.CharField(max_length=100, blank=True, verbose_name='Studie eller jobb')
+    boAdresse = models.CharField(max_length=100, blank=True, verbose_name='Bo adresse')
+    foreldreAdresse = models.CharField(max_length=100, blank=True, verbose_name='Foreldre adresse')
 
-    sjekkhefteSynlig = BitmapMultipleChoiceField(choicesList=consts.sjekkhefteSynligOptions)
+    sjekkhefteSynlig = BitmapMultipleChoiceField(choicesList=consts.sjekkhefteSynligOptions, verbose_name='Synlig i sjekkheftet')
 
     def generateUploadTo(instance, fileName):
         path = 'sjekkhefteBilder/'
@@ -354,12 +354,14 @@ class Medlem(ModelWithStrRep):
 
     bilde = models.ImageField(upload_to=generateUploadTo, null=True, blank=True)
 
-    ønskerVårbrev = models.BooleanField(default=False)
+    ønskerVårbrev = models.BooleanField(default=False, verbose_name='Ønsker vårbrev')
     død = models.BooleanField(default=False)
     notis = models.TextField(blank=True)
 
     innstillinger = models.JSONField(null=False, default=dict, editable=False)
     'For å lagre ting som endrer hvordan brukeren ser siden, f.eks. tversAvKor, disableTilganger osv'
+
+    overførtData = models.BooleanField(default=False, editable=False)
 
     @cached_property
     def aktiveKor(self):
@@ -380,7 +382,7 @@ class Medlem(ModelWithStrRep):
     
     @cached_property
     def storkor(self):
-        'Returne koran TSS eller TKS eller en tom streng'
+        'Returne koran TSS eller TKS eller None'
         if self.firstStemmegruppeVervInnehavelse:
             return self.firstStemmegruppeVervInnehavelse.verv.kor
         return None
@@ -406,9 +408,18 @@ class Medlem(ModelWithStrRep):
         'Returne aktive tilganger etter å ha filtrert på innstillinger'
         if self.innstillinger.get('disableTilganger', False):
             return Tilgang.objects.none()
+        
+        if self.user.is_superuser and (adminTilganger := self.innstillinger.get('adminTilganger')):
+            if adminTilganger == 'Alle':
+                tilganger = Tilgang.objects.all()
+            else:
+                tilganger = Tilgang.objects.filter(kor__kortTittel=adminTilganger)
+        else:
+            tilganger = self.faktiskeTilganger
+        
         if not self.innstillinger.get('tversAvKor', False):
-            return cacheQS(self.faktiskeTilganger.exclude(navn='tversAvKor'))
-        return cacheQS(self.faktiskeTilganger)
+            return cacheQS(tilganger.exclude(navn='tversAvKor'))
+        return cacheQS(tilganger)
     
     @cached_property
     def navBar(self):
@@ -433,9 +444,9 @@ class Medlem(ModelWithStrRep):
 
         # Sjekkheftet
         if (storkor := self.storkor) and storkor.kortTittel == 'TKS':
-            sider['sjekkheftet'] = toDict(consts.bareKorKortTittelTKSRekkefølge + ['søk', 'jubileum', 'sjekkhefTest'])
+            sider['sjekkheftet'] = toDict(consts.bareKorKortTittelTKSRekkefølge + ['Sangern', 'søk', 'jubileum', 'sjekkhefTest'])
         else:
-            sider['sjekkheftet'] = toDict(consts.bareKorKortTittel + ['søk', 'jubileum', 'sjekkhefTest'])
+            sider['sjekkheftet'] = toDict(consts.bareKorKortTittel + ['Sangern', 'søk', 'jubileum', 'sjekkhefTest'])
 
         # Sjekkheftet undergrupper
         for sjekkhefteSide in Tilgang.objects.filter(
@@ -451,49 +462,45 @@ class Medlem(ModelWithStrRep):
             sider['semesterplan'] = toDict(aktiveKor.values_list('kortTittel', flat=True))
 
         # Øverige
-        # Herunder hadd vi gjort mange queries av typen self.tilganger.filter(navn='...').exists()
-        # så istedet for å gjør det skaffe vi en liste av tilgangNavnan, og bruke det:)
-        tilgangNavn = list(self.tilganger.values_list('navn', flat=True))
-
-        if tilgangNavn:
+        if self.tilganger.exists():
             sider['loggListe'] = True
         
-        if 'tversAvKor' in tilgangNavn:
+        if self.tilganger.filter(navn='tversAvKor').exists():
             sider['medlemListe'] = True
             sider['vervListe'] = True
             sider['dekorasjonListe'] = True
             sider['turneListe'] = True
             sider['tilgangListe'] = True
 
-        if 'medlemsdata' in tilgangNavn:
+        if self.tilganger.filter(navn='medlemsdata').exists():
             sider['medlemListe'] = True
 
-        if 'semesterplan' in tilgangNavn:
+        if self.tilganger.filter(navn='semesterplan').exists():
             sider['hendelseListe'] = True
 
-        if 'fravær' in tilgangNavn:
+        if self.tilganger.filter(navn='fravær').exists():
             sider['hendelseListe'] = True
             sider['fraværListe'] = toDict(Kor.objects.filter(tilganger__in=self.tilganger.filter(navn='fravær')).values_list('kortTittel', flat=True))
 
-        if 'vervInnehavelse' in tilgangNavn:
+        if self.tilganger.filter(navn='vervInnehavelse').exists():
             sider['medlemListe'] = True
             sider['vervListe'] = True
 
-        if 'dekorasjonInnehavelse' in tilgangNavn:
+        if self.tilganger.filter(navn='dekorasjonInnehavelse').exists():
             sider['medlemListe'] = True
             sider['dekorasjonListe'] = True
 
-        if 'verv' in tilgangNavn:
+        if self.tilganger.filter(navn='verv').exists():
             sider['vervListe'] = True
 
-        if 'dekorasjon' in tilgangNavn:
+        if self.tilganger.filter(navn='dekorasjon').exists():
             sider['dekorasjonListe'] = True
 
-        if 'tilgang' in tilgangNavn:
+        if self.tilganger.filter(navn='tilgang').exists():
             sider['vervListe'] = True
             sider['tilgangListe'] = True
 
-        if 'turne' in tilgangNavn:
+        if self.tilganger.filter(navn='turne').exists():
             sider['turneListe'] = True
             sider['medlemListe'] = True
 
@@ -710,7 +717,8 @@ class Verv(ModelWithStrRep):
 
     bruktIKode = models.BooleanField(
         default=False, 
-        help_text=toolTip('Hvorvidt vervet er brukt i kode og følgelig ikke kan endres på av brukere.')
+        help_text=toolTip('Hvorvidt vervet er brukt i kode og følgelig ikke kan endres på av brukere.'),
+        verbose_name='Brukt i kode'
     )
 
     @cached_property
@@ -878,12 +886,14 @@ class Tilgang(ModelWithStrRep):
 
     bruktIKode = models.BooleanField(
         default=False, 
-        help_text=toolTip('Hvorvidt tilgangen er brukt i kode og følgelig ikke kan endres på av brukere.')
+        help_text=toolTip('Hvorvidt tilgangen er brukt i kode og følgelig ikke kan endres på av brukere.'),
+        verbose_name='Brukt i kode'
     )
 
     sjekkheftetSynlig = models.BooleanField(
         default=False,
-        help_text=toolTip('Om de som har denne tilgangen skal vises som en gruppe i sjekkheftet.')
+        help_text=toolTip('Om de som har denne tilgangen skal vises som en gruppe i sjekkheftet.'),
+        verbose_name='Synlig i sjekkheftet'
     )
 
     def get_absolute_url(self):
@@ -1105,14 +1115,14 @@ class Hendelse(ModelWithStrRep):
     KATEGORI_CHOICES = ((OBLIG, 'Oblig'), (PÅMELDING, 'Påmelding'), (FRIVILLIG, 'Frivillig'))
     kategori = models.CharField(max_length=1, choices=KATEGORI_CHOICES, null=False, blank=False, default=OBLIG, help_text=toolTip('Ikke endre dette uten grunn!'))
 
-    startDate = MyDateField(blank=False, help_text=toolTip(\
+    startDate = MyDateField(blank=False, verbose_name='Start dato', help_text=toolTip(\
         'Oppmøtene for hendelsen, altså for fraværsføring og fraværsmelding, ' + 
         'genereres av hvilke medlemmer som er aktive i koret på denne datoen, ' + 
         'og ikke har permisjon'))
-    startTime = MyTimeField(blank=True, null=True)
+    startTime = MyTimeField(blank=True, null=True, verbose_name='Start tid')
 
-    sluttDate = MyDateField(blank=True, null=True)
-    sluttTime = MyTimeField(blank=True, null=True)
+    sluttDate = MyDateField(blank=True, null=True, verbose_name='Slutt dato')
+    sluttTime = MyTimeField(blank=True, null=True, verbose_name='Slutt tid')
 
     @property
     def start(self):

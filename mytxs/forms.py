@@ -78,6 +78,7 @@ class MedlemFilterForm(NavnKorFilterForm):
     K = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + [(year, year) for year in range(2023, 1909, -1)])
     stemmegruppe = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + [(i, i) for i in ['Dirigent', 'ukjentStemmegruppe', *consts.hovedStemmegrupper]])
     dato = MyDateFormField(required=False)
+    ikkeOverførtData = forms.BooleanField(required=False, label='Ikke overført data', help_text=toolTip('Bare vis medlemmer som ikke har overført dataen sin til MyTXS 2.0.'))
 
     def applyFilter(self, queryset):
         # Fordi medlemmer har et særegent forhold til kor, bruker vi ikke super.applyFilter i det heletatt. 
@@ -113,6 +114,9 @@ class MedlemFilterForm(NavnKorFilterForm):
             queryset = queryset.annotateFulltNavn()
             queryset = queryset.filter(*map(lambda n: Q(fulltNavn__icontains=n), navn.split()))
         
+        if navn := self.cleaned_data['ikkeOverførtData']:
+            queryset = queryset.filter(overførtData=False)
+
         queryset = queryset.order_by(*Medlem._meta.ordering)
         
         return queryset
@@ -157,7 +161,9 @@ class BaseOptionForm(forms.Form):
     bareAktive = forms.BooleanField(required=False, help_text=toolTip(
         'Bare få opp/ha tilgang til aktive medlemmer.'))
     tversAvKor = forms.BooleanField(required=False, help_text=toolTip(
-        'Dette skrur på tversAvKor tilgangen din, altså gjør at du får opp mange flere alternativ.'))
+        'Dette skrur på tversAvKor tilgangen din, altså gjør at du kan sette relasjoner på tvers av kor.'))
+    adminTilganger = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + [(o, o) for o in ['Alle'] + consts.alleKorKortTittel], help_text=toolTip(
+        'Dette gir deg alle tilganger i det valgte koret, bare tilgjengelig for admin brukere.'))
 
 
 class OptionForm(BaseOptionForm):
@@ -176,6 +182,9 @@ def addOptionForm(request):
     faktiskeTilganger = request.user.medlem.faktiskeTilganger
 
     optionFormFields = ['optionFormSubmitted']
+    if request.user.is_superuser:
+        optionFormFields.extend(['bareAktive', 'tversAvKor', 'adminTilganger'])
+    
     # Den store majoritet av brukere har ikke tilgang til noe, derfor filtrere vi på det først. 
     if faktiskeTilganger.exists():
         if faktiskeTilganger.filter(navn='tversAvKor').exists():

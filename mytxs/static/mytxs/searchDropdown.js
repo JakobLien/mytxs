@@ -3,6 +3,10 @@
  */
 
 for(const select of document.querySelectorAll('select')){
+    if(select.form.classList.contains('skipSearchDropdown')){
+        continue
+    }
+
     // Lag parent, input og options
     let parent = document.createElement('div')
     let input = document.createElement('input');

@@ -145,7 +145,10 @@ function evaluateManagedForm(form){
 
     // Oppdater disable status
     if((changes.length !== 0) === form.querySelector('[type=submit]').disabled){
-        form.querySelector('[onclick=\'resetForm(this.form)\']').disabled = !form.querySelector('[onclick=\'resetForm(this.form)\']').disabled;
+        angreField = form.querySelector('[onclick=\'resetForm(this.form)\']');
+        if(angreField){
+            angreField.disabled = !angreField.disabled;
+        }
         form.querySelector('[type=submit]').disabled = !form.querySelector('[type=submit]').disabled;
     }
 

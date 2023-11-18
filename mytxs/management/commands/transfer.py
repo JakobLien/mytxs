@@ -305,6 +305,7 @@ def insertMedlem(medlemDict):
                     elif nesteVervDict['verv'] == vervDict['verv'] and nesteVervDict.get('semester') != 'høst':
                         # Samme verv neste år, så fjern fra vervsDict og øk varigheten
                         vervsDict.remove(nesteVervDict)
+                        copyKommentar(nesteVervDict, vervDict, år=nesteVervDict["aar"])
 
                         if nesteVervDict.get('semester') == 'vår':
                             # Om vervet bare e på våren, vil det sammenslås videre
@@ -362,6 +363,9 @@ def insertMedlem(medlemDict):
                 start=start,
                 slutt=slutt
             )
+
+            if kommentar := vervDict.get('kommentar'):
+                medlem.notis += f'Vervet {vervDict["verv"]} år {start.year} har kommentar: {kommentar}\n'
     
 
     # Spesielle statuser
@@ -467,7 +471,7 @@ def parseVervSemester(vervsDict):
     Parser og fjerner også kommentarer på verv som nevner høst og vår
     '''
     for vervDict in vervsDict:
-        # Om det nevner vår eller høst i tittelen
+        # Om det nevner vår eller høst i slutten av tittelen
         if match := re.search(r'[^\w]((høst)|(vår))([^\w]|$)', vervDict['verv']):
             # Fjern høst/vår og ka enn ikke boksava på slutten av navnet
             vervDict['verv'] = vervDict['verv'].replace(match[1], '')
@@ -511,15 +515,18 @@ def mergeVervSemester(vervsDict):
             if vervDict1.get('semester') == vervDict2.get('semester'):
                 # Begge vervene har samme semester (eller ingen semester), fjern en av de
                 vervsDict.remove(vervDict2)
+                copyKommentar(vervDict2, vervDict1)
                 continue
             if not vervDict2.get('semester'):
                 # Bare vervDict2 e heilårs, fjern vervDict1
                 vervsDict.remove(vervDict1)
+                copyKommentar(vervDict1, vervDict2)
                 # Med vervDict1 fjernet kan vi trygt gå videre til neste vervDict
                 break
             if not vervDict1.get('semester'):
                 # Bare vervDict1 e heilårs, fjern vervDict2
                 vervsDict.remove(vervDict2)
+                copyKommentar(vervDict2, vervDict1)
                 # Leit videre etter fleire duplicates av dette vervet
                 continue
 
@@ -527,8 +534,31 @@ def mergeVervSemester(vervsDict):
             # Da endre vi så vervDict1 vare heile året, og slette vervDict2
             del vervDict1['semester']
             vervsDict.remove(vervDict2)
+            copyKommentar(vervDict2, vervDict1)
     
     return vervsDict
+
+
+def copyKommentar(vervDict1, vervDict2, år=''):
+    '''
+    Kopiere og slår sammen en potensiel kommentar fra vervDict1 til vervDict2
+
+    join er det som separere flere kommentarer på samme verv samme år
+
+    prefix legges til starten av kommentaren som legges til på vervDict2, tiltenkt 
+    brukt for å si hvilket påfølgende år kommentaren er fra
+    '''
+    if kommentar := vervDict1.get('kommentar'):
+        if kommentar2 := vervDict2.get('kommentar'):
+            if år:
+                vervDict2['kommentar'] = f'{kommentar2}; år {år}: {kommentar}'
+            else:
+                vervDict2['kommentar'] = f'{kommentar2}; {kommentar}'
+        else:
+            if år:
+                vervDict2['kommentar'] = f'år {år}: {kommentar}'
+            else:
+                vervDict2['kommentar'] = f'{kommentar}'
 
 
 def joinMaybeFalsy(separator, *args):
