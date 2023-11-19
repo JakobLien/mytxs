@@ -846,4 +846,6 @@ def logg(request, loggPK):
 
 @login_required()
 def om(request):
-    return render(request, 'mytxs/om.html')
+    return render(request, 'mytxs/om.html', {
+        'heading': 'Feedback og om prosjektet'
+    })

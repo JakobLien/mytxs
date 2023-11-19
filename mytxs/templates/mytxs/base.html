@@ -162,8 +162,8 @@
 
             {% if user.medlem.gammeltMedlemsnummer %}
             <a href="{% if 'TKS' in user.medlem.gammeltMedlemsnummer %}http://mitks.mannskor.no/index.php{% else %}http://mytss.mannskor.no/index.php{% endif %}">
-                <img src="{% static 'mytxs/arkiv.png' %}" border="0">
-                <p>Gamle siden</p>
+                <img src="{% static 'mytxs/news.png' %}" border="0">
+                <p>Gamle {% if 'TKS' in user.medlem.gammeltMedlemsnummer %}MiTKS{% else %}MyTSS{% endif %}</p>
             </a>
             {% endif %}
 
