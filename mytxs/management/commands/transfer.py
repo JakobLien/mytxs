@@ -130,8 +130,6 @@ def insertMedlemOptional(medlemDict):
         medlem.boAdresse = boAdresse
     if not medlem.foreldreAdresse and (foreldreAdresse := joinMaybeFalsy(', ', medlemDict.get('hjemadresse'), medlemDict.get('hjempost'))):
         medlem.foreldreAdresse = foreldreAdresse
-    if not medlem.notis and (notis := medlemDict.get('anmerkninger', '')):
-        medlem.notis = notis + '\n'
 
     # Lagre bildet
     if not medlem.bilde and (imgData := medlemDict.get('passfoto')):
@@ -160,7 +158,8 @@ def insertMedlem(medlemDict):
             'mellomnavn': medlemDict.get('mellomnavn', ''),
             'etternavn': medlemDict['etternavn'],
             'ønskerVårbrev': medlemDict.get('status') == 'Sluttet (skal ha vårbrev)' or medlemDict.get('status') == 'Støttemedlem',
-            'død': medlemDict.get('status') == 'Død'
+            'død': medlemDict.get('status') == 'Død',
+            'notis': medlemDict.get('anmerkninger', '') + ('\n' if medlemDict.get('anmerkninger', '') else '')
         }
     )
 
