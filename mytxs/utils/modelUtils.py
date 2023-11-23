@@ -10,7 +10,7 @@ from django.utils.translation import gettext_lazy as _
 
 # Utils for modeller
 
-def vervInnehavelseAktiv(pathToVervInnehavelse='vervInnehavelser', dato=None):
+def vervInnehavelseAktiv(pathToVervInnehavelse='vervInnehavelser', dato=None, utvidetStart=datetime.timedelta(0)):
     '''
     Produsere et Q object som querye for aktive vervInnehavelser. Siden man 
     ikke kan si Tilganger.objects.filter(verv__vervInnehavelser=Q(...)) er dette en funksjon.
@@ -37,7 +37,7 @@ def vervInnehavelseAktiv(pathToVervInnehavelse='vervInnehavelser', dato=None):
         pathToVervInnehavelse += '__'
 
     return (
-        Q(**{f'{pathToVervInnehavelse}start__lte': dato}) & 
+        Q(**{f'{pathToVervInnehavelse}start__lte': dato + utvidetStart}) & 
         (
             Q(**{f'{pathToVervInnehavelse}slutt': None}) | 
             Q(**{f'{pathToVervInnehavelse}slutt__gte': dato})

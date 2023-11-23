@@ -401,7 +401,7 @@ class Medlem(ModelWithStrRep):
     @property
     def faktiskeTilganger(self):
         'Returne aktive tilganger, til bruk i addOptionForm som trenger å vite hvilke tilganger du har før innstillinger filtrering'
-        return Tilgang.objects.filter(vervInnehavelseAktiv('verv__vervInnehavelser'), verv__vervInnehavelser__medlem=self).distinct()
+        return Tilgang.objects.filter(vervInnehavelseAktiv('verv__vervInnehavelser', utvidetStart=datetime.timedelta(days=60)), verv__vervInnehavelser__medlem=self).distinct()
 
     @cached_property
     def tilganger(self):
