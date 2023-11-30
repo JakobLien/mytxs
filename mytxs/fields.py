@@ -138,6 +138,9 @@ class BitmapTypedMultipleChoiceField(forms.TypedMultipleChoiceField):
     
     def to_python(self, value):
         # Kjøre når formet skal parses inn
+        if self.disabled:
+            # Om feltet e disabled får vi her inn en int istedet!
+            value = intToBitList(value)
         listVal = super().to_python(value)
         try:
             return bitListToInt(listVal)
