@@ -119,6 +119,9 @@ def insertMedlemOptional(medlemDict):
     # Sett inn medlemsdata som varierer om vi mottar pga avkrysning. Tanken er at om noen trykker på 
     # registeringslenken flere ganger med ulik avkrysning skal ikke siden slette data pga det.
     if not medlem.fødselsdato and (fødselsdato := medlemDict.get('fodselsdag')):
+        if fødselsdato.endswith('-00-00'):
+            fødselsdato = fødselsdato[:4] + '-01-01'
+            medlem.notis += 'Fødselsdato hadde år uten dato, endret til 1. januar\n'
         medlem.fødselsdato = fødselsdato
     if not medlem.epost and (epost := medlemDict.get('email', '')):
         medlem.epost = epost
