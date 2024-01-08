@@ -1,6 +1,12 @@
 {% extends "mytxs/instance.html" %}
 {% load mytxsTags %}
 
+{% block beforeForms %}
+{% if request.egenFøringLink %}
+{% toggleURLparam 'fraværModus' 'Fravær modus' %}
+{% endif %}
+{% endblock %}
+
 
 {% block betweenForms %}
 
@@ -22,5 +28,9 @@
     <li>{{stemmegruppe}}: {{antall}}</li>
     {% endfor %}
 </ul>
+
+{% if request.eksportLenke %}
+<a href="{{ request.eksportLenke }}">Eksporter data for de som kommer</a>
+{% endif %}
 
 {% endblock %}

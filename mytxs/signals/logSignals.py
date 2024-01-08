@@ -4,8 +4,9 @@ from django.db.models import ManyToManyField
 from django.db.models.fields.related import RelatedField
 from django.db.models.signals import post_delete, post_save, m2m_changed
 
-from mytxs.models import Logg, LoggM2M, Medlem
 from mytxs import consts
+from mytxs.models import Logg, LoggM2M, Medlem
+from mytxs.utils.modelUtils import strToModels
 
 from itertools import chain
 
@@ -23,8 +24,7 @@ def to_dict(instance, fields=None, exclude=None):
         if exclude and field.name in exclude:
             continue
 
-        if field.name == 'strRep':
-            # Ikke lagre strRep feltet i loggen
+        if field.name == 'dbCacheField':
             continue
 
         if isinstance(field, RelatedField):
@@ -53,6 +53,9 @@ def to_dict(instance, fields=None, exclude=None):
 def didChange(instance):
     'Gitt en instance sjekker denne om noe er endret siden nyeste logg. Dette er vanskelig for related fields.'
     lastLogg = Logg.objects.getLoggFor(instance)
+
+    if not lastLogg:
+        return True
 
     newDict = to_dict(instance)
 
@@ -89,7 +92,7 @@ def didChange(instance):
     return False
 
 
-def recieverWithModels(signal, senders=consts.getLoggedModels()):
+def recieverWithModels(signal, senders=strToModels(consts.loggedModelNames)):
     '''
     Denne funksjonen tar inn en liste av models, og er ekvivalent med å skrive mange @reciever statements, typ:
     ``` @receiver(post_delete, sender=Verv)
@@ -98,7 +101,7 @@ def recieverWithModels(signal, senders=consts.getLoggedModels()):
         @receiver(post_delete, sender=DekorasjonInnehavelse)
         @receiver(post_delete, sender=Tilgang)```
     
-    Defaulten er consts.getLoggedModels()
+    Defaulten er alle logged models
     '''
     def _decorator(func):
         for model in senders:
@@ -171,9 +174,9 @@ def makeM2MLogg(sender, action, fromPK, toPK):
 
 # Skaff en liste av alle m2m fields .through, der vi logge både kilde og target modell
 m2mFields = []
-for model in consts.getLoggedModels():
+for model in strToModels(consts.loggedModelNames):
     for field in model._meta.get_fields():
-        if isinstance(field, ManyToManyField) and field.related_model in consts.getLoggedModels():
+        if isinstance(field, ManyToManyField) and field.related_model in strToModels(consts.loggedModelNames):
             m2mFields.append(getattr(model, field.name).through)
 
 

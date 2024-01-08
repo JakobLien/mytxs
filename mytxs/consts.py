@@ -1,9 +1,7 @@
 # Fil for å definere constans som går igjen over hele siden
 
-from django.apps import apps
-
-alleKorKortTittel = ['TSS', 'TKS', 'Pirum', 'Knauskoret', 'Candiss', 'Sangern']
-alleKorLangTittel = [
+alleKorNavn = ['TSS', 'TKS', 'Pirum', 'Knauskoret', 'Candiss', 'Sangern']
+alleKorTittel = [
     'Trondhjems Studentersangforening',
     'Trondhjems Kvinnelige Studentersangforening',
     'Pirum',
@@ -13,13 +11,14 @@ alleKorLangTittel = [
 ]
 alleKorStemmeFordeling = ['TB', 'SA', 'TB', 'SATB', 'SA', '']
 
-# Subsets av alleKorKortTittel
-bareKorKortTittel = ['TSS', 'TKS', 'Pirum', 'Knauskoret', 'Candiss']
-bareStorkorKortTittel = ['TSS', 'TKS']
+# Subsets av alleKorNavn
+bareKorNavn = ['TSS', 'TKS', 'Pirum', 'Knauskoret', 'Candiss']
+bareStorkorNavn = ['TSS', 'TKS']
+bareSmåkorNavn = ['Pirum', 'Knauskoret', 'Candiss']
 
-bareKorKortTittelTKSRekkefølge = ['TKS', 'TSS', 'Candiss', 'Knauskoret', 'Pirum']
+bareKorNavnTKSRekkefølge = ['TKS', 'TSS', 'Candiss', 'Knauskoret', 'Pirum']
 
-tilganger = ['dekorasjon', 'dekorasjonInnehavelse', 'verv', 'vervInnehavelse', 'tilgang', 'semesterplan', 'fravær', 'lenke', 'turne', 'tversAvKor']
+tilganger = ['dekorasjon', 'dekorasjonInnehavelse', 'verv', 'vervInnehavelse', 'tilgang', 'semesterplan', 'fravær', 'lenke', 'turne', 'tversAvKor', 'eksport']
 tilgangBeskrivelser = [
     'For å opprette og slette dekorasjoner, samt endre på eksisterende dekorasjoner.',
     'For å opprette og slette dekorasjonInnehavelser, altså hvem som fikk hvilken dekorasjon når.',
@@ -31,6 +30,7 @@ tilgangBeskrivelser = [
     'For å endre på korets lenker.',
     'For å administrere turnerer, samt endre hvem som deltok.',
     'For å kunne sette relasjoner til objekter i andre kor.',
+    'For å kunne eksportere medlemsregisterdata.'
 ]
 
 storkorTilganger = ['medlemsdata']
@@ -55,21 +55,12 @@ loggedModelNames = [
 ]
 'Names of models that are being logged'
 
-def getLoggedModels():
-    return list(map(lambda model: apps.get_model('mytxs', model), loggedModelNames))
-
 loggModelNames = ['Logg', 'LoggM2M']
 'Names of models that contain loggs'
-
-def getLoggModels():
-    return list(map(lambda model: apps.get_model('mytxs', model), loggModelNames))
 
 otherModels = ['Kor']
 
 allModelNames = [*loggedModelNames, *loggModelNames, *otherModels]
-
-def getAllModels():
-    return list(map(lambda model: apps.get_model('mytxs', model), allModelNames))
 
 modelTilTilgangNavn = {
     'VervInnehavelse': 'vervInnehavelse',
@@ -102,9 +93,15 @@ modelWithRelated = {
 
 hovedStemmegrupper = ['1S', '2S', '1A', '2A', '1T', '2T', '1B', '2B']
 
-# Denne brukes med BitmapMultipleChoiceField, så ALDRI (!!!) endre på rekkefølgen 
-# eller alternativene her. Dette fordi verdiene lagres som en bit på tilsavrende index.
+# Denne brukes blant annet på hendelse siden for fraværsføring, 
+# bare hiv på en url på slutten så får du en qr kode som redirecte dit:)
+qrCodeLinkPrefix = 'https://zxing.org/w/chart?cht=qr&chs=350x350&chld=L&choe=UTF-8&chl='
+
+# BITMAP FIELDS
+# Følgende fields brukes med BitmapMultipleChoiceField, så ALDRI (!!!) endre på rekkefølgen 
+# eller alternativene her. Dette fordi verdiene lagres som en bit på tilsvarende index.
 # Er trygt å gi nye navn til de, bare det forblir den samme informasjonen. 
+# Også trygt å legge til nye alternativ.
 sjekkhefteSynligOptions = [
     'fødselsdato', 
     'epost',
@@ -114,6 +111,21 @@ sjekkhefteSynligOptions = [
     'foreldreAdresse'
 ]
 
-# Denne brukes blant annet på hendelse siden for fraværsføring, 
-# bare hiv på en url på slutten så får du en qr kode som redirecte dit:)
-qrCodeLinkPrefix = 'https://zxing.org/w/chart?cht=qr&chs=350x350&chld=L&choe=UTF-8&chl='
+matpreferanseOptions = [
+    'Vegetar',
+    'Vegan',
+    'Pescetar',
+    'Glutenfritt',
+    'Laktoseintoleranse',
+    'Nøtteallergi',
+    'Eggallergi',
+    'Fiskeallergi',
+    'Løkallergi',
+    'Steinfruktallergi'
+]
+
+def constsContextProcessor(request):
+    # Dette gjør at alt defintert i denne fila er tilgjengelig i templates, som consts.variabelnavn
+    # Grunnen til at vi ikke formaterer hele filen som en stor dictionary, er at man i python får mer
+    # hjelp til å skrive rett importnavn, sammenlignet med oppsalg i en dict. 
+    return {'consts': {k: v for k, v in globals().items() if (not k.startswith('_') and not callable(v))}}

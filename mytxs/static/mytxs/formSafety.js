@@ -164,10 +164,10 @@ function evaluateManagedForm(form){
 
 function resetForm(form){
     form.onchange = null;
-    for (element of form.elements){
-        resetValue(element)
+    for (const element of getActualElements(form)){
+        resetValue(element);
     }
-    evaluateManagedForm(form)
+    evaluateManagedForm(form);
     form.onchange = () => evaluateManagedForm(form);
 }
 
@@ -183,7 +183,6 @@ function evaluateCreationForm(form){
 
 for(const form of document.forms){
     if(form.classList.contains('managedForm') && form.querySelector('[type=submit]')){
-        // console.log(form);
         form.onchange = () => evaluateManagedForm(form);
         form.onsubmit = () => {
             window.onbeforeunload = null;
@@ -201,7 +200,7 @@ for(const form of document.forms){
     }else if(form.classList.contains('creationForm') && form.querySelector('[type=submit]')){
         form.onchange = () => evaluateCreationForm(form);
         form.onsubmit = () => {
-            return confirm('Bekreft endringer: \n' + formatFormChanges(getFormChanges(form)).join('\n'))
+            return confirm('Bekreft endringer: \n' + getFormChanges(form).map(change => change.changeText).join('\n'));
         };
     
         evaluateCreationForm(form);

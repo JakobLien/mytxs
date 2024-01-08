@@ -87,9 +87,8 @@ def trim(model, fieldName, options):
 
         setattr(instance, fieldName, value)
 
-def updateStrRep(model, fieldName, options):
-    'Oppdatere strRep for denne modellen'
+def saveAll(model, fieldName, options):
     for instance in objectsGenerator(model):
         pass
 
-updateFunctions = [trim, updateStrRep]
+updateFunctions = [trim, saveAll]

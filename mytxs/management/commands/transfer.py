@@ -150,7 +150,7 @@ def insertMedlem(medlemDict):
     på, vil det bli forsøkt satt inn, og valideringen vil raise ValidationException. 
     '''
     kor = Kor.objects.get(
-        kortTittel=medlemDict['medlemsnummer'][:3]
+        navn=medlemDict['medlemsnummer'][:3]
     )
 
     # Opprett medlemmet
@@ -192,7 +192,7 @@ def insertMedlem(medlemDict):
         )
     elif (stemmeGruppeInt := int(medlemDict['medlemsnummer'][7:9]) // 20) < 4 and not feilMedlemsnummer(medlemDict):
         # Ellers, gjett på stemmegruppen deres basert på medlemsnummer, om medlemsnummeret ikke er før korets grunneggelse
-        if kor.kortTittel == 'TSS':
+        if kor.navn == 'TSS':
             stemmeGruppeInt += 4
         
         stemmegruppe = Verv.objects.get(
@@ -349,7 +349,7 @@ def insertMedlem(medlemDict):
 
                     verv, created = Verv.objects.get_or_create(
                         navn=vervDict['verv'],
-                        kor=Kor.objects.get(kortTittel=småkor)
+                        kor=Kor.objects.get(navn=småkor)
                     )
                     
                     break
@@ -358,7 +358,7 @@ def insertMedlem(medlemDict):
             if vervDict['verv'] in ['Barens økonomisjef', 'Hybelansvarlig', 'Barrevisor', 'Bardeputy', 'Barsjef']:
                 verv, created = Verv.objects.get_or_create(
                     navn=vervDict['verv'],
-                    kor=Kor.objects.get(kortTittel='Sangern')
+                    kor=Kor.objects.get(navn='Sangern')
                 )
 
             # Opprett vervet som vanlig i medlemmets kor ellers

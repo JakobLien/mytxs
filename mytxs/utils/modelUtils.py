@@ -2,8 +2,8 @@ import datetime
 import random
 import re
 
-from django.db import models
-from django.db.models import Q, Case, When, ManyToManyField, ManyToManyRel
+from django.apps import apps
+from django.db.models import Q, Case, When, ManyToManyField, ManyToManyRel, ForeignObjectRel
 from django.db.models.fields.related import RelatedField
 from django.forms import ValidationError
 from django.utils.translation import gettext_lazy as _
@@ -76,19 +76,19 @@ def isStemmegruppeVervNavn(navn, includeUkjentStemmegruppe=True):
     return re.match(stemmegruppeVervRegex, navn) or (includeUkjentStemmegruppe and navn == 'ukjentStemmegruppe')
 
 
-def orderStemmegruppeVerv():
+def stemmegruppeOrdering(fieldName='navn'):
     ordering = []
     count = 0
 
     for letter in 'SATB':
         for y in '12':
-            ordering.append(When(navn=y+letter, then=count))
+            ordering.append(When(**{fieldName:y+letter}, then=count))
             count += 1
             for x in '12':
-                ordering.append(When(navn=x+y+letter, then=count))
+                ordering.append(When(**{fieldName:x+y+letter}, then=count))
                 count += 1
     
-    ordering.append(When(navn='ukjentStemmegruppe', then=count))
+    ordering.append(When(**{fieldName:'ukjentStemmegruppe'}, then=count))
     return Case(*ordering, default=count+1)
 
 
@@ -130,19 +130,28 @@ def randomDistinct(queryset, n=1):
         return qs
 
 
+def strToModels(modelNames):
+    return list(map(lambda m: apps.get_model('mytxs', m), modelNames))
+
+
 def getAllRelatedModels(model):
     # Returne en liste av alle (forwards og backwards) relaterte modeller 
-    return [
-        *list(map(lambda f: f.related_model, filter(lambda f: isinstance(f, RelatedField), model._meta.get_fields()))),
-        *list(map(lambda f: f.related_model, list(filter(lambda f: isinstance(f, models.ForeignObjectRel), model._meta.get_fields()))))
-    ]
+    return list(map(lambda f: f.related_model, filter(lambda f: isinstance(f, RelatedField) or isinstance(f, ForeignObjectRel), model._meta.get_fields())))
 
 
 def getAllRelatedModelsWithFieldName(model):
     # Returne samme som over, men istedet touples med (fieldNavn, model)
     return [
         *list(map(lambda f: (f.name, f.related_model), filter(lambda f: isinstance(f, RelatedField), model._meta.get_fields()))),
-        *list(map(lambda f: (f.related_name, f.related_model), list(filter(lambda f: isinstance(f, models.ForeignObjectRel), model._meta.get_fields()))))
+        *list(map(lambda f: (f.related_name, f.related_model), filter(lambda f: isinstance(f, ForeignObjectRel), model._meta.get_fields())))
+    ]
+
+
+def getAllRelatedModelsWithFieldNameAndReverse(model):
+    # Returne samme som over, men med relatedFieldNavn, altså (fieldNavn, relatedFieldNavn, model)
+    return [
+        *list(map(lambda f: (f.name, f._related_name, f.related_model), filter(lambda f: isinstance(f, RelatedField), model._meta.get_fields()))),
+        *list(map(lambda f: (f.related_name, f.field.name, f.related_model), filter(lambda f: isinstance(f, ForeignObjectRel), model._meta.get_fields())))
     ]
 
 
@@ -276,9 +285,9 @@ def bareAktiveDecorator(func):
 
 
 def korLookup(kor, path=''):
-    'Returne et Q lookup for å spør om kor=kor, der vi omformer til kor__kortTittel=kor dersom kor er en string'
+    'Returne et Q lookup for å spør om kor=kor, der vi omformer til kor__navn=kor dersom kor er en string'
     if isinstance(kor, str):
-        return Q(**{path+'__kortTittel': kor})
+        return Q(**{path+'__navn': kor})
     return Q(**{path: kor})
 
 
@@ -300,3 +309,22 @@ def refreshQueryset(queryset):
     # Om man treng å filter basert på noe som allerede er filtrert bort, så må man
     # refresh querysettet ved å si pk__in=values_list('pk', flat=True)
     return queryset.model.objects.filter(pk__in=queryset.values_list('pk', flat=True))
+
+
+def hasChanged(instance, skipDbCache=True):
+    'Sjekke om en instance er annerledes fra det som er i databasen'
+    dbInstance = type(instance).objects.filter(pk=instance.pk).first()
+    if not dbInstance:
+        return True
+    for field in instance._meta.fields:
+        if skipDbCache and field.name == 'dbCacheField':
+            continue
+        if getattr(instance, field.name) != getattr(dbInstance, field.name):
+            return True
+    return False
+
+
+def dbCacheChanged(instance):
+    'Sjekke om dbCacheField er annerledes fra det som er i databasen'
+    dbInstance = type(instance).objects.filter(pk=instance.pk).first()
+    return not dbInstance or instance.dbCacheField != dbInstance.dbCacheField

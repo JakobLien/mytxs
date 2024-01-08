@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from mytxs import consts
 from mytxs.models import Logg, LoggM2M
+from mytxs.utils.modelUtils import strToModels
 
 # For å sette author på endringer
 
@@ -30,7 +31,7 @@ def logAuthorInstance(instance, author, pk=None):
     for field in type(instance)._meta.get_fields():
         if (
             (isinstance(field, ManyToManyField) or isinstance(field, ManyToManyRel)) and 
-            type(instance) in consts.getLoggedModels() and field.related_model in consts.getLoggedModels()
+            type(instance) in strToModels(consts.loggedModelNames) and field.related_model in strToModels(consts.loggedModelNames)
         ):
             lastLogg = Logg.objects.getLoggFor(instance)
 
@@ -56,7 +57,7 @@ def logAuthorAndSave(form, author):
 
     if not isinstance(form, BaseFormSet):
         # Om dette er et form (form.instance.pk er pk)
-        if type(form.instance) not in consts.getLoggedModels():
+        if type(form.instance) not in strToModels(consts.loggedModelNames):
             form.save()
             return
 
@@ -70,7 +71,7 @@ def logAuthorAndSave(form, author):
 
         # For inlineformset_factory er form.instance den relaterte modellen, 
         # ikke modellen de formset.forms er.
-        if form.queryset.model not in consts.getLoggedModels():
+        if form.queryset.model not in strToModels(consts.loggedModelNames):
             form.save()
             return
         

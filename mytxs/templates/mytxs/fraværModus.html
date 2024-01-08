@@ -1,0 +1,25 @@
+{% extends "mytxs/instance.html" %}
+{% load mytxsTags %}
+
+{% block beforeForms %}
+<div class="max-w-md">
+{% toggleURLparam 'fraværModus' 'Fravær modus' %}
+{% toggleURLparam 'medMøtt' 'med de førte' %}
+{% toggleURLparam 'medKommerIkke' 'med kommer ikke' %}
+
+<p>Trykk på medlemmer når de møter opp. Om dere trykker feil, noter det, og rett opp i det senere:)</p><br>
+
+{% for oppmøte in request.queryset %}
+{% ifchanged oppmøte.stemmegruppe %}
+<h2 class="text-2xl max-w-sm target:backdrop-brightness-100" id="{{ oppmøte.stemmegruppe }}">{{ oppmøte.stemmegruppe }}</h2>
+{% endifchanged %}
+
+{% if oppmøte.fravær == None %}
+<a href="{% setURLParams medlem=oppmøte.medlem.pk %}#{{ oppmøte.stemmegruppe }}">{{ oppmøte.medlem }}</a><br>
+{% elif request.GET.medMøtt %}
+<p>{{ oppmøte.medlem }}, {{ oppmøte.fravær }} minutter fravær</p>
+{% endif %}
+{% endfor %}
+
+</div>
+{% endblock %}

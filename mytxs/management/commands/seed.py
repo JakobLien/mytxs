@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 from mytxs.models import Kor, Medlem, Tilgang, Verv, VervInnehavelse
 from mytxs import consts
 
-from mytxs.utils.modelUtils import randomDistinct, stemmegruppeVerv
+from mytxs.utils.modelUtils import randomDistinct, stemmegruppeVerv, strToModels
 
 import datetime
 
@@ -73,13 +73,13 @@ class Command(BaseCommand):
 
 def clearData(self):
     'Deletes all data from Models that are not the Logg models'
-    for model in [m for m in consts.getAllModels() if m not in consts.getLoggModels()]:
+    for model in [m for m in strToModels(consts.allModelNames) if m not in strToModels(consts.loggModelNames)]:
         print(f'Deleting {model.__name__} instances')
         model.objects.all().delete()
 
 def clearLogs(self):
     'Delete all data from logg models'
-    for model in consts.getLoggModels():
+    for model in strToModels(consts.loggModelNames):
         print(f'Deleting {model.__name__} instances')
         model.objects.all().delete()
 
@@ -102,20 +102,8 @@ def userAdmin(self):
 
         medlemmer.append(medlem)
 
-    nettanvarlig, created = Verv.objects.get_or_create(
-        navn='nettansvarlig',
-        kor=Kor.objects.get(kortTittel='TSS')
-    )
-    nettanvarlig.tilganger.add(*Tilgang.objects.filter(kor__kortTittel='TSS'))
-    
-    VervInnehavelse.objects.get_or_create(
-        verv=nettanvarlig,
-        medlem=medlemmer[0],
-        defaults={'start': datetime.date.today()}
-    )
-
     if not medlemmer[0].storkor:
-        tssStemmegruppe= randomDistinct(Verv.objects.filter(stemmegruppeVerv(''), kor__kortTittel='TSS'))
+        tssStemmegruppe= randomDistinct(Verv.objects.filter(stemmegruppeVerv(''), kor__navn='TSS'))
         VervInnehavelse.objects.create(
             verv=tssStemmegruppe,
             medlem=medlemmer[0],
@@ -123,7 +111,7 @@ def userAdmin(self):
         )
 
     if not medlemmer[1].storkor:
-        tksStemmegruppe = randomDistinct(Verv.objects.filter(stemmegruppeVerv(''), kor__kortTittel='TKS'))
+        tksStemmegruppe = randomDistinct(Verv.objects.filter(stemmegruppeVerv(''), kor__navn='TKS'))
         VervInnehavelse.objects.create(
             verv=tksStemmegruppe,
             medlem=medlemmer[1],
@@ -137,8 +125,8 @@ def korAdmin(self):
     storkor = ['TSS', 'TKS', 'TSS', 'TKS', 'TKS', 'TSS']
     korlederVerv = ['Formann', 'Leder', 'Pirumsjef', 'Knausleder', 'Toppcandisse', 'Barsjef']
 
-    for i in range(len(consts.alleKorKortTittel)):
-        kor = Kor.objects.get(kortTittel=consts.alleKorKortTittel[i])
+    for i in range(len(consts.alleKorNavn)):
+        kor = Kor.objects.get(navn=consts.alleKorNavn[i])
         
         # Opprett medlememr for hver av de
         korleder, created = Medlem.objects.get_or_create(fornavn=korledere[i], defaults={
@@ -169,10 +157,10 @@ def korAdmin(self):
                 )
 
         # Gi korleder stemmegruppeverv i storkoret sitt, om dem ikkje har det allerede
-        if not VervInnehavelse.objects.filter(stemmegruppeVerv(), medlem=korleder, verv__kor=Kor.objects.get(kortTittel=storkor[i])).exists():
+        if not VervInnehavelse.objects.filter(stemmegruppeVerv(), medlem=korleder, verv__kor=Kor.objects.get(navn=storkor[i])).exists():
             stemmegruppeVervInnehavelse, created = VervInnehavelse.objects.get_or_create(
                 medlem=korleder,
-                verv=randomDistinct(Verv.objects.filter(stemmegruppeVerv(''), kor=Kor.objects.get(kortTittel=storkor[i]))),
+                verv=randomDistinct(Verv.objects.filter(stemmegruppeVerv(''), kor=Kor.objects.get(navn=storkor[i]))),
                 defaults={'start': datetime.date.today()}
             )
 
@@ -180,14 +168,14 @@ def runSeed(self):
     'Seed database based on mode'
 	
     # For hvert kor
-    for i in range(len(consts.alleKorKortTittel)):
+    for i in range(len(consts.alleKorNavn)):
         # Opprett koret
-        kor, korCreated = Kor.objects.get_or_create(kortTittel=consts.alleKorKortTittel[i], defaults={
-            'langTittel': consts.alleKorLangTittel[i], 
+        kor, korCreated = Kor.objects.get_or_create(navn=consts.alleKorNavn[i], defaults={
+            'tittel': consts.alleKorTittel[i], 
             'stemmefordeling': consts.alleKorStemmeFordeling[i]
         })
-        if(korCreated):
-            self.stdout.write('Created kor ' + kor.kortTittel + ' at id ' + str(kor.pk))
+        if korCreated:
+            self.stdout.write('Created kor ' + kor.navn + ' at id ' + str(kor.pk))
 
         # Opprett generelle tilganger
         for t in range(len(consts.tilganger)):
@@ -199,7 +187,7 @@ def runSeed(self):
                 print(f'Created tilgang {tilgang}')
 
         # Opprett storkor-tilganger
-        if kor.kortTittel in consts.bareStorkorKortTittel:
+        if kor.navn in consts.bareStorkorNavn:
             for t in range(len(consts.storkorTilganger)):
                 tilgang, tilgangCreated = kor.tilganger.get_or_create(navn=consts.storkorTilganger[t], defaults={
                     'bruktIKode': True, 
@@ -209,22 +197,22 @@ def runSeed(self):
                     print(f'Created tilgang {tilgang}')
 
         # Om det e et kor (ikke Sangern)
-        if kor.kortTittel in consts.bareKorKortTittel:
+        if kor.navn in consts.bareKorNavn:
 
             # Opprett dirrigent verv
             dirrVerv, dirrVervCreated = kor.verv.get_or_create(navn='Dirigent', bruktIKode=True)
-            if(dirrVervCreated):
-                self.stdout.write('Created verv ' + dirrVerv.navn + ' for kor ' + kor.kortTittel + ' at id ' + str(dirrVerv.pk))
+            if dirrVervCreated:
+                self.stdout.write('Created verv ' + dirrVerv.navn + ' for kor ' + kor.navn + ' at id ' + str(dirrVerv.pk))
 
             # Opprett permisjon vervet
             permisjonVerv, permisjonVervCreated = kor.verv.get_or_create(navn='Permisjon', bruktIKode=True)
             if permisjonVervCreated:
-                self.stdout.write('Created verv ' + permisjonVerv.navn + ' for kor ' + kor.kortTittel + ' at id ' + str(permisjonVerv.pk))
+                self.stdout.write('Created verv ' + permisjonVerv.navn + ' for kor ' + kor.navn + ' at id ' + str(permisjonVerv.pk))
 
             # Opprett ukjentStemmegruppe vervet
             ukjentStemmegruppeVerv, ukjentStemmegruppeVervCreated = kor.verv.get_or_create(navn='ukjentStemmegruppe', bruktIKode=True)
             if ukjentStemmegruppeVervCreated:
-                self.stdout.write('Created verv ' + ukjentStemmegruppeVerv.navn + ' for kor ' + kor.kortTittel + ' at id ' + str(ukjentStemmegruppeVerv.pk))
+                self.stdout.write('Created verv ' + ukjentStemmegruppeVerv.navn + ' for kor ' + kor.navn + ' at id ' + str(ukjentStemmegruppeVerv.pk))
 
             # Opprett stemmegrupper
             for stemmegruppe in kor.stemmefordeling:
@@ -233,7 +221,7 @@ def runSeed(self):
                     # Opprett hovedstemmegruppeverv
                     stemmegruppeVerv, stemmegruppeVervCreated = kor.verv.get_or_create(navn=y+stemmegruppe, bruktIKode=True)
                     if stemmegruppeVervCreated:
-                        self.stdout.write('Created verv ' + stemmegruppeVerv.navn + ' for kor ' + kor.kortTittel + ' at id ' + str(stemmegruppeVerv.pk))
+                        self.stdout.write('Created verv ' + stemmegruppeVerv.navn + ' for kor ' + kor.navn + ' at id ' + str(stemmegruppeVerv.pk))
                     
                     if kor.stemmefordeling != 'SATB':
                         # Dropp understemmegrupper for blandakor (altså Knauskoret)
@@ -241,4 +229,4 @@ def runSeed(self):
                             # Opprett understemmegruppeverv
                             underStemmegruppeVerv, underStemmegruppeVervCreated = kor.verv.get_or_create(navn=x+y+stemmegruppe, bruktIKode=True)
                             if underStemmegruppeVervCreated:
-                                self.stdout.write('Created verv ' + underStemmegruppeVerv.navn + ' for kor ' + kor.kortTittel + ' at id ' + str(underStemmegruppeVerv.pk))
+                                self.stdout.write('Created verv ' + underStemmegruppeVerv.navn + ' for kor ' + kor.navn + ' at id ' + str(underStemmegruppeVerv.pk))

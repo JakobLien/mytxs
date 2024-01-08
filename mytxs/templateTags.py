@@ -133,30 +133,15 @@ def past(moment):
 @register.simple_tag(takes_context=True)
 def addSubNavigation(context):
     'Denne opprette en navigasjonsmeny (på denne siden) basert på medlem.navBar'
-    urlName = context['request'].resolver_match.url_name
 
-    kwargValues = list(context['request'].resolver_match.kwargs.values())
-
-    returnValue = ''
-
-    currDict = context['request'].user.medlem.navBar.get(urlName)
-
-    pagePath = []
-
-    while isinstance(currDict, dict):
-        currKey = kwargValues[len(pagePath)] if len(kwargValues) > len(pagePath) else None
-        for subPage in currDict:
-            if subPage == currKey:
-                returnValue += f'<a class="text-3xl" href={reverse(urlName, args=pagePath + [subPage])}>{defaultfilters.capfirst(subPage)}</a> '
-            else:
-                returnValue += f'<a href={reverse(urlName, args=pagePath + [subPage])}>{defaultfilters.capfirst(subPage)}</a> '
-        returnValue += '<br>'
-
-        # Om det er en dict, gå videre til neste nivå
-        currDict = currDict.get(currKey)
-        pagePath += [currKey]
-
-    return mark_safe(returnValue)
+    # Skip navigation på instance sider
+    if hasattr(context['request'], 'instance'):
+        return ''
+    
+    node = context['request'].user.medlem.navBar[context['request']]
+    if node:
+        return mark_safe(node.buildNavigation())
+    return ''
 
 
 @register.filter
@@ -191,9 +176,13 @@ def paginateList(context, list, navName, pageSize=30):
 
 
 @register.filter
-def firstKey(dict):
-    if dict:
-        return next(iter(dict))
+def linkTo(instance, label=''):
+    return mark_safe(f'<a href="{instance.get_absolute_url()}">{label if label else instance}</a>')
+
+
+@register.filter
+def tilgangExists(medlem, tilgangNavn):
+    return medlem.tilganger.filter(navn__in=tilgangNavn.split(',')).exists()
 
 
 class IfAllNode(template.Node):
@@ -236,3 +225,33 @@ def ifAll(parser, token):
         )
 
     return IfAllNode(nodelists)
+
+
+class linkIfAccessNode(template.Node):
+    def __init__(self, nodelist, navBarPath):
+        self.nodelist = nodelist
+        self.navBarPath = navBarPath
+
+    def render(self, context):
+        if node := context['request'].user.medlem.navBar[self.navBarPath]:
+            return mark_safe(f'<a href="{node.url}">' + self.nodelist.render(context) + '</a>')
+        return ''
+
+
+@register.tag()
+def linkIfAccess(parser, token):
+    'Lenke til en side dersom du har navBar sidetilgang til den'
+    # Koden her ser komplisert ut, men det er bare boilerplate. Se if tag-en:)
+    bits = token.split_contents()[1:]
+    nodelist = parser.parse(("endLinkIfAccess"))
+    token = parser.next_token()
+
+    # {% endLinkIfAccess %}
+    if token.contents != "endLinkIfAccess":
+        raise TemplateSyntaxError(
+            'Malformed template tag at line {}: "{}"'.format(
+                token.lineno, token.contents
+            )
+        )
+
+    return linkIfAccessNode(nodelist, bits)

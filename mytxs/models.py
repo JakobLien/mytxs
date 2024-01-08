@@ -7,8 +7,8 @@ from django import forms
 from django.apps import apps
 from django.conf import settings as djangoSettings
 from django.db import models
-from django.db.models import Value as V, Q, Case, When, Min, Max, Sum, ExpressionWrapper, F
-from django.db.models.functions import Concat, ExtractMinute, ExtractHour
+from django.db.models import Value as V, Q, Case, When, Min, Max, Sum, ExpressionWrapper, F, OuterRef, Subquery
+from django.db.models.functions import Concat, ExtractMinute, ExtractHour, Right
 from django.forms import ValidationError
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -19,8 +19,9 @@ from mytxs import consts
 from mytxs import settings as mytxsSettings
 from mytxs.fields import BitmapMultipleChoiceField, MyDateField, MyManyToManyField, MyTimeField
 from mytxs.utils.formUtils import toolTip
-from mytxs.utils.modelCacheUtils import ModelWithStrRep, cacheQS, clearCachedProperty, strDecorator
-from mytxs.utils.modelUtils import bareAktiveDecorator, qBool, groupBy, getInstancesForKor, isStemmegruppeVervNavn, korLookup, orderStemmegruppeVerv, validateBruktIKode, validateM2MFieldEmpty, validateStartSlutt, vervInnehavelseAktiv, stemmegruppeVerv
+from mytxs.utils.modelCacheUtils import DbCacheModel, cacheQS, dbCache
+from mytxs.utils.modelUtils import annotateInstance, bareAktiveDecorator, qBool, groupBy, getInstancesForKor, isStemmegruppeVervNavn, korLookup, stemmegruppeOrdering, strToModels, validateBruktIKode, validateM2MFieldEmpty, validateStartSlutt, vervInnehavelseAktiv, stemmegruppeVerv
+from mytxs.utils.navBar import navBarNode
 from mytxs.utils.utils import cropImage
 
 
@@ -245,13 +246,41 @@ class MedlemQuerySet(models.QuerySet):
         Merk at man kanskje må refresh querysettet dersom man allerede har filtrert på stemmegruppeverv. 
         '''
         return self.annotate(
-            K=Min(
+            karantenekor=Min(
                 'vervInnehavelser__start__year',
                 filter=
                     stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True) &
                     (korLookup(kor, 'vervInnehavelser__verv__kor') if kor else qBool(True)) &
-                    (Q(vervInnehavelser__verv__kor__kortTittel__in=consts.bareStorkorKortTittel) if storkor else qBool(True))
+                    (Q(vervInnehavelser__verv__kor__navn__in=consts.bareStorkorNavn) if storkor else qBool(True))
             )
+        )
+    
+    def annotateStorkor(self):
+        '''
+        Annotate navn til storkoret de hadde sitt første stemmegruppe i. 
+        Merk at man kanskje må refresh querysettet dersom man allerede har filtrert på stemmegruppeverv. 
+        '''
+        return self.annotate(
+            storkor=Subquery(
+                VervInnehavelse.objects.filter(
+                    stemmegruppeVerv(includeDirr=True),
+                    verv__kor__navn__in=consts.bareStorkorNavn,
+                    medlem=OuterRef('pk')
+                ).order_by('start').values('verv__kor__navn')[:1]
+            )
+        )
+
+    def annotateStemmegruppe(self, kor, includeUkjent=False, understemmegruppe=False, pkPath='pk'):
+        'Annotate navnet på stemmegruppen medlemmet har i koret'
+        return self.annotate(
+            stemmegruppe=Right(Subquery(
+                VervInnehavelse.objects.filter(
+                    vervInnehavelseAktiv(''),
+                    stemmegruppeVerv(includeUkjentStemmegruppe=includeUkjent),
+                    korLookup(kor, 'verv__kor'),
+                    medlem=OuterRef(pkPath)
+                ).values('verv__navn')[:1]
+            ), 3 if understemmegruppe else 2)
         )
 
     def filterIkkePermitert(self, kor, dato=None):
@@ -274,7 +303,7 @@ class MedlemQuerySet(models.QuerySet):
         )
     
     def prefetchVervDekorasjonKor(self):
-        return self.prefetch_related('vervInnehavelser__verv__kor', 'dekorasjonInnehavelse__dekorasjon__kor')
+        return self.prefetch_related('vervInnehavelser__verv__kor', 'dekorasjonInnehavelser__dekorasjon__kor')
     
     def annotateFravær(self, kor):
         'Annotater gyldigFravær, ugyldigFravær og hendelseVarighet'
@@ -310,7 +339,7 @@ class MedlemQuerySet(models.QuerySet):
         )
 
 
-class Medlem(ModelWithStrRep):
+class Medlem(DbCacheModel):
     objects = MedlemQuerySet.as_manager()
 
     user = models.OneToOneField(
@@ -345,6 +374,7 @@ class Medlem(ModelWithStrRep):
     foreldreAdresse = models.CharField(max_length=100, blank=True, verbose_name='Foreldre adresse')
 
     sjekkhefteSynlig = BitmapMultipleChoiceField(choicesList=consts.sjekkhefteSynligOptions, verbose_name='Synlig i sjekkheftet')
+    matpreferanse = BitmapMultipleChoiceField(choicesList=consts.matpreferanseOptions)
 
     def generateUploadTo(instance, fileName):
         path = 'sjekkhefteBilder/'
@@ -363,41 +393,20 @@ class Medlem(ModelWithStrRep):
 
     overførtData = models.BooleanField(default=False, editable=False)
 
+    @dbCache(affectedByFields=['vervInnehavelser'])
+    def storkorNavn(self):
+        annotateInstance(self, MedlemQuerySet.annotateStorkor)
+        return self.storkor
+
     @cached_property
     def aktiveKor(self):
         'Returne kor medlemmet er aktiv i, sortert med storkor først. Ignorerer permisjon.'
-        return Kor.objects.filter(
+        return cacheQS(Kor.objects.filter(
             stemmegruppeVerv(includeDirr=True),
             vervInnehavelseAktiv('verv__vervInnehavelser'),
             verv__vervInnehavelser__medlem=self
-        ).orderKor()
+        ).orderKor(), props=['navn'])
 
-    @cached_property
-    def firstStemmegruppeVervInnehavelse(self):
-        'Returne første stemmegruppeverv de hadde i et storkor'
-        return self.vervInnehavelser.filter(
-            stemmegruppeVerv(),
-            verv__kor__kortTittel__in=['TSS', 'TKS']
-        ).order_by('start').first()
-    
-    @cached_property
-    def storkor(self):
-        'Returne koran TSS eller TKS eller None'
-        if self.firstStemmegruppeVervInnehavelse:
-            return self.firstStemmegruppeVervInnehavelse.verv.kor
-        return None
-
-    @property
-    def karantenekor(self):
-        'Returne K{to sifret år av første storkor stemmegruppeverv}, eller 4 dersom det e før år 2000'
-        if self.firstStemmegruppeVervInnehavelse:
-            if self.firstStemmegruppeVervInnehavelse.start.year >= 2000:
-                return f'K{self.firstStemmegruppeVervInnehavelse.start.strftime("%y")}'
-            else:
-                return f'K{self.firstStemmegruppeVervInnehavelse.start.strftime("%Y")}'
-        else:
-            return ''
-    
     @property
     def faktiskeTilganger(self):
         'Returne aktive tilganger, til bruk i addOptionForm som trenger å vite hvilke tilganger du har før innstillinger filtrering'
@@ -409,16 +418,22 @@ class Medlem(ModelWithStrRep):
         if self.innstillinger.get('disableTilganger', False):
             return Tilgang.objects.none()
         
-        if self.user.is_superuser and (adminTilganger := self.innstillinger.get('adminTilganger')):
-            if adminTilganger == 'Alle':
-                tilganger = Tilgang.objects.all()
+        if self.user.is_superuser:
+            tilgangFilter = []
+            if adminTilganger := self.innstillinger.get('adminTilganger'):
+               tilgangFilter.append(Q(navn__in=adminTilganger))
+            if adminTilgangerKor := self.innstillinger.get('adminTilgangerKor'):
+                tilgangFilter.append(Q(kor__navn__in=adminTilgangerKor))
+
+            if adminTilganger and adminTilgangerKor:
+                tilganger = Tilgang.objects.filter(*tilgangFilter)
             else:
-                tilganger = Tilgang.objects.filter(kor__kortTittel=adminTilganger)
+                tilganger = Tilgang.objects.none()
         else:
             tilganger = self.faktiskeTilganger
         
         if not self.innstillinger.get('tversAvKor', False):
-            return cacheQS(tilganger.exclude(navn='tversAvKor'))
+            tilganger = tilganger.exclude(navn='tversAvKor')
         return cacheQS(tilganger)
     
     @cached_property
@@ -435,89 +450,80 @@ class Medlem(ModelWithStrRep):
         Dette e også en av få deler av kodebasen som faktisk kjører på alle sider, så fint å optimaliser denne koden 
         så my som mulig mtp databaseoppslag. 
         '''
-
-        def toDict(iterable):
-            'Lage en dict av alle element i en iterable, med values True'
-            return dict.fromkeys(iterable, True)
-
-        sider = dict()
+        sider = navBarNode(inURL=False, isPage=False)
 
         # Sjekkheftet
-        if (storkor := self.storkor) and storkor.kortTittel == 'TKS':
-            sider['sjekkheftet'] = toDict(consts.bareKorKortTittelTKSRekkefølge + ['Sangern', 'søk', 'jubileum', 'sjekkhefTest'])
+        sjekkheftet = navBarNode(sider, 'sjekkheftet', isPage=False)
+        if self.storkorNavn == 'TKS':
+            sjekkhefteRekkefølge = consts.bareKornavnTKSRekkefølge
         else:
-            sider['sjekkheftet'] = toDict(consts.bareKorKortTittel + ['Sangern', 'søk', 'jubileum', 'sjekkhefTest'])
+            sjekkhefteRekkefølge = consts.bareKorNavn
+        sjekkheftet.addChildren(*sjekkhefteRekkefølge[:2])
+
+        # Alle tiders småkorist skal få opp småkoret i sjekkheftet
+        if småkor := Kor.objects.filter(
+            stemmegruppeVerv(includeDirr=True),
+            verv__vervInnehavelser__medlem=self,
+            navn__in=consts.alleKorNavn[2:5]
+        ).values_list('navn', flat=True):
+            sjekkheftet.addChildren(*småkor)
+        sjekkheftet.addChildren('Sangern', isPage=False)
 
         # Sjekkheftet undergrupper
         for sjekkhefteSide in Tilgang.objects.filter(
-            ~Q(kor__kortTittel='Sangern'),
-            sjekkheftetSynlig=True
-        ).values('navn', 'kor__kortTittel'):
-            if sider['sjekkheftet'][sjekkhefteSide['kor__kortTittel']] == True:
-                sider['sjekkheftet'][sjekkhefteSide['kor__kortTittel']] = {}
-            sider['sjekkheftet'][sjekkhefteSide['kor__kortTittel']][sjekkhefteSide['navn']] = True
+            sjekkheftetSynlig=True, 
+            kor__navn__in=sjekkheftet.children.keys()
+        ).values('navn', 'kor__navn'):
+            navBarNode(sider['sjekkheftet', sjekkhefteSide['kor__navn']], sjekkhefteSide['navn'])
+        sjekkheftet.addChildren('søk', 'jubileum', 'sjekkhefTest')
 
         # Semesterplan
-        if aktiveKor := self.aktiveKor:
-            sider['semesterplan'] = toDict(aktiveKor.values_list('kortTittel', flat=True))
-
-        # Øverige
-        if self.tilganger.exists():
-            sider['loggListe'] = True
+        navBarNode(sider, 'semesterplan', isPage=False)
+        for kor in self.aktiveKor.values_list('navn', flat=True):
+            navBarNode(sider['semesterplan'], kor)
         
-        if self.tilganger.filter(navn='tversAvKor').exists():
-            sider['medlemListe'] = True
-            sider['vervListe'] = True
-            sider['dekorasjonListe'] = True
-            sider['turneListe'] = True
-            sider['tilgangListe'] = True
+        #Lenker
+        if self.aktiveKor.exists() or self.tilganger.filter(navn__in=['tversAvKor', 'lenke']).exists():
+            navBarNode(sider, 'lenker')
 
-        if self.tilganger.filter(navn='medlemsdata').exists():
-            sider['medlemListe'] = True
+        # Herunder er admin sidene
+        admin = navBarNode(sider, 'admin', inURL=False, isPage=False)
 
-        if self.tilganger.filter(navn='semesterplan').exists():
-            sider['hendelseListe'] = True
+        if self.tilganger.filter(navn__in=['tversAvKor', 'medlemsdata', 'vervInnehavelse', 'dekorasjonInnehavelse', 'turne']).exists():
+            navBarNode(admin, 'medlem')
 
-        if self.tilganger.filter(navn='fravær').exists():
-            sider['hendelseListe'] = True
-            sider['fraværListe'] = toDict(Kor.objects.filter(tilganger__in=self.tilganger.filter(navn='fravær')).values_list('kortTittel', flat=True))
+        if self.tilganger.filter(navn__in=['tversAvKor', 'semesterplan', 'fravær']).exists():
+            navBarNode(admin, 'hendelse', defaultParameters=f'?start={datetime.date.today()}')
 
-        if self.tilganger.filter(navn='vervInnehavelse').exists():
-            sider['medlemListe'] = True
-            sider['vervListe'] = True
+        if self.tilganger.filter(navn__in=['tversAvKor', 'fravær']).exists():
+            fravær = navBarNode(admin, 'fravær', isPage=False)
+            navBarNode(fravær, 'søknader')
+            fraværOversikt = navBarNode(fravær, 'oversikt', isPage=False)
+            if korMedFraværTilgang := Kor.objects.filter(tilganger__in=self.tilganger.filter(navn='fravær')).values_list('navn', flat=True):
+                fraværOversikt.addChildren(*korMedFraværTilgang)
 
-        if self.tilganger.filter(navn='dekorasjonInnehavelse').exists():
-            sider['medlemListe'] = True
-            sider['dekorasjonListe'] = True
+        if self.tilganger.filter(navn__in=['tversAvKor', 'vervInnehavelse', 'verv', 'tilganger']).exists():
+            navBarNode(admin, 'verv', defaultParameters=f'?sistAktiv=1')
 
-        if self.tilganger.filter(navn='verv').exists():
-            sider['vervListe'] = True
+        if self.tilganger.filter(navn__in=['tversAvKor', 'dekorasjonInnehavelse', 'dekorasjon']).exists():
+            navBarNode(admin, 'dekorasjon')
 
-        if self.tilganger.filter(navn='dekorasjon').exists():
-            sider['dekorasjonListe'] = True
+        if self.tilganger.filter(navn__in=['tversAvKor', 'tilgang']).exists():
+            navBarNode(admin, 'tilgang')
+            navBarNode(admin['tilgang'], 'oversikt')
 
-        if self.tilganger.filter(navn='tilgang').exists():
-            sider['vervListe'] = True
-            sider['tilgangListe'] = True
+        if self.tilganger.filter(navn__in=['tversAvKor', 'turne']).exists():
+            navBarNode(admin, 'turne')
 
-        if self.tilganger.filter(navn='turne').exists():
-            sider['turneListe'] = True
-            sider['medlemListe'] = True
-
-        # Før vi returne, gå over og fjern alle falsy verdier, rekursivt. 
-        def removeFalsy(sider):
-            for side in sider:
-                if not sider[side]:
-                    # Om det e falsy, fjern det
-                    del sider[side]
-                elif isinstance(sider[side], dict):
-                    # Fjern falsy children
-                    removeFalsy(sider[side])
-            if not sider:
-                # Om vi fjerna alle children, erstatt den tomme dicten med True
-                # Dette fordi å fjern alle undersider ikke betyr at vi skal fjerne en side
-                sider[side] = True
-        removeFalsy(sider)
+        if self.tilganger.exists():
+            navBarNode(admin, 'logg')
+        
+        if self.tilganger.filter(navn__in=['eksport']).exists():
+            navBarNode(admin, 'eksport', isPage=False)
+            for tilgang in self.tilganger.filter(navn__in=['eksport']):
+                navBarNode(admin['eksport'], tilgang.kor.navn)
+        
+        sider.generateURLs()
 
         return sider
 
@@ -567,8 +573,7 @@ class Medlem(ModelWithStrRep):
         ):
             return resModel.objects.all()
 
-        # Medlem er komplisert, både fordi man har redigeringstilgang på seg sjølv, 
-        # og fordi medlem ikke har et enkelt forhold til kor. 
+        # Medlem er komplisert fordi medlem ikke har et enkelt forhold til kor. 
         if model == Medlem:
             # Skaff medlemmer i koret du har tilgangen
             medlemmer = getInstancesForKor(resModel, Kor.objects.filter(tilganger__in=self.tilganger.filter(navn='medlemsdata')))
@@ -576,7 +581,7 @@ class Medlem(ModelWithStrRep):
             # Dersom du har tversAvKor, hiv på alle medlemmer uten kor
             if resModel == Medlem and self.tilganger.filter(navn='tversAvKor').exists():
                 medlemmer |= Medlem.objects.exclude(
-                    stemmegruppeVerv('vervInnehavelser__verv')
+                    stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True)
                 )
 
             return medlemmer
@@ -591,12 +596,12 @@ class Medlem(ModelWithStrRep):
         if model in [Verv, VervInnehavelse] and resModel in [Verv, VervInnehavelse]:
             if resModel == Verv:
                 return returnQueryset.exclude(
-                    ~Q(kor__in=self.tilganger.filter(navn='tilgang').values_list('kor', flat=True)),
+                    ~Q(kor__tilganger__in=self.tilganger.filter(navn='tilgang')),
                     tilganger__in=Tilgang.objects.exclude(pk__in=self.tilganger),
                 )
             if resModel == VervInnehavelse:
                 return returnQueryset.exclude(
-                    ~Q(verv__kor__in=self.tilganger.filter(navn='tilgang').values_list('kor', flat=True)),
+                    ~Q(verv__kor__tilganger__in=self.tilganger.filter(navn='tilgang')),
                     verv__tilganger__in=Tilgang.objects.exclude(pk__in=self.tilganger), 
                 )
 
@@ -628,7 +633,7 @@ class Medlem(ModelWithStrRep):
         # For Logg sjekke vi bare om du har tilgang til modellen og koret loggen refererer til
         if model == Logg:
             loggs = Logg.objects.none()
-            for loggedModel in consts.getLoggedModels():
+            for loggedModel in strToModels(consts.loggedModelNames):
                 loggs |= Logg.objects.filter(
                     Q(model=loggedModel.__name__, instancePK__in=self.redigerTilgangQueryset(loggedModel).values_list('id', flat=True)) | 
                     Q(model=None)
@@ -652,17 +657,22 @@ class Medlem(ModelWithStrRep):
 
     @property
     def kor(self):
-        return self.storkor or None if self.pk else None
+        if not self.pk:
+            return None
+        annotateInstance(self, MedlemQuerySet.annotateStorkor)
+        return Kor.objects.get(navn=self.storkor) if self.storkor else None
     
     def get_absolute_url(self):
         return reverse('medlem', args=[self.pk])
     
-    affectedBy = ['VervInnehavelse']
-    @strDecorator
+    @dbCache(affectedByFields=['vervInnehavelser'])
     def __str__(self):
-        clearCachedProperty(self, 'firstStemmegruppeVervInnehavelse', 'storkor')
-        if self.pk and (storkor := self.storkor):
-            return f'{self.navn} {storkor} {self.karantenekor}'
+        if self.pk:
+            # Det som allerede e annotata kan vær feil no, så gjør det på nytt!
+            annotateInstance(self, MedlemQuerySet.annotateStorkor)
+            annotateInstance(self, MedlemQuerySet.annotateKarantenekor, storkor=True)
+            if self.storkor:
+                return f'{self.navn} {self.storkor} ' + 'K' + str(self.karantenekor).zfill(2)[-2:]
         return self.navn
     
     class Meta:
@@ -684,8 +694,8 @@ class KorQuerySet(models.QuerySet):
     def orderKor(self, tksRekkefølge=False):
         'Sorter kor på storkor først og deretter på kjønnsfordeling'
         return self.order_by(Case(
-            *[When(kortTittel=kor, then=i) for i, kor in 
-                (enumerate(consts.bareKorKortTittel if not tksRekkefølge else consts.bareKorKortTittelTKSRekkefølge))
+            *[When(navn=kor, then=i) for i, kor in 
+                (enumerate(consts.bareKorNavn if not tksRekkefølge else consts.bareKorNavnTKSRekkefølge))
             ]
         ))
 
@@ -693,19 +703,26 @@ class KorQuerySet(models.QuerySet):
 class Kor(models.Model):
     objects = KorQuerySet.as_manager()
 
-    kortTittel = models.CharField(max_length=10)
-    langTittel = models.CharField(max_length=50)
+    navn = models.CharField(max_length=10)
+    tittel = models.CharField(max_length=50)
     stemmefordeling = models.CharField(choices=[(sf, sf) for sf in ['SA', 'TB', 'SATB', '']], default='', blank=True)
+
+    def stemmegrupper(self, lengde=2):
+        'Skaffe stemmegruppan til koret (strings) opp til ønsket lengde'
+        stemmegrupper = ','.join(self.stemmefordeling)
+        for i in range(1, lengde):
+            stemmegrupper = ','.join([f'1{s},2{s}' for s in stemmegrupper.split(',')])
+        return stemmegrupper.split(',')
 
     # Dropper å drive med strRep her, blir bare overhead for ingen fortjeneste
     def __str__(self):
-        return self.kortTittel
+        return self.navn
     
     class Meta:
         verbose_name_plural = 'kor'
 
 
-class Verv(ModelWithStrRep):
+class Verv(DbCacheModel):
     navn = models.CharField(max_length=50)
 
     kor = models.ForeignKey(
@@ -726,15 +743,15 @@ class Verv(ModelWithStrRep):
         return isStemmegruppeVervNavn(self.navn)
 
     def get_absolute_url(self):
-        return reverse('verv', args=[self.kor.kortTittel, self.navn])
+        return reverse('verv', args=[self.kor.navn, self.navn])
 
-    @strDecorator
+    @dbCache
     def __str__(self):
-        return f'{self.navn}({self.kor.__str__()})'
+        return f'{self.navn}({self.kor.navn})'
     
     class Meta:
         unique_together = ('navn', 'kor')
-        ordering = ['kor', orderStemmegruppeVerv(), 'navn']
+        ordering = ['kor', stemmegruppeOrdering(), 'navn']
         verbose_name_plural = 'verv'
 
     def clean(self, *args, **kwargs):
@@ -745,7 +762,7 @@ class Verv(ModelWithStrRep):
         super().delete(*args, **kwargs)
 
 
-class VervInnehavelse(ModelWithStrRep):
+class VervInnehavelse(DbCacheModel):
     medlem = models.ForeignKey(
         Medlem,
         on_delete=models.PROTECT,
@@ -769,8 +786,7 @@ class VervInnehavelse(ModelWithStrRep):
     def kor(self):
         return self.verv.kor if self.verv_id else None
     
-    affectedByStrRep = ['Medlem', 'Verv']
-    @strDecorator
+    @dbCache(affectedByCache=['medlem', 'verv'])
     def __str__(self):
         return f'{self.medlem.__str__()} -> {self.verv.__str__()}'
     
@@ -862,7 +878,7 @@ class VervInnehavelse(ModelWithStrRep):
             Hendelse.objects.filter(kor=self.verv.kor).saveAllInPeriod(self.start, self.slutt)
 
 
-class Tilgang(ModelWithStrRep):
+class Tilgang(DbCacheModel):
     navn = models.CharField(max_length=50)
 
     kor = models.ForeignKey(
@@ -897,12 +913,12 @@ class Tilgang(ModelWithStrRep):
     )
 
     def get_absolute_url(self):
-        return reverse('tilgang', args=[self.kor.kortTittel, self.navn])
+        return reverse('tilgang', args=[self.kor.navn, self.navn])
 
-    @strDecorator
+    @dbCache
     def __str__(self):
         if self.kor:
-            return f'{self.kor.kortTittel}-{self.navn}'
+            return f'{self.kor.navn}-{self.navn}'
         return self.navn
 
     class Meta:
@@ -918,7 +934,7 @@ class Tilgang(ModelWithStrRep):
         super().delete(*args, **kwargs)
 
 
-class Dekorasjon(ModelWithStrRep):
+class Dekorasjon(DbCacheModel):
     navn = models.CharField(max_length=30)
     kor = models.ForeignKey(
         Kor,
@@ -928,11 +944,11 @@ class Dekorasjon(ModelWithStrRep):
     )
 
     def get_absolute_url(self):
-        return reverse('dekorasjon', args=[self.kor.kortTittel, self.navn])
+        return reverse('dekorasjon', args=[self.kor.navn, self.navn])
 
-    @strDecorator
+    @dbCache
     def __str__(self):
-        return f'{self.navn}({self.kor.__str__()})'
+        return f'{self.navn}({self.kor.navn})'
     
     class Meta:
         unique_together = ('navn', 'kor')
@@ -940,18 +956,18 @@ class Dekorasjon(ModelWithStrRep):
         verbose_name_plural = 'dekorasjoner'
 
 
-class DekorasjonInnehavelse(ModelWithStrRep):
+class DekorasjonInnehavelse(DbCacheModel):
     medlem = models.ForeignKey(
         Medlem,
         on_delete=models.PROTECT,
         null=False,
-        related_name='dekorasjonInnehavelse'
+        related_name='dekorasjonInnehavelser'
     )
     dekorasjon = models.ForeignKey(
         Dekorasjon,
         on_delete=models.PROTECT,
         null=False,
-        related_name='dekorasjonInnehavelse'
+        related_name='dekorasjonInnehavelser'
     )
     start = MyDateField(null=False)
     
@@ -959,8 +975,7 @@ class DekorasjonInnehavelse(ModelWithStrRep):
     def kor(self):
         return self.dekorasjon.kor if self.dekorasjon_id else None
     
-    affectedByStrRep = ['Medlem', 'Dekorasjon']
-    @strDecorator
+    @dbCache(affectedByCache=['medlem', 'dekorasjon'])
     def __str__(self):
         return f'{self.medlem.__str__()} -> {self.dekorasjon.__str__()}'
     
@@ -970,7 +985,7 @@ class DekorasjonInnehavelse(ModelWithStrRep):
         verbose_name_plural = 'dekorasjoninnehavelser'
 
 
-class Turne(ModelWithStrRep):
+class Turne(DbCacheModel):
     navn = models.CharField(max_length=30)
     kor = models.ForeignKey(
         Kor,
@@ -991,12 +1006,12 @@ class Turne(ModelWithStrRep):
     )
 
     def get_absolute_url(self):
-        return reverse('turne', args=[self.kor.kortTittel, self.start.year, self.navn])
+        return reverse('turne', args=[self.kor.navn, self.start.year, self.navn])
 
-    @strDecorator
+    @dbCache
     def __str__(self):
         if self.kor:
-            return f'{self.navn}({self.kor.kortTittel}, {self.start.year})'
+            return f'{self.navn}({self.kor.navn}, {self.start.year})'
         return self.navn
 
     class Meta:
@@ -1017,7 +1032,7 @@ class Turne(ModelWithStrRep):
 
 
 class HendelseQuerySet(models.QuerySet):
-    def generateICal(self, medlemPK):
+    def generateICal(self, medlemPK, name='MyTXS 2.0 semesterplan'):
         'Returne en (forhåpentligvis) rfc5545 kompatibel string'
         iCalString= f'''\
 BEGIN:VCALENDAR
@@ -1025,8 +1040,8 @@ PRODID:-//mytxs.samfundet.no//MyTXS semesterplan//
 VERSION:2.0
 CALSCALE:GREGORIAN
 METHOD:PUBLISH
-X-WR-CALNAME:MyTXS 2.0 semesterplan
-X-WR-CALDESC:Denne kalenderen ble generert av MyTXS {
+X-WR-CALNAME:{name}
+X-WR-CALDESC:Denne kalenderen ble oppdatert av MyTXS {
 datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S')}Z
 X-WR-TIMEZONE:Europe/Oslo
 BEGIN:VTIMEZONE
@@ -1094,7 +1109,7 @@ END:VTIMEZONE
             )
 
 
-class Hendelse(ModelWithStrRep):
+class Hendelse(DbCacheModel):
     objects = HendelseQuerySet.as_manager()
 
     navn = models.CharField(max_length=60)
@@ -1195,26 +1210,24 @@ class Hendelse(ModelWithStrRep):
     
     @property
     def medlemmer(self):
-        'Dette gir deg basert på stemmegruppeverv og permisjon, hvilke medlemmer som forventes å dukke opp på hendelsen'
+        'Dette gir deg basert på stemmegruppeverv og permisjon, hvilke medlemmer som burde ha oppmøter for hendelsen'
         if self.kategori == Hendelse.FRIVILLIG:
             return Medlem.objects.none()
         return Medlem.objects.filterIkkePermitert(kor=self.kor, dato=self.startDate)
 
     def getStemmeFordeling(self):
         'Returne stemmefordelingen på en hendelse, basert på Oppmøte.KOMMER.'
-        stemmefordeling = {}
+        stemmefordeling = {key: [] for key in self.kor.stemmegrupper()}
 
-        satbStemmer = self.kor.stemmefordeling
-        for stemme in satbStemmer:
-            for i in '12':
-                stemmefordeling[i+stemme] = VervInnehavelse.objects.filter(
-                    vervInnehavelseAktiv('', dato=self.startDate),
-                    stemmegruppeVerv(),
-                    medlem__oppmøter__hendelse=self,
-                    verv__kor=self.kor,
-                    medlem__oppmøter__ankomst=Oppmøte.KOMMER,
-                    verv__navn__endswith=i+stemme
-                ).count()
+        for stemme in stemmefordeling:
+            stemmefordeling[stemme] = VervInnehavelse.objects.filter(
+                vervInnehavelseAktiv('', dato=self.startDate),
+                stemmegruppeVerv(),
+                medlem__oppmøter__hendelse=self,
+                verv__kor=self.kor,
+                medlem__oppmøter__ankomst=Oppmøte.KOMMER,
+                verv__navn__endswith=stemme
+            ).count()
         return stemmefordeling
     
     @property
@@ -1226,7 +1239,7 @@ class Hendelse(ModelWithStrRep):
     def get_absolute_url(self):
         return reverse('hendelse', args=[self.pk])
 
-    @strDecorator
+    @dbCache
     def __str__(self):
         return f'{self.navn}({self.startDate})'
 
@@ -1340,7 +1353,7 @@ class OppmøteQueryset(models.QuerySet):
             )
 
 
-class Oppmøte(ModelWithStrRep):
+class Oppmøte(DbCacheModel):
     objects = OppmøteQueryset.as_manager()
 
     medlem = models.ForeignKey(
@@ -1384,8 +1397,7 @@ class Oppmøte(ModelWithStrRep):
     def get_absolute_url(self):
         return reverse('meldFravær', args=[self.medlem.pk, self.hendelse.pk])
 
-    affectedByStrRep = ['Hendelse', 'Medlem']
-    @strDecorator
+    @dbCache(affectedByCache=['hendelse', 'medlem'])
     def __str__(self):
         if self.hendelse.kategori == Hendelse.OBLIG:
             return f'Fraværssøknad {self.medlem} -> {self.hendelse}'
@@ -1431,7 +1443,7 @@ class Oppmøte(ModelWithStrRep):
         super().save(*args, **kwargs)
 
 
-class Lenke(ModelWithStrRep):
+class Lenke(DbCacheModel):
     navn = models.CharField(max_length=255)
     lenke = models.CharField(max_length=255)
     synlig = models.BooleanField(default=False, help_text=toolTip('Om denne lenken skal være synlig på MyTXS'))
@@ -1440,7 +1452,7 @@ class Lenke(ModelWithStrRep):
     @property
     def redirectUrl(self):
         if self.pk and self.redirect:
-            return 'http://' + mytxsSettings.ALLOWED_HOSTS[0] + reverse('lenkeRedirect', args=[self.kor.kortTittel, self.navn])
+            return 'http://' + mytxsSettings.ALLOWED_HOSTS[0] + reverse('lenkeRedirect', args=[self.kor.navn, self.navn])
 
     kor = models.ForeignKey(
         'Kor',
@@ -1449,7 +1461,7 @@ class Lenke(ModelWithStrRep):
         null=True
     )
 
-    @strDecorator
+    @dbCache
     def __str__(self):
         return f'{self.navn}({self.kor})'
     

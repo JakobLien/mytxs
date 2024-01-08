@@ -38,9 +38,28 @@ def addDeleteCheckbox(ModelForm):
     class NewForm(ModelForm):
         DELETE = forms.BooleanField(label='Slett', required=False)
 
-        def save(self, commit=True):
+        def save(self):
             if self.cleaned_data['DELETE']:
                 return self.instance.delete()
+            return super().save()
+    
+    return NewForm
+
+
+def addDeleteUserCheckbox(MedlemModelForm):
+    class NewForm(MedlemModelForm):
+        DELETEUSER = forms.BooleanField(label='Slett bruker', required=False)
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+
+            # Sjul delete feltet dersom medlemmet ikkje har en user
+            if not self.instance.user:
+                self.fields = {k: v for k, v in self.fields.items() if k != 'DELETEUSER'}
+
+        def save(self):
+            if 'DELETEUSER' in self.fields.keys() and self.cleaned_data['DELETEUSER']:
+                return self.instance.user.delete()
             return super().save()
     
     return NewForm

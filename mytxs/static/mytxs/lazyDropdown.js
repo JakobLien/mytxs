@@ -44,12 +44,6 @@ if(document.currentScript.dataset.json){
                     select.add(option, i)
                     i += 1;
                 }
-                
-                // Må resett nån visuelle ting når vi legg til masse options
-                select.setAttribute('size', Math.min(10, select.options.length));
-                select.style.display = 'block';
-                select.previousElementSibling.style.width = `${select.offsetWidth}px`;
-                select.style.display = '';
             }
         })(selectName)
     }

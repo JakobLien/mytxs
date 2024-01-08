@@ -3,8 +3,8 @@
 
 {% block content %}
 
-<table>
-    <tr class="[&>*]:w-52 [&>*]:text-left border-b-[1px] border-black">
+<table class="text-left">
+    <tr class="[&>*]:w-52 border-b-[1px] border-black">
         <th>Hvem</th>
         <th>Gyldig fravær</th>
         <th>Ugyldig fravær</th>
@@ -15,7 +15,7 @@
         <td>{{ medlem.navn }}</td>
         <td>{{ medlem|showFravær:True }}</td>
         <td>{{ medlem|showFravær:False }}</td>
-        <td><a href="{% url 'fravær' request.resolver_match.kwargs.kor medlem.pk %}?gammelt=True">Se semesterplan</a></td>
+        <td><a href="{% url 'fraværSemesterplan' request.resolver_match.kwargs.underside medlem.pk %}?gammelt=True">Se semesterplan</a></td>
     </tr>
     {% endfor %}
 </table>

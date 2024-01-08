@@ -1,19 +1,9 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse
 from django.shortcuts import redirect
-from django.http import HttpResponse
 from django.shortcuts import redirect
 
 # Utils til bruk i og rundt views
-
-def downloadFile(fileName, content, content_type='text/plain'):
-    'I en view, return returnverdien av denne funksjonen'
-    response = HttpResponse(content, content_type=f'{content_type}; charset=utf-8')
-    response['Content-Disposition'] = f'attachment; filename="{fileName}"'
-    response['Content-Length'] = len(response.content)
-    return response
-
 
 def redirectToInstance(request):
     'Redirecter til request.instance med kwargs fra request.GET, eller bare request.get_full_path'
@@ -36,7 +26,7 @@ def harTilgang(viewFunc=None, querysetModel=None, instanceModel=None, lookupToAr
     For å override hvilket arg som mappes til hvilken property for å finne request.instnace, 
     gi en dict som mapper fra lookup path til view argument name, så ordner den det. f.eks. 
     ```
-    @harTilgang(instanceModel=Turne, lookupToArgNames={'kor__kortTittel': 'kor', 'start__year': 'år', 'navn': 'turneNavn'})
+    @harTilgang(instanceModel=Turne, lookupToArgNames={'kor__navn': 'kor', 'start__year': 'år', 'navn': 'turneNavn'})
     ```
     
     extendAccess er en funksjon som tar inn request og returne et queryset av ekstra objekt du får rediger tilgang til 
@@ -51,18 +41,10 @@ def harTilgang(viewFunc=None, querysetModel=None, instanceModel=None, lookupToAr
         if skipDecorator:
             return viewFunc(request, *args, **kwargs)
 
-        # Sjekk om brukeren har tilgang til siden via navBar
-        if not instanceModel:
-            # Om vi har instanceModel tilgangsstyre vi på den istedet
-            sideTilgangDict = request.user.medlem.navBar
-            
-            # Rekursivt jobb deg nedover tilgangDict og sjekk at du har tilgang til alt på veien
-            for value in (request.resolver_match.url_name, *request.resolver_match.captured_kwargs.values()):
-                if not sideTilgangDict or (value not in sideTilgangDict) or (isinstance(sideTilgangDict, dict) and not sideTilgangDict.get(value)):
-                    messages.error(request, f'Du har ikke tilgang til {request.path}')
-                    return redirect('login')
-                if isinstance(sideTilgangDict, dict):
-                    sideTilgangDict = sideTilgangDict.get(value)
+        # Sjekk om brukeren har tilgang til siden via navBar, om ikke vi skal tilgangsstyre på instanceModel
+        if not instanceModel and not request.user.medlem.navBar[request]:
+            messages.error(request, f'Du har ikke tilgang til {request.path}')
+            return redirect('login')
         
         # Hiv på request.queryset
         if querysetModel:

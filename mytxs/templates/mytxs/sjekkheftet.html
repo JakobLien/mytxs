@@ -8,9 +8,9 @@
 {% block sjekkheftetContent %}
 
 {% if grupperinger|length > 1%}
-<div id="sjekkheftetNavigator" class="my-2 flex flex-row justify-between w-[56rem]">
+<div id="sjekkheftetNavigator" class="my-2 flex flex-row flex-wrap justify-between w-[56rem]">
     {% for gruppenavn, gruppe in grupperinger.items %}
-    <div>
+    <div class="w-[14rem]">
         <h2 class="text-3xl">{{ gruppenavn|capfirst }}</h2>
 
         {% for medlem in gruppe %}
@@ -38,12 +38,12 @@
 
     <ul>
         <li class="text-2xl">{{ medlem.navn }}
-            {% if user.medlem.navBar.medlemListe %} <a class="text-sm" href="{% url 'medlem' medlem.pk %}">Rediger</a> {% endif %}
+            {% if user.medlem|tilgangExists:'medlemsdata' %} <a class="text-sm" href="{% url 'medlem' medlem.pk %}">Rediger</a> {% endif %}
         </li>
-        {% if request.resolver_match.kwargs.gruppe == 'Pirum' or request.resolver_match.kwargs.gruppe == 'Knauskoret' or request.resolver_match.kwargs.gruppe == 'Candiss' %}
-        <li>Tatt opp: {{ medlem.K }}</li>
+        {% if request.resolver_match.kwargs.side == 'Pirum' or request.resolver_match.kwargs.side == 'Knauskoret' or request.resolver_match.kwargs.side == 'Candiss' %}
+        <li>Tatt opp: {{ medlem.karantenekor }}</li>
         {% else %}
-        <li>Karantenekor: {{ medlem.K }}</li>
+        <li>Karantenekor: {{ medlem.karantenekor }}</li>
         {% endif %}
         {% if medlem.sjekkhefteSynlig|bitIs1:0 %}
         <li>Fødselsdato: {{ medlem.fødselsdato|date }}</li>
@@ -65,20 +65,30 @@
         {% endif %}
 
         {% ifAll %}<li>Verv: {% ifAll %}
-            {% for vervInnehavelse in medlem.vervInnehavelser.all %}
-            {% if vervInnehavelse.aktiv and not vervInnehavelse.verv.stemmegruppeVerv and vervInnehavelse.verv.kor.kortTittel == request.resolver_match.kwargs.gruppe %} 
-            <span>{{ vervInnehavelse.verv }}</span>
-            {% endif %}
-            {% endfor %}
+        {% for vervInnehavelse in medlem.vervInnehavelser.all %}
+        {% if vervInnehavelse.aktiv and not vervInnehavelse.verv.stemmegruppeVerv and vervInnehavelse.verv.kor.navn == request.resolver_match.kwargs.side %} 
+        <span>{{ vervInnehavelse.verv }}</span>
+        {% endif %}
+        {% endfor %}
         {% ifAll %}</li>{% endIfAll%}
 
         {% ifAll %}<li>Dekorasjoner: {% ifAll %}
-            {% for dekorasjonInnehavelse in medlem.dekorasjonInnehavelse.all %}
-            {% if dekorasjonInnehavelse.dekorasjon.kor.kortTittel == request.resolver_match.kwargs.gruppe %}
-            <span> {{ dekorasjonInnehavelse.dekorasjon }}</span>
-            {% endif %}
-            {% endfor %}
+        {% for dekorasjonInnehavelse in medlem.dekorasjonInnehavelser.all %}
+        {% if dekorasjonInnehavelse.dekorasjon.kor.navn == request.resolver_match.kwargs.side %}
+        <span> {{ dekorasjonInnehavelse.dekorasjon }}</span>
+        {% endif %}
+        {% endfor %}
         {% ifAll %}</li>{% endIfAll %}
+
+        {% if request.resolver_match.kwargs.side == 'TSS' or request.resolver_match.kwargs.side == 'TKS'%}
+        {% ifAll %}<li>Småkor: {% ifAll %}
+        {% for vervInnehavelse in medlem.vervInnehavelser.all %}
+        {% if vervInnehavelse.aktiv and vervInnehavelse.verv.stemmegruppeVerv and vervInnehavelse.verv.kor.navn in consts.bareSmåkorNavn %}
+        <span>{{ vervInnehavelse.verv.kor }}</span>
+        {% endif %}
+        {% endfor %}
+        {% ifAll %}</li>{% endIfAll %}
+        {% endif %}
     </ul>
 </div>
 {% endfor %}

@@ -15,8 +15,8 @@
 <br>
 <span>Minutter ugyldig fravær: {{ medlem|showFravær:False }}</span>
 
-<table>
-    <tr class="[&>*]:w-52 [&>*]:text-left border-b-[1px] border-black">
+<table class="text-left">
+    <tr class="[&>*]:w-52 border-b-[1px] border-black">
         <th>Hva</th>
         <th>Når</th>
         <th>Hvor</th>
@@ -24,7 +24,7 @@
     </tr>
     {% for hendelse in request.queryset %}
     <tr class="border-b-[1px] border-black">
-        <td>{{ hendelse.navn }} {% if medlem.navBar.hendelseListe %}<a href="{% url 'hendelse' hendelse.pk %}">Rediger</a>{% endif %}</td>
+        <td>{{ hendelse.navn }} {% if user.medlem|tilgangExists:'semesterplan,fravær' %}<a href="{% url 'hendelse' hendelse.pk %}">Rediger</a>{% endif %}</td>
         <td>
             {{ hendelse.startDate|date:'D j. M' }}
             {% if hendelse.startTime %}

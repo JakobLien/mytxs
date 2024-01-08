@@ -19,10 +19,11 @@
     {% block betweenForms %}{% endblock %}
 
     {% for formset in formsets %}
-    {% if formset|formIsVisible %}
     
+    {% if formset|formIsVisible %}
     <h2 class="text-xl mt-4">{{ formset.prefix|capfirst }}</h2>
     {% getPaginatorNavigation formset.queryset formset.prefix %}
+    {% endif %} {% comment %} endif her heller enn under slik at management formet sendes, og følgelig blir gyldig. {% endcomment %}
     
     {{ formset.management_form }}
     {% for form in formset %}
@@ -37,7 +38,6 @@
     {% block inFormset %}{% endblock %}<br>
     {% endfor %}
 
-    {% endif %}
     {% endfor %}
 
     {% if forms or formsets %}

@@ -35,6 +35,13 @@ ALLOWED_HOSTS = ['mytxs.samfundet.no', '127.0.0.1']
 SERVER_EMAIL = 'mytxsServer@samfundet.no'
 ADMINS = [('MyTXS admin', 'mytxs@samfundet.no')]
 
+if DEBUG:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+if not DEBUG:
+    # Session expire etter en time i prod
+    SESSION_COOKIE_AGE = 60 * 60
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -73,6 +80,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'mytxs.consts.constsContextProcessor'
             ],
             'libraries': {
                 'mytxsTags': 'mytxs.templateTags'

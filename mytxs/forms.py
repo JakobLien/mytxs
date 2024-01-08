@@ -6,14 +6,14 @@ from django.shortcuts import redirect
 
 from mytxs import consts
 from mytxs.fields import MyDateFormField
-from mytxs.models import Hendelse, Kor, Medlem, Verv
+from mytxs.models import Hendelse, Kor, Medlem, Verv, Oppmøte
 from mytxs.utils.formUtils import postIfPost, toolTip
-from mytxs.utils.modelUtils import getPathToKor, refreshQueryset, stemmegruppeVerv, vervInnehavelseAktiv
+from mytxs.utils.modelUtils import getPathToKor, korLookup, qBool, refreshQueryset, stemmegruppeVerv, vervInnehavelseAktiv
 
 
 class KorFilterForm(forms.Form):
     'Generisk FilterForm som filtrerre på kor'
-    kor = forms.ModelChoiceField(required=False, queryset=Kor.objects.filter(kortTittel__in=consts.bareKorKortTittel))
+    kor = forms.ModelChoiceField(required=False, queryset=Kor.objects.filter(navn__in=consts.bareKorNavn))
 
     def applyFilter(self, queryset):
         'Filtrere et queryset basert på KorFilterForm'
@@ -53,6 +53,21 @@ class TurneFilterForm(NavnKorFilterForm):
         return queryset
 
 
+class VervFilterForm(NavnKorFilterForm):
+    sistAktiv = forms.IntegerField(required=False, label='År siden siste innehaver', help_text=toolTip('Bare vis verv som har hatt innehavere siste n årene'))
+
+    def applyFilter(self, queryset):
+        queryset = super().applyFilter(queryset)
+
+        if (sistAktiv := self.cleaned_data['sistAktiv']) or sistAktiv == 0:
+            queryset = queryset.filter(
+                Q(vervInnehavelser__start__year__gte=datetime.date.today().year - (sistAktiv or 0)) |
+                (Q(vervInnehavelser__slutt__isnull=True) & Q(vervInnehavelser__isnull=False))
+            )
+
+        return queryset
+
+
 class HendelseFilterForm(NavnKorFilterForm):
     start = MyDateFormField(required=False)
     slutt = MyDateFormField(required=False)
@@ -79,6 +94,15 @@ class MedlemFilterForm(NavnKorFilterForm):
     stemmegruppe = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + [(i, i) for i in ['Dirigent', 'ukjentStemmegruppe', *consts.hovedStemmegrupper]])
     dato = MyDateFormField(required=False)
     ikkeOverførtData = forms.BooleanField(required=False, label='Ikke overført data', help_text=toolTip('Bare vis medlemmer som ikke har overført dataen sin til MyTXS 2.0.'))
+    harPermisjon = forms.ChoiceField(required=False, label='Har Permisjon', choices=[*BLANK_CHOICE_DASH, ('True', 'Har permisjon'), ('False', 'Har ikke permisjon')])
+    notisInnhold = forms.CharField(required=False, label='Notis innhold')
+
+    def __init__(self, *args, request=None, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Bare vis notisInnhold søkefeltet dersom de har medlemsdata tilgangen
+        if not request or not request.user.medlem.tilganger.filter(navn='medlemsdata').exists():
+            self.fields = {k: v for k, v in self.fields.items() if k != 'notisInnhold'}
 
     def applyFilter(self, queryset):
         # Fordi medlemmer har et særegent forhold til kor, bruker vi ikke super.applyFilter i det heletatt. 
@@ -90,14 +114,14 @@ class MedlemFilterForm(NavnKorFilterForm):
         if kor := self.cleaned_data['kor']:
             sgVerv = sgVerv.filter(kor=kor)
         
-        if K := self.cleaned_data['K']:
+        if karantenekor := self.cleaned_data['K']:
             # Siden vi må annotateKarantenekor må vi først refresh querysettet siden man 
             # kanskje ikkje har tilgang til medlemmer via småkoret man filtrerer på.
             queryset = refreshQueryset(queryset)
             queryset = queryset.annotateKarantenekor(
                 kor=kor or None
             )
-            queryset = queryset.filter(K=K)
+            queryset = queryset.filter(karantenekor=karantenekor)
         
         if stemmegruppe := self.cleaned_data['stemmegruppe']:
             sgVerv = sgVerv.filter(navn__iendswith=stemmegruppe)
@@ -117,6 +141,18 @@ class MedlemFilterForm(NavnKorFilterForm):
         if navn := self.cleaned_data['ikkeOverførtData']:
             queryset = queryset.filter(overførtData=False)
 
+        if harPermisjon := self.cleaned_data['harPermisjon']:
+            queryset = refreshQueryset(queryset)
+            harPermQ = Q(
+                vervInnehavelseAktiv(dato=dato) if dato else qBool(True),
+                korLookup(kor, 'vervInnehavelser__verv__kor') if kor else qBool(True),
+                Q(vervInnehavelser__verv__navn='Permisjon')
+            )
+            queryset = queryset.filter(harPermQ if harPermisjon == 'True' else ~harPermQ)
+        
+        if 'notisInnhold' in self.fields and (notis := self.cleaned_data['notisInnhold']):
+            queryset = queryset.filter(*map(lambda n: Q(notis__icontains=n), notis.split()))
+        
         queryset = queryset.order_by(*Medlem._meta.ordering)
         
         return queryset
@@ -154,6 +190,35 @@ class LoggFilterForm(KorFilterForm):
         return queryset
 
 
+class OppmøteFilterForm(KorFilterForm):
+    gyldig = forms.ChoiceField(required=False, choices=Oppmøte.GYLDIG_CHOICES)
+    hendelse = forms.ModelChoiceField(required=False, queryset=Hendelse.objects.all())
+    medlem = forms.ModelChoiceField(required=False, queryset=Medlem.objects.all())
+
+    def __init__(self, *args, request=None, **kwargs):
+        'Vi må fiks at dem ikkje får opp alle medlemmer og hendelser'
+        super().__init__(*args, **kwargs)
+
+        self.fields['hendelse'].queryset = request.user.medlem.redigerTilgangQueryset(Oppmøte, resModel=Hendelse).filterSemester()
+        self.fields['medlem'].queryset = Medlem.objects.filter(
+            oppmøter__hendelse__in=self.fields['hendelse'].queryset
+        )
+
+    def applyFilter(self, queryset):
+        queryset = super().applyFilter(queryset)
+
+        if gyldig := self.cleaned_data['gyldig']:
+            queryset = queryset.filter(gyldig=gyldig)
+
+        if hendelse := self.cleaned_data['hendelse']:
+            queryset = queryset.filter(hendelse=hendelse)
+
+        if medlem := self.cleaned_data['medlem']:
+            queryset = queryset.filter(medlem=medlem)
+
+        return queryset
+
+
 class BaseOptionForm(forms.Form):
     optionFormSubmitted = forms.BooleanField(widget=forms.HiddenInput(), initial=True)
     disableTilganger = forms.BooleanField(required=False, help_text=toolTip(
@@ -162,16 +227,22 @@ class BaseOptionForm(forms.Form):
         'Bare få opp/ha tilgang til aktive medlemmer.'))
     tversAvKor = forms.BooleanField(required=False, help_text=toolTip(
         'Dette skrur på tversAvKor tilgangen din, altså gjør at du kan sette relasjoner på tvers av kor.'))
-    adminTilganger = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + [(o, o) for o in ['Alle'] + consts.alleKorKortTittel], help_text=toolTip(
-        'Dette gir deg alle tilganger i det valgte koret, bare tilgjengelig for admin brukere.'))
+    adminTilganger = forms.MultipleChoiceField(required=False, choices=[(o, o) for o in consts.alleTilganger], 
+        help_text=toolTip('Dette sier hvilke tilganger du får i det valgte koret, bare tilgjengelig for admin brukere.'))
+    adminTilgangerKor = forms.MultipleChoiceField(required=False, choices=[(o, o) for o in consts.alleKorNavn], 
+        help_text=toolTip('Dette gir deg alle tilganger i det valgte koret, bare tilgjengelig for admin brukere.'))
 
 
-class OptionForm(BaseOptionForm):
-    'Pass meg kwarg "fields"'
-    def __init__(self, *args, **kwargs):
-        fields = kwargs.pop('fields')
-        super().__init__(*args, **kwargs)
-        self.fields = {k: v for k, v in self.fields.items() if k in fields}
+def subForm(baseForm, fields=None, exclude=None):
+    'Pass meg kwarg "fields" og eller "exclude"'
+    class SubForm(baseForm):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            if fields != None:
+                self.fields = {k: v for k, v in self.fields.items() if k in fields}
+            if exclude != None:
+                self.fields = {k: v for k, v in self.fields.items() if k not in exclude}
+    return SubForm
 
 
 def addOptionForm(request):
@@ -183,26 +254,29 @@ def addOptionForm(request):
 
     optionFormFields = ['optionFormSubmitted']
     if request.user.is_superuser:
-        optionFormFields.extend(['bareAktive', 'tversAvKor', 'adminTilganger'])
+        optionFormFields.extend(['disableTilganger', 'bareAktive', 'tversAvKor', 'adminTilgangerKor', 'adminTilganger'])
     
     # Den store majoritet av brukere har ikke tilgang til noe, derfor filtrere vi på det først. 
-    if faktiskeTilganger.exists():
+    elif faktiskeTilganger.exists():
+        optionFormFields.extend(['disableTilganger', 'bareAktive'])
         if faktiskeTilganger.filter(navn='tversAvKor').exists():
             optionFormFields.extend(['tversAvKor'])
-        optionFormFields.extend(['disableTilganger', 'bareAktive'])
 
     if len(optionFormFields) == 1:
         # Om du ikke har noen options, ikke legg til optionForm på request
         # (og følgelig ikke vis det til brukeren)
         return
     
-    request.optionForm = OptionForm(postIfPost(request, 'optionForm'), initial=request.user.medlem.innstillinger, fields=optionFormFields, prefix='optionForm')
+    OptionForm = subForm(BaseOptionForm, fields=optionFormFields)
+    
+    request.optionForm = OptionForm(postIfPost(request, 'optionForm'), initial=request.user.medlem.innstillinger, prefix='optionForm')
  
     # Vi bruke optionFormSubmitted for å sjekk om optionform va sendt. 
     # Trur ellers det er umulig å sjekke dette sida når booleanFields er false sendes 
     # de ikke i request.POST, som medfører at når andre forms sendes telles det i utgangspunktet 
     # som et gyldig optionForm med bare false verdier. 
     if request.optionForm.is_valid() and request.optionForm.cleaned_data['optionFormSubmitted'] == True:
+        del request.optionForm.cleaned_data['optionFormSubmitted']
         request.user.medlem.innstillinger = request.optionForm.cleaned_data
         request.user.medlem.save()
         return redirect(request.get_full_path())
