@@ -436,9 +436,7 @@ def fraværSide(request, side, underside=None):
     if side == 'søknader':
         oppmøteFilterForm = OppmøteFilterForm(request.GET, request=request)
 
-        request.queryset = Oppmøte.objects.exclude(
-            melding=''
-        )
+        request.queryset = request.user.medlem.sideTilgangQueryset(Oppmøte).distinct().exclude(melding='')
 
         request.queryset = oppmøteFilterForm.applyFilter(request.queryset)
 

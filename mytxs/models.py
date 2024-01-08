@@ -76,7 +76,7 @@ class Logg(models.Model):
     value = models.JSONField(null=False)
     'Se to_dict i mytxs/signals/logSignals.py'
 
-    strRep = models.CharField(null=False, max_length=100)
+    strRep = models.CharField(null=False, max_length=255)
     'String representasjon av objektet loggen anngår, altså resultatet av str(obj)'
 
     def getModel(self):
@@ -627,7 +627,7 @@ class Medlem(DbCacheModel):
         # fiks dette i framtiden om vi orke og ser behov for det. E gjør ikke det no. 
 
         # Dette gjør også at de eneste som kan styre med folk som ikke har kor er korlederne, som virke fair. 
-        if self.tilganger.filter(navn='tversAvKor').exists():
+        if self.tilganger.filter(navn='tversAvKor').exists() and model in [Medlem, Verv]:
             return model.objects.all()
         
         # For Logg sjekke vi bare om du har tilgang til modellen og koret loggen refererer til
@@ -1113,7 +1113,7 @@ class Hendelse(DbCacheModel):
     objects = HendelseQuerySet.as_manager()
 
     navn = models.CharField(max_length=60)
-    beskrivelse = models.CharField(blank=True, max_length=150)
+    beskrivelse = models.CharField(blank=True, max_length=255)
     sted = models.CharField(blank=True, max_length=50)
 
     kor = models.ForeignKey(
