@@ -577,7 +577,7 @@ def hendelse(request, hendelsePK):
 @harTilgang
 def lenker(request):
     request.queryset = Lenke.objects.distinct().filter(
-        Q(kor__in=request.user.medlem.aktiveKor.values_list('navn', flat=True)) | Q(kor__navn='Sangern'), 
+        Q(kor__in=request.user.medlem.aktiveKor) | Q(kor__navn='Sangern'), 
         synlig=True
     )
 
