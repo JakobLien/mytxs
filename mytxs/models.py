@@ -672,7 +672,7 @@ class Medlem(DbCacheModel):
             annotateInstance(self, MedlemQuerySet.annotateStorkor)
             annotateInstance(self, MedlemQuerySet.annotateKarantenekor, storkor=True)
             if self.storkor:
-                return f'{self.navn} {self.storkor} ' + 'K' + str(self.karantenekor).zfill(2)[-2:]
+                return f'{self.navn} {self.storkor} ' + 'K' + (str(self.karantenekor)[-2:] if self.karantenekor >= 2000 else str(self.karantenekor))
         return self.navn
     
     class Meta:
