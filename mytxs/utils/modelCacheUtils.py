@@ -86,13 +86,14 @@ def dbCache(actualMethod=None, affectedByFields=[], affectedByCache=[]):
             return value
         
         # Om ikke, sett den og return den
-        self.dbCacheField[actualMethod.__name__] = actualMethod(self)
         if self.pk:
             # Om dbCache calles via str av objektet i modellens save metode, før save calles videre oppover,
             # vil den neste kodelinjen lage et nytt objekt, og den faktiske saven vil faile med error
             # "django.db.utils.IntegrityError: duplicate key value violates unique constraint", 
             # hvilket ser veldig ut som et databaseproblem uten at det er det. Derfor "if self.pk:" over
-            DbCacheModel.save(self)
+            DbCacheModel.save(self, update_fields=['dbCacheField'])
+        else:
+            self.dbCacheField[actualMethod.__name__] = actualMethod(self)
         return self.dbCacheField[actualMethod.__name__]
     
     _decorator.dbCached = True

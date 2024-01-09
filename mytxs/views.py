@@ -929,7 +929,7 @@ For disse medlemmene hentet de ut: %s\n
         csv.append([*'hours,Navn,Adresse,Postnummer,Poststed,Epostadresse,Telefon,Kjønn,Fødselsår,Timer med lærer'.split(','), *[str(round(h.varighet/60, 2)).replace('.', ',') for h in hendelser]])
         
         for i, medlem in enumerate(medlemmer):
-            line = [i, medlem.navn, medlem.boAdresse, '', '', medlem.epost, medlem.tlf, 'K' if medlem.storkorNavn=='TKS' else 'M', medlem.fødselsdato.year if medlem.fødselsdato else '', '']
+            line = [i, medlem.navn, medlem.boAdresse, '', '', medlem.epost, medlem.tlf, 'K' if medlem.storkorNavn() == 'TKS' else 'M', medlem.fødselsdato.year if medlem.fødselsdato else '', '']
 
             # Må ta høyde for at permisjon kan medføre færre oppmøter enn hendelser
             oppmøteIndex=0
