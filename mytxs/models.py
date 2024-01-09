@@ -393,6 +393,7 @@ class Medlem(DbCacheModel):
 
     overførtData = models.BooleanField(default=False, editable=False)
 
+    @property
     @dbCache(affectedByFields=['vervInnehavelser'])
     def storkorNavn(self):
         annotateInstance(self, MedlemQuerySet.annotateStorkor)
@@ -455,7 +456,7 @@ class Medlem(DbCacheModel):
         # Sjekkheftet
         sjekkheftet = navBarNode(sider, 'sjekkheftet', isPage=False)
         if self.storkorNavn == 'TKS':
-            sjekkhefteRekkefølge = consts.bareKornavnTKSRekkefølge
+            sjekkhefteRekkefølge = consts.bareKorNavnTKSRekkefølge
         else:
             sjekkhefteRekkefølge = consts.bareKorNavn
         sjekkheftet.addChildren(*sjekkhefteRekkefølge[:2])

@@ -587,7 +587,7 @@ def lenker(request):
             'heading': 'Lenker',
         })
 
-    LenkerFormset = modelformset_factory(Lenke, exclude=[], can_delete=True, extra=1)
+    LenkerFormset = modelformset_factory(Lenke, exclude=[], can_delete=True, can_delete_extra=False, extra=1)
 
     lenkerFormset = LenkerFormset(postIfPost(request, 'lenker'), prefix='lenker', 
         queryset=Lenke.objects.filter(kor__tilganger__in=request.user.medlem.tilganger.filter(navn='lenke')))
