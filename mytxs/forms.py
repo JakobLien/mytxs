@@ -191,7 +191,7 @@ class LoggFilterForm(KorFilterForm):
 
 
 class OppmøteFilterForm(KorFilterForm):
-    gyldig = forms.ChoiceField(required=False, choices=Oppmøte.GYLDIG_CHOICES)
+    gyldig = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + list(map(lambda c: (str(c[0]), c[1]), Oppmøte.GYLDIG_CHOICES)))
     hendelse = forms.ModelChoiceField(required=False, queryset=Hendelse.objects.all())
     medlem = forms.ModelChoiceField(required=False, queryset=Medlem.objects.all())
 
@@ -208,7 +208,12 @@ class OppmøteFilterForm(KorFilterForm):
         queryset = super().applyFilter(queryset)
 
         if gyldig := self.cleaned_data['gyldig']:
-            queryset = queryset.filter(gyldig=gyldig)
+            if gyldig == 'True':
+                queryset = queryset.filter(gyldig=True)
+            elif gyldig == 'None':
+                queryset = queryset.filter(gyldig=None)
+            elif gyldig == 'False':
+                queryset = queryset.filter(gyldig=False)
 
         if hendelse := self.cleaned_data['hendelse']:
             queryset = queryset.filter(hendelse=hendelse)

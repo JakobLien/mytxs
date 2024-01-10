@@ -497,13 +497,13 @@ class Medlem(DbCacheModel):
 
         if self.tilganger.filter(navn__in=['tversAvKor', 'fravær']).exists():
             fravær = navBarNode(admin, 'fravær', isPage=False)
-            navBarNode(fravær, 'søknader')
+            navBarNode(fravær, 'søknader', defaultParameters='?gyldig=None')
             fraværOversikt = navBarNode(fravær, 'oversikt', isPage=False)
             if korMedFraværTilgang := Kor.objects.filter(tilganger__in=self.tilganger.filter(navn='fravær')).values_list('navn', flat=True):
                 fraværOversikt.addChildren(*korMedFraværTilgang)
 
         if self.tilganger.filter(navn__in=['tversAvKor', 'vervInnehavelse', 'verv', 'tilganger']).exists():
-            navBarNode(admin, 'verv', defaultParameters=f'?sistAktiv=1')
+            navBarNode(admin, 'verv', defaultParameters='?sistAktiv=1')
 
         if self.tilganger.filter(navn__in=['tversAvKor', 'dekorasjonInnehavelse', 'dekorasjon']).exists():
             navBarNode(admin, 'dekorasjon')
