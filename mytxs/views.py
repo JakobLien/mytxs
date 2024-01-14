@@ -739,11 +739,17 @@ def dekorasjon(request, kor, dekorasjonNavn):
 @harTilgang(querysetModel=Tilgang)
 def tilgangSide(request, side=None):
     if side == 'oversikt':
-        tilgangVerv = Verv.objects.filter(tilganger__kor__tilganger__in=request.user.medlem.tilganger.filter(navn='tilgang')).distinct()\
-        .prefetch_related('tilganger__kor', 
-            Prefetch('vervInnehavelser__medlem', queryset=Medlem.objects.filter(
-                vervInnehavelseAktiv(utvidetStart=datetime.timedelta(days=60)), 
-            ).annotate(påtroppende=~Q(vervInnehavelseAktiv())))
+        tilgangVerv = Verv.objects.filter(
+            tilganger__kor__tilganger__in=request.user.medlem.tilganger.filter(navn='tilgang'),
+            tilganger__bruktIKode=True
+        ).distinct().prefetch_related(
+            'kor',
+            Prefetch('tilganger', queryset=Tilgang.objects.filter(
+                bruktIKode=True
+            ).prefetch_related('kor')),
+            Prefetch('vervInnehavelser', queryset=VervInnehavelse.objects.filter(
+                vervInnehavelseAktiv('', utvidetStart=datetime.timedelta(days=60)),
+            ).prefetch_related('medlem'))
         )
 
         return render(request, 'mytxs/tilgangOversikt.html', {

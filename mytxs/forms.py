@@ -202,7 +202,7 @@ class OppmøteFilterForm(KorFilterForm):
         self.fields['hendelse'].queryset = request.user.medlem.redigerTilgangQueryset(Oppmøte, resModel=Hendelse).filterSemester()
         self.fields['medlem'].queryset = Medlem.objects.filter(
             oppmøter__hendelse__in=self.fields['hendelse'].queryset
-        )
+        ).distinct()
 
     def applyFilter(self, queryset):
         queryset = super().applyFilter(queryset)

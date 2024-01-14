@@ -296,11 +296,11 @@ class MedlemQuerySet(models.QuerySet):
 
         return self.filter(# Skaff aktive korister...
             vervInnehavelseAktiv(dato=dato),
-            stemmegruppeVerv('vervInnehavelser__verv'),
+            stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
             vervInnehavelser__verv__kor=kor
         ).exclude(# ...som ikke har permisjon
             pk__in=permiterte.values_list('pk', flat=True)
-        )
+        ).distinct() # distinct fordi dirigenten også kan syng i koret
     
     def prefetchVervDekorasjonKor(self):
         return self.prefetch_related('vervInnehavelser__verv__kor', 'dekorasjonInnehavelser__dekorasjon__kor')
@@ -1113,7 +1113,7 @@ class Hendelse(DbCacheModel):
     objects = HendelseQuerySet.as_manager()
 
     navn = models.CharField(max_length=60)
-    beskrivelse = models.CharField(blank=True, max_length=255)
+    beskrivelse = models.TextField(blank=True)
     sted = models.CharField(blank=True, max_length=50)
 
     kor = models.ForeignKey(

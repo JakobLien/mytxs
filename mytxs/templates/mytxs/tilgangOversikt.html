@@ -13,9 +13,9 @@
     </tr>
     {% for verv in tilgangVerv %}
     <tr class="border-b-[1px] border-black [&>*]:pr-4">
-        <td>{% for vervInnehavelse in verv.vervInnehavelser.all %}{{ vervInnehavelse.medlem|linkTo }}{% if vervInnehavelse.medlem.påtroppende %} (påtroppende) {% endif %}<br>{% endfor %}</td>
+        <td>{% for vervInnehavelse in verv.vervInnehavelser.all %}{{ vervInnehavelse.medlem|linkTo }}{% if not vervInnehavelse.aktiv %} (påtroppende) {% endif %}<br>{% endfor %}</td>
         <td>{{ verv|linkTo }}</td>
-        <td>{% for tilgang in verv.tilganger.all %}{{tilgang|linkTo}}<br>{% endfor %}</td>
+        <td>{% for tilgang in verv.tilganger.all %}{{ tilgang|linkTo }}<br>{% endfor %}</td>
     </tr>
     {% endfor %}
 </table>
