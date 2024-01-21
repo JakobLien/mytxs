@@ -1,4 +1,5 @@
 import datetime
+import json
 
 from django import forms
 from django.contrib import messages
@@ -25,7 +26,7 @@ from mytxs.utils.lazyDropdown import lazyDropdown
 from mytxs.utils.formUtils import filesIfPost, postIfPost, inlineFormsetArgs
 from mytxs.utils.hashUtils import addHash, testHash
 from mytxs.utils.logAuthorUtils import logAuthorAndSave, logAuthorInstance
-from mytxs.utils.modelUtils import randomDistinct, stemmegruppeOrdering, vervInnehavelseAktiv, stemmegruppeVerv
+from mytxs.utils.modelUtils import qBool, randomDistinct, stemmegruppeOrdering, vervInnehavelseAktiv, stemmegruppeVerv
 from mytxs.utils.pagination import getPaginatedInlineFormSet, addPaginatorPage
 from mytxs.utils.downloadUtils import downloadCSV, downloadFile, downloadVCard
 from mytxs.utils.viewUtils import harTilgang, redirectToInstance
@@ -148,6 +149,23 @@ def sjekkheftet(request, side, underside=None):
             'heading': 'Sjekkheftet',
             'filterForm': medlemFilterForm
         })
+    
+    if side == 'kart':
+        request.medlemMapData = json.dumps([{
+            'navn': medlem.navn,
+            'boAdresse': medlem.boAdresse if medlem.sjekkhefteSynligBoadresse != 0 else '',
+            'foreldreAdresse': medlem.foreldreAdresse if medlem.sjekkhefteSynligForeldreadresse != 0 else '',
+            'storkorNavn': medlem.storkorNavn(),
+            'pk': medlem.pk
+        } for medlem in Medlem.objects.filter(
+            vervInnehavelseAktiv(),
+            stemmegruppeVerv('vervInnehavelser__verv')
+        ).annotate(
+            sjekkhefteSynligBoadresse=F('sjekkhefteSynlig').bitand(2**4),
+            sjekkhefteSynligForeldreadresse=F('sjekkhefteSynlig').bitand(2**5)
+        ).exclude((Q(boAdresse='') | Q(sjekkhefteSynligBoadresse=0)) & (Q(foreldreAdresse='') & Q(sjekkhefteSynligForeldreadresse=0)))])
+
+        return render(request, 'mytxs/sjekkhefteKart.html')
 
     if side == 'sjekkhefTest':
         request.queryset = randomDistinct(
@@ -497,8 +515,9 @@ def hendelseListe(request):
 def hendelse(request, hendelsePK):
     if request.GET.get('fraværModus'):
         request.queryset = MedlemQuerySet.annotateStemmegruppe(
-            request.instance.oppmøter.exclude(
-                **({} if request.GET.get('medKommerIkke') else {'ankomst': Oppmøte.KOMMER_IKKE})
+            request.instance.oppmøter.filter(
+                qBool(True) if request.GET.get('medKommerIkke') else ~Q(ankomst=Oppmøte.KOMMER_IKKE),
+                qBool(True) if request.GET.get('medMøtt') else Q(fravær__isnull=True)
             ),
             kor=request.instance.kor,
             pkPath='medlem__pk'
@@ -516,7 +535,7 @@ def hendelse(request, hendelsePK):
             urlParams = request.GET.copy()
             urlParams.pop('medlem')
             # Target identifier, altså # i urler sendes ikkje til django, derfor må vi reverse engineer det her
-            return redirect(request.path + '?' + urlParams.urlencode() + '#' + oppmøte.stemmegruppe)
+            return redirect(request.path + '?' + urlParams.urlencode() + ('#' + oppmøte.stemmegruppe if oppmøte.stemmegruppe else ''))
         
         return render(request, 'mytxs/fraværModus.html')
 

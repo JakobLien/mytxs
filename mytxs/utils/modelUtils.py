@@ -105,7 +105,7 @@ def groupBy(queryset, prop):
     return groups
 
 
-def randomDistinct(queryset, n=1):
+def randomDistinct(queryset, n=1, random=random):
     '''
     Hjelpemetode for å skaffe en liste av tilfeldig sorterte subset av queryset argumentet. 
     Om n=1 (som er default), returne den objektet istedet for querysettet. 
@@ -296,13 +296,15 @@ def annotateInstance(instance, annotateFunction, *args, **kwargs):
     Annotater en instance gitt en annotateFunction, som kan være en Manager/QuerySet funksjon, eller
     en lambda funksjon. Må uansett være en funksjon som kjører på samme modellen og returne et annotated 
     queryset. *args og **kwargs e passed direkte videre til annotateFunction. 
-    '''
 
+    Om instansen ikkje finnes i databasen vil den annotate None istedet, slik at det e trygt å gjør oppslag 
+    på annotation navnet. 
+    '''
     annotatedQS = annotateFunction(type(instance).objects.filter(pk=instance.pk), *args, **kwargs)
     annotatedInstance = annotatedQS.first()
 
     for name in annotatedQS.query.annotations.keys():
-        setattr(instance, name, getattr(annotatedInstance, name))
+        setattr(instance, name, getattr(annotatedInstance, name, None))
 
 
 def refreshQueryset(queryset):

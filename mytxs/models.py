@@ -475,7 +475,7 @@ class Medlem(DbCacheModel):
             kor__navn__in=sjekkheftet.children.keys()
         ).values('navn', 'kor__navn'):
             navBarNode(sider['sjekkheftet', sjekkhefteSide['kor__navn']], sjekkhefteSide['navn'])
-        sjekkheftet.addChildren('søk', 'jubileum', 'sjekkhefTest')
+        sjekkheftet.addChildren('søk', 'kart', 'jubileum', 'sjekkhefTest')
 
         # Semesterplan
         navBarNode(sider, 'semesterplan', isPage=False)
@@ -657,8 +657,6 @@ class Medlem(DbCacheModel):
 
     @property
     def kor(self):
-        if not self.pk:
-            return None
         annotateInstance(self, MedlemQuerySet.annotateStorkor)
         return Kor.objects.get(navn=self.storkor) if self.storkor else None
     
@@ -1183,7 +1181,7 @@ class Hendelse(DbCacheModel):
         else:
             vevent += f'SUMMARY:{self.navn}\n'
 
-        vevent += f'DESCRIPTION:{self.beskrivelse}'
+        vevent += 'DESCRIPTION:'+self.beskrivelse.replace('\r\n', '\\n')
         if self.kategori != Hendelse.FRIVILLIG:
             if self.beskrivelse:
                 vevent += '\\n\\n'

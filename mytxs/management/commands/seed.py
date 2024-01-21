@@ -1,13 +1,12 @@
-from django.core.management.base import BaseCommand
+import datetime
+import random
 
+from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User
 
-from mytxs.models import Kor, Medlem, Tilgang, Verv, VervInnehavelse
 from mytxs import consts
-
-from mytxs.utils.modelUtils import randomDistinct, stemmegruppeVerv, strToModels
-
-import datetime
+from mytxs.models import *
+from mytxs.utils.modelUtils import randomDistinct, stemmegruppeVerv, strToModels, vervInnehavelseAktiv
 
 class Command(BaseCommand):
     help = 'seed database for testing and development.'
@@ -37,15 +36,15 @@ class Command(BaseCommand):
         )
 
         parser.add_argument(
-            '--korAdmin',
+            '--adminAdmin',
             action='store_true',
-            help='Create [storkor]-admin og [storkor]-user',
+            help='Create admin admin user',
         )
 
         parser.add_argument(
-            '--userAdmin',
+            '--testData',
             action='store_true',
-            help='Create user user and admin admin',
+            help='Create some testing data for development',
         )
 
     def handle(self, *args, **options):
@@ -61,15 +60,14 @@ class Command(BaseCommand):
             print('Seeding Data...')
             runSeed(self)
 
-        if options['userAdmin']:
-            print('userAdmin...')
-            userAdmin(self)
+        if options['adminAdmin']:
+            print('adminAdmin...')
+            adminAdmin(self)
 
-        if options['korAdmin']:
-            print('korAdmin...')
-            korAdmin(self)
+        if options['testData']:
+            print('testData...')
+            testData(self)
 
-        # run_seed(self)
 
 def clearData(self):
     'Deletes all data from Models that are not the Logg models'
@@ -77,92 +75,225 @@ def clearData(self):
         print(f'Deleting {model.__name__} instances')
         model.objects.all().delete()
 
+
 def clearLogs(self):
     'Delete all data from logg models'
     for model in strToModels(consts.loggModelNames):
         print(f'Deleting {model.__name__} instances')
         model.objects.all().delete()
 
-def userAdmin(self):
-    medlemmer = []
-    for navn in ['admin', 'user']:
-        user, created = User.objects.get_or_create(username=navn, defaults={'email':navn+'@example.com'})
-        if created:
-            user.set_password(navn)
-            user.save()
-        if user.username == 'admin' and not (user.is_superuser == True or user.is_staff == True):
-            user.is_superuser = True
-            user.is_staff = True
-            user.save()
 
-        medlem, created = Medlem.objects.get_or_create(user=user, defaults={
-            'fornavn': navn,
-            'etternavn': navn+'sen'
-        })
+def adminAdmin(self):
+    user, created = User.objects.get_or_create(username='admin', defaults={'email': 'admin@example.com'})
+    if created:
+        user.set_password('admin')
+        user.save()
+    user.is_superuser = True
+    user.is_staff = True
+    user.save()
 
-        medlemmer.append(medlem)
+    medlem, created = Medlem.objects.get_or_create(user=user, defaults={'fornavn': 'admin', 'etternavn': 'adminsen'})
 
-    if not medlemmer[0].storkor:
-        tssStemmegruppe= randomDistinct(Verv.objects.filter(stemmegruppeVerv(''), kor__navn='TSS'))
-        VervInnehavelse.objects.create(
-            verv=tssStemmegruppe,
-            medlem=medlemmer[0],
+    if created:
+        medlem.innstillinger = {
+            'adminTilganger': consts.alleTilganger,
+            'adminTilgangerKor': ['TSS', 'Knauskoret']
+        }
+        medlem.save()
+
+        medlem.vervInnehavelser.create(
+            verv=randomDistinct(Verv.objects.filter(stemmegruppeVerv('', includeUkjentStemmegruppe=False), kor__navn='TSS')),
             start=datetime.date.today()
         )
 
-    if not medlemmer[1].storkor:
-        tksStemmegruppe = randomDistinct(Verv.objects.filter(stemmegruppeVerv(''), kor__navn='TKS'))
-        VervInnehavelse.objects.create(
-            verv=tksStemmegruppe,
-            medlem=medlemmer[1],
+        medlem.vervInnehavelser.create(
+            verv=randomDistinct(Verv.objects.filter(stemmegruppeVerv('', includeUkjentStemmegruppe=False), kor__navn='Knauskoret')),
             start=datetime.date.today()
         )
 
-def korAdmin(self):
-    'Opprett medlemmer for alle korlederne, med ish realistiske stemmegruppeverv'
 
-    korledere = ['Frode', 'Ingeborg', 'Sivert', 'Anine', 'Hedda', 'Adrian']
-    storkor = ['TSS', 'TKS', 'TSS', 'TKS', 'TKS', 'TSS']
-    korlederVerv = ['Formann', 'Leder', 'Pirumsjef', 'Knausleder', 'Toppcandisse', 'Barsjef']
+def testData(self):
+    'Opprett masse medlemmer, korledere, dirigenter og hendelser'
+    random.seed('SeedMedlemsRegister!')
 
-    for i in range(len(consts.alleKorNavn)):
-        kor = Kor.objects.get(navn=consts.alleKorNavn[i])
+    guttenavn, jentenavn, etternavn = [], [], []
+    with open('mytxs/management/commands/seedNames.csv', 'r') as f:
+        while line := f.readline():
+            line=line[:-1].split(',')
+            guttenavn.append(line[0])
+            jentenavn.append(line[1])
+            etternavn.append(line[2])
+
+    def makeMedlem(kor=None, start=None, slutt=None, stemmegruppe=None):
+        medlem = Medlem.objects.create(
+            fornavn=random.choice(guttenavn) if getattr(kor, 'navn', '') == 'TSS' else random.choice(jentenavn) if getattr(kor, 'navn', '') == 'TKS' else random.choice([*guttenavn, *jentenavn]),
+            mellomnavn='Test',
+            etternavn=random.choice(etternavn)
+        )
+        if kor:
+            medlem.vervInnehavelser.get_or_create(
+                start=start,
+                slutt=slutt,
+                verv=stemmegruppe
+            )
         
-        # Opprett medlememr for hver av de
-        korleder, created = Medlem.objects.get_or_create(fornavn=korledere[i], defaults={
-            'etternavn': korledere[i]+'sen'
-        })
+        return medlem
+    
+    totalNumber = 500
+    startYear = 2010
+    korlederVervNavn = ['Formann', 'Leder', 'Pirumsjef', 'Knausleder', 'Toppcandisse', 'Barsjef'] # Rekkefølgen tilsvarer consts.alleKorNavn
+    øvingsdag = [1, 1, 3, 2, 0] # Rekkefølgen tilsvarer consts.alleKorNavn
 
-        # Opprett admin vervet
-        adminVerv, created = Verv.objects.get_or_create(
-            navn=korlederVerv[i],
-            kor=kor
+    # Lag stor og småkorista, og gi dem testVerv og testDekorasjona
+    for i in range(totalNumber):
+        kor = Kor.objects.get(navn='TSS' if i <= totalNumber / 2 else 'TKS')
+        
+        start = datetime.date.fromisoformat(str(random.randrange((startYear), datetime.date.today().year+1)) + '-09-01')
+        medlem = makeMedlem(
+            kor=kor, 
+            start=start,
+            slutt=start + datetime.timedelta(weeks=random.randrange(52/4, 52*4)),
+            stemmegruppe=Verv.objects.get(navn=random.choice(kor.stemmegrupper(lengde=2 + random.getrandbits(1))), kor=kor)
         )
-        adminVerv.tilganger.add(*Tilgang.objects.filter(kor=kor))
 
-        # Gi korleder adminVervet
-        adminVervInnehavelse, created = VervInnehavelse.objects.get_or_create(
-            medlem=korleder,
-            verv=adminVerv,
-            defaults={'start': datetime.date.today()}
-        )
+        # Gi noen av de stemmmegrupper i småkor
+        if (småkorTall := random.randrange(8)) < 3:
+            if småkorTall < 2:
+                småkor = Kor.objects.get(navn='Pirum' if kor.navn=='TSS' else 'Candiss')
+            else:
+                småkor = Kor.objects.get(navn='Knauskoret')
 
-        # Gi korleder stemmegruppeverv i koret sitt, om koret har stemmegruppeverv, og de mangle stemmegruppeverv fra det koret
-        if Verv.objects.filter(stemmegruppeVerv(''), kor=kor).exists():
-            if not VervInnehavelse.objects.filter(stemmegruppeVerv(), medlem=korleder, verv__kor=kor).exists():
-                stemmegruppeVervInnehavelse, created = VervInnehavelse.objects.get_or_create(
-                    medlem=korleder,
-                    start=datetime.date.today(),
-                    verv=randomDistinct(Verv.objects.filter(stemmegruppeVerv(''), kor=kor))
+            # Dette kan generere folk som e aktiv i småkor lenger enn dem e aktiv i storkor, som ikkje virke krise for koden sin del
+            stemmegruppe = Verv.objects.get(navn=random.choice(kor.stemmegrupper(lengde=2)), kor=småkor)
+            medlem.vervInnehavelser.get_or_create(
+                start=datetime.date.fromisoformat(str(start.year+1)+'-01-01'),
+                slutt=datetime.date.fromisoformat(str(start.year+3)+'-01-01'),
+                verv=stemmegruppe
+            )
+        else:
+            # Om ikke småkor, gi noen av de permisjon andre året sitt, dersom de er aktive heile andre året
+            stemmegruppe = medlem.vervInnehavelser.first()
+            if random.getrandbits(1) == 1 and stemmegruppe.slutt > datetime.date.fromisoformat(f'{start.year+1}-12-31'):
+                medlem.vervInnehavelser.get_or_create(
+                    start=datetime.date.fromisoformat(f'{start.year+1}-01-01'),
+                    slutt=datetime.date.fromisoformat(f'{start.year+1}-12-31'),
+                    verv=Verv.objects.get(navn='Permisjon', kor=kor)
                 )
 
-        # Gi korleder stemmegruppeverv i storkoret sitt, om dem ikkje har det allerede
-        if not VervInnehavelse.objects.filter(stemmegruppeVerv(), medlem=korleder, verv__kor=Kor.objects.get(navn=storkor[i])).exists():
-            stemmegruppeVervInnehavelse, created = VervInnehavelse.objects.get_or_create(
-                medlem=korleder,
-                verv=randomDistinct(Verv.objects.filter(stemmegruppeVerv(''), kor=Kor.objects.get(navn=storkor[i]))),
-                defaults={'start': datetime.date.today()}
+        # Gi noen av de testVerv
+        if (testVervTall := random.randrange(8)) < 3:
+            testVerv, created = Verv.objects.get_or_create(navn=f'testVerv_{testVervTall}', kor=kor)
+            medlem.vervInnehavelser.get_or_create(
+                start=datetime.date.fromisoformat(str(start.year+1)+'-01-01'),
+                slutt=datetime.date.fromisoformat(str(start.year+2)+'-12-31'),
+                verv=testVerv
             )
+        
+        # Gi noen få av de testDekorasjoner
+        if (testDekorasjonTall := random.randrange(20)) < 3:
+            testDekorasjon, created = Dekorasjon.objects.get_or_create(navn=f'testDekorasjon_{testDekorasjonTall}', kor=kor)
+            medlem.dekorasjonInnehavelser.get_or_create(
+                start=datetime.date.fromisoformat(str(start.year+random.randrange(1, 4))+'-01-01'),
+                dekorasjon=testDekorasjon
+            )
+
+    # Lag korledera og dirigenta
+    for i in range(6):
+        kor = Kor.objects.get(navn=consts.alleKorNavn[i])
+        for year in range(startYear, datetime.date.today().year+1):
+            korleder = randomDistinct(Medlem.objects.filter(
+                vervInnehavelseAktiv(dato=datetime.date.fromisoformat(f'{year}-01-01')),
+                stemmegruppeVerv('vervInnehavelser__verv'),
+                vervInnehavelser__verv__kor=kor
+            ).exclude(
+                vervInnehavelser__verv__navn__in=korlederVervNavn + ['Dirigent']
+            ), random=random)
+
+            if not korleder:
+                # Om det e ingen i koret, skip dette året
+                continue
+        
+            korlederVerv, created = Verv.objects.get_or_create(navn=korlederVervNavn[i], kor=kor)
+            korleder.vervInnehavelser.get_or_create(
+                start=datetime.date.fromisoformat(f'{year}-01-01'),
+                slutt=datetime.date.fromisoformat(f'{year}-12-31'),
+                verv=korlederVerv
+            )
+
+            if kor.navn == 'Sangern':
+                # Sangern har ikke dirigenter
+                continue
+
+            dirigent = None
+            dirigentVerv = Verv.objects.get(navn='Dirigent', kor=kor)
+
+            lastDirigent = Medlem.objects.filter(
+                vervInnehavelser__slutt=datetime.date.fromisoformat(f'{year-1}-12-31'),
+                vervInnehavelser__verv=dirigentVerv
+            ).first()
+
+            if lastDirigent and random.getrandbits(1) == 1:
+                # Om fjorårets dirigent fortsette
+                dirigentVervInnehavelse = lastDirigent.vervInnehavelser.filter(
+                    slutt=datetime.date.fromisoformat(f'{year-1}-12-31'),
+                    verv=dirigentVerv
+                ).first()
+
+                dirigentVervInnehavelse.slutt = dirigentVervInnehavelse.slutt.replace(year=year)
+                dirigentVervInnehavelse.save()
+
+                continue
+        
+            if random.getrandbits(1) == 1:
+                # Gammel korist
+                dirigent = randomDistinct(Medlem.objects.filter(
+                    vervInnehavelseAktiv(dato=datetime.date.fromisoformat(f'{year-5}-01-01')),
+                    stemmegruppeVerv('vervInnehavelser__verv')
+                ).exclude(
+                    vervInnehavelser__verv__navn__in=korlederVervNavn + ['Dirigent']
+                ), random=random)
+
+            if not dirigent and kor.navn in consts.bareSmåkorNavn:
+                # Aktiv storkorist e ofte dirigent for småkor
+                dirigent = randomDistinct(Medlem.objects.filter(
+                    vervInnehavelseAktiv(dato=datetime.date.fromisoformat(f'{year}-01-01')),
+                    stemmegruppeVerv('vervInnehavelser__verv'),
+                    vervInnehavelser__verv__kor__navn__in=consts.bareStorkorNavn
+                ).exclude(
+                    vervInnehavelseAktiv(dato=datetime.date.fromisoformat(f'{year}-01-01')),
+                    stemmegruppeVerv('vervInnehavelser__verv'),
+                    vervInnehavelser__verv__kor__navn__in=consts.bareSmåkorNavn
+                ).exclude(
+                    vervInnehavelser__verv__navn__in=korlederVervNavn + ['Dirigent']
+                ), random=random)
+
+            if not dirigent:
+                # Ekstern dirigent
+                dirigent = makeMedlem()
+
+            dirigent.vervInnehavelser.get_or_create(
+                start=datetime.date.fromisoformat(f'{year}-01-01'),
+                slutt=datetime.date.fromisoformat(f'{year}-12-31'),
+                verv=dirigentVerv
+            )
+    
+    # Lag dem neste 3 øvelsan for alle koran
+    for i in range(5):
+        kor = Kor.objects.get(navn=consts.alleKorNavn[i])
+        nesteØvelseDate = datetime.date.today() + datetime.timedelta(days=(øvingsdag[i] - datetime.date.today().weekday()) % 7)
+
+        for i in range(3):
+            Hendelse.objects.get_or_create(
+                navn=f'{kor.navn} øvelse {i+1}',
+                kor=kor,
+                startDate=nesteØvelseDate,
+                startTime=datetime.time.fromisoformat('18:30:00'),
+                sluttDate=nesteØvelseDate,
+                sluttTime=datetime.time.fromisoformat('21:30:00'),
+            )
+
+            nesteØvelseDate += datetime.timedelta(weeks=1)
+
 
 def runSeed(self):
     'Seed database based on mode'

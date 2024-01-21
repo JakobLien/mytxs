@@ -40,7 +40,7 @@
         <li class="text-2xl">{{ medlem.navn }}
             {% if user.medlem|tilgangExists:'medlemsdata' %} <a class="text-sm" href="{% url 'medlem' medlem.pk %}">Rediger</a> {% endif %}
         </li>
-        {% if request.resolver_match.kwargs.side == 'Pirum' or request.resolver_match.kwargs.side == 'Knauskoret' or request.resolver_match.kwargs.side == 'Candiss' %}
+        {% if request.resolver_match.kwargs.side in consts.bareSmåkorNavn %}
         <li>Tatt opp: {{ medlem.karantenekor }}</li>
         {% else %}
         <li>Karantenekor: {{ medlem.karantenekor }}</li>
@@ -55,13 +55,13 @@
         <li>Telefon: <a href="tel:{{ medlem.tlf|cut:' ' }}">{{ medlem.tlf }}</a></li>
         {% endif %}
         {% if medlem.sjekkhefteSynlig|bitIs1:3 %}
-        <li>Studie eller jobb: {{medlem.studieEllerJobb}}</li>
+        <li>Studie eller jobb: {{ medlem.studieEllerJobb }}</li>
         {% endif %}
         {% if medlem.sjekkhefteSynlig|bitIs1:4 %}
-        <li>Bostedsadresse: {{medlem.boAdresse}}</li>
+        <li>Bostedsadresse: <a href="https://maps.google.com/?q={{ medlem.boAdresse }}">{{ medlem.boAdresse }}</a></li>
         {% endif %}
         {% if medlem.sjekkhefteSynlig|bitIs1:5 %}
-        <li>Foreldreadresse: {{medlem.foreldreAdresse}}</li>
+        <li>Foreldreadresse: <a href="https://maps.google.com/?q={{ medlem.foreldreAdresse }}">{{ medlem.foreldreAdresse }}</a></li>
         {% endif %}
 
         {% ifAll %}<li>Verv: {% ifAll %}
@@ -80,7 +80,7 @@
         {% endfor %}
         {% ifAll %}</li>{% endIfAll %}
 
-        {% if request.resolver_match.kwargs.side == 'TSS' or request.resolver_match.kwargs.side == 'TKS'%}
+        {% if request.resolver_match.kwargs.side not in consts.bareSmåkorNavn %}
         {% ifAll %}<li>Småkor: {% ifAll %}
         {% for vervInnehavelse in medlem.vervInnehavelser.all %}
         {% if vervInnehavelse.aktiv and vervInnehavelse.verv.stemmegruppeVerv and vervInnehavelse.verv.kor.navn in consts.bareSmåkorNavn %}

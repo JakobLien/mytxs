@@ -46,7 +46,7 @@
         {% with oppmøte=hendelse.oppmøter|filterMedlemFirst:medlem %}{% if oppmøte %}
         {% ifAll %}<td>
             <a href="{{oppmøte.get_absolute_url}}">{% ifAll %}
-                {% if oppmøte.minutterBorte and hendelse.start|past %}
+                {% if oppmøte.hendelse.kategori == 'O' and oppmøte.minutterBorte and hendelse.start|past %}
                     {{ oppmøte.minutterBorte }} min {% if not oppmøte.gyldig %}u{% endif %}gyldig fravær
                 {% elif not hendelse.start|past %}
                     {% if hendelse.kategori == 'O' and oppmøte.ankomst == 1 %}

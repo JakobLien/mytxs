@@ -11,7 +11,11 @@
 
 {% for oppmøte in request.queryset %}
 {% ifchanged oppmøte.stemmegruppe %}
+{% if oppmøte.stemmegruppe %}
 <h2 class="text-2xl max-w-sm target:backdrop-brightness-100" id="{{ oppmøte.stemmegruppe }}">{{ oppmøte.stemmegruppe }}</h2>
+{% else %}
+<h2 class="text-2xl max-w-sm target:backdrop-brightness-100">Dirigent</h2>
+{% endif %}
 {% endifchanged %}
 
 {% if oppmøte.fravær == None %}
