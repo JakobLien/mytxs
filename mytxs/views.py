@@ -157,7 +157,7 @@ def sjekkheftet(request, side, underside=None):
             'foreldreAdresse': medlem.foreldreAdresse if medlem.sjekkhefteSynligForeldreadresse != 0 else '',
             'storkorNavn': medlem.storkorNavn(),
             'pk': medlem.pk
-        } for medlem in Medlem.objects.filter(
+        } for medlem in Medlem.objects.distinct().filter(
             vervInnehavelseAktiv(),
             stemmegruppeVerv('vervInnehavelser__verv')
         ).annotate(
