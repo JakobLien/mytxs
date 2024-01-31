@@ -428,7 +428,7 @@ def egenFøring(request, hendelsePK):
         return redirect('semesterplan', kor=hendelse.kor.navn)
 
     if request.instance.fravær:
-        messages.info(request, f'Fravær allerede ført med {request.instance.fravær} minutter forsentkomming!')
+        messages.info(request, f'Oppmøte allerede ført med {request.instance.fravær} minutter forsentkomming!')
         return redirect('semesterplan', kor=hendelse.kor.navn)
 
     request.instance.fravær = int(max(
@@ -439,7 +439,7 @@ def egenFøring(request, hendelsePK):
     request.instance.save() # Ikke fjern meg!
     logAuthorInstance(request.instance, request.user.medlem)
 
-    messages.info(request, f'Fravær ført med {request.instance.fravær} minutter forsentkomming!')
+    messages.info(request, f'Oppmøte ført med {request.instance.fravær} minutter forsentkomming!')
     
     return redirect('semesterplan', kor=hendelse.kor.navn)
 
@@ -448,7 +448,7 @@ def egenFøring(request, hendelsePK):
 def fraværSide(request, side, underside=None):
     if side == 'oversikt':
         request.queryset = Medlem.objects.filterIkkePermitert(kor=Kor.objects.get(navn=underside))\
-            .annotateFravær(kor=underside).order_by(*Medlem._meta.ordering)
+            .annotateFravær(kor=underside, heleSemesteret=bool(request.GET.get('heleSemesteret'))).order_by(*Medlem._meta.ordering)
         return render(request, 'mytxs/fraværListe.html')
     
     if side == 'søknader':
@@ -457,6 +457,8 @@ def fraværSide(request, side, underside=None):
         request.queryset = request.user.medlem.sideTilgangQueryset(Oppmøte).distinct().exclude(melding='')
 
         request.queryset = oppmøteFilterForm.applyFilter(request.queryset)
+
+        addPaginatorPage(request)
 
         return render(request, 'mytxs/instanceListe.html', {
             'filterForm': oppmøteFilterForm
@@ -524,13 +526,15 @@ def hendelse(request, hendelsePK):
         ).select_related('medlem').order_by(stemmegruppeOrdering(fieldName='stemmegruppe'), 'medlem')
 
         if medlemPK := request.GET.get('medlem'):
-            oppmøte = request.queryset.filter(medlem__pk=medlemPK).first()
-            if oppmøte.fravær == None:
+            oppmøte = request.instance.oppmøter.filter(medlem__pk=medlemPK).first()
+            if not oppmøte:
+                messages.error(request, f'Medlem {medlemPK} har ikke et oppmøte for denne hendelsen')
+            elif oppmøte.fravær == None:
                 oppmøte.fravær = int(max((min(request.instance.slutt, datetime.datetime.now()) - request.instance.start).total_seconds() / 60, 0))
                 oppmøte.save()
                 logAuthorInstance(oppmøte, request.user.medlem)
             else:
-                messages.info(request, f'Fravær allerede ført med {oppmøte.fravær} minutter forsentkomming!')
+                messages.info(request, f'Oppmøte allerede ført med {oppmøte.fravær} minutter forsentkomming!')
             
             urlParams = request.GET.copy()
             urlParams.pop('medlem')

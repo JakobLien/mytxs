@@ -6,6 +6,7 @@ from urllib.parse import unquote
 from django import forms
 from django.apps import apps
 from django.conf import settings as djangoSettings
+from django.core import mail
 from django.db import models
 from django.db.models import Value as V, Q, Case, When, Min, Max, Sum, ExpressionWrapper, F, OuterRef, Subquery
 from django.db.models.functions import Concat, ExtractMinute, ExtractHour, Right
@@ -270,14 +271,14 @@ class MedlemQuerySet(models.QuerySet):
             )
         )
 
-    def annotateStemmegruppe(self, kor, includeUkjent=False, understemmegruppe=False, pkPath='pk'):
+    def annotateStemmegruppe(self, kor=None, includeUkjent=False, understemmegruppe=False, pkPath='pk'):
         'Annotate navnet på stemmegruppen medlemmet har i koret'
         return self.annotate(
             stemmegruppe=Right(Subquery(
                 VervInnehavelse.objects.filter(
                     vervInnehavelseAktiv(''),
                     stemmegruppeVerv(includeUkjentStemmegruppe=includeUkjent),
-                    korLookup(kor, 'verv__kor'),
+                    korLookup(kor, 'verv__kor') if kor else qBool(True),
                     medlem=OuterRef(pkPath)
                 ).values('verv__navn')[:1]
             ), 3 if understemmegruppe else 2)
@@ -305,7 +306,7 @@ class MedlemQuerySet(models.QuerySet):
     def prefetchVervDekorasjonKor(self):
         return self.prefetch_related('vervInnehavelser__verv__kor', 'dekorasjonInnehavelser__dekorasjon__kor')
     
-    def annotateFravær(self, kor):
+    def annotateFravær(self, kor, heleSemesteret=False):
         'Annotater gyldigFravær, ugyldigFravær og hendelseVarighet'
         def getDateTime(fieldName):
             'Kombinere og returne separate Date og Time felt til ett DateTime felt'
@@ -326,16 +327,17 @@ class MedlemQuerySet(models.QuerySet):
             Q(oppmøter__hendelse__startDate__month__gte=7) if today.month >= 7 else Q(oppmøter__hendelse__startDate__month__lt=7),
             korLookup(kor, 'oppmøter__hendelse__kor'),
             oppmøter__hendelse__startDate__year=today.year,
-            oppmøter__hendelse__kategori=Hendelse.OBLIG,
-            oppmøter__hendelse__startDate__lt=datetime.date.today()
+            oppmøter__hendelse__kategori=Hendelse.OBLIG
         )
 
+        filterQWithPast = Q(filterQ, oppmøter__hendelse__startDate__lt=datetime.date.today())
+
         return self.annotate(
-            gyldigFravær = Sum('oppmøter__fravær', default=0, filter=Q(filterQ, oppmøter__gyldig=Oppmøte.GYLDIG)) + 
-                Sum(hendelseVarighet, default=0, filter=Q(filterQ, oppmøter__gyldig=Oppmøte.GYLDIG, oppmøter__fravær=None)),
-            ugyldigFravær = Sum('oppmøter__fravær', default=0, filter=Q(filterQ, ~Q(oppmøter__gyldig=Oppmøte.GYLDIG))) + 
-                Sum(hendelseVarighet, default=0, filter=Q(filterQ, ~Q(oppmøter__gyldig=Oppmøte.GYLDIG),oppmøter__fravær=None)),
-            hendelseVarighet = Sum(hendelseVarighet, default=0,filter=filterQ)
+            gyldigFravær = Sum('oppmøter__fravær', default=0, filter=Q(filterQWithPast, oppmøter__gyldig=Oppmøte.GYLDIG)) + 
+                Sum(hendelseVarighet, default=0, filter=Q(filterQWithPast, oppmøter__gyldig=Oppmøte.GYLDIG, oppmøter__fravær=None)),
+            ugyldigFravær = Sum('oppmøter__fravær', default=0, filter=Q(filterQWithPast, ~Q(oppmøter__gyldig=Oppmøte.GYLDIG))) + 
+                Sum(hendelseVarighet, default=0, filter=Q(filterQWithPast, ~Q(oppmøter__gyldig=Oppmøte.GYLDIG),oppmøter__fravær=None)),
+            hendelseVarighet = Sum(hendelseVarighet, default=0, filter=filterQ if heleSemesteret else filterQWithPast)
         )
 
 
@@ -434,7 +436,7 @@ class Medlem(DbCacheModel):
         
         if not self.innstillinger.get('tversAvKor', False):
             tilganger = tilganger.exclude(navn='tversAvKor')
-        return cacheQS(tilganger)
+        return cacheQS(tilganger.select_related('kor'), props=['navn', 'kor', 'kor__navn'])
     
     @cached_property
     def navBar(self):
@@ -1434,9 +1436,20 @@ class Oppmøte(DbCacheModel):
 
         oldSelf = Oppmøte.objects.filter(pk=self.pk).first()
 
-        # Dersom melding har endret seg, og gyldig er Ugyldig, endre gyldig til Ikke behandlet.
-        if oldSelf and self.gyldig == Oppmøte.UGYLDIG and oldSelf.melding != self.melding:
-            self.gyldig = Oppmøte.IKKE_BEHANDLET
+        if oldSelf:
+            # Dersom melding har endret seg, og gyldig er UGYLDIG, endre gyldig til IKKE_BEHANDLET.
+            if self.gyldig == Oppmøte.UGYLDIG and oldSelf.melding != self.melding:
+                self.gyldig = Oppmøte.IKKE_BEHANDLET
+
+            # Dersom de har en epost, og en gyldig endres til GYLDIG eller UGYLDIG, skyt de en epost
+            if self.medlem.epost and self.hendelse.kategori == Hendelse.OBLIG and self.gyldig != Oppmøte.IKKE_BEHANDLET and self.gyldig != oldSelf.gyldig:
+                print(f'Fraværssøknad besvart for {self.hendelse}')
+                mail.send_mail(
+                    subject=f'Fraværssøknad besvart for {self.hendelse}',
+                    message=f'Markert som: {"Gyldig" if self.gyldig else "Ugyldig"} fravær\nLenke: {"http://" + mytxsSettings.ALLOWED_HOSTS[0] + self.get_absolute_url()}\nMelding:\n{self.melding}',
+                    from_email=None,
+                    recipient_list=[self.medlem.epost]
+                )
         
         super().save(*args, **kwargs)
 

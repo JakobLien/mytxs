@@ -137,10 +137,8 @@ def cacheQS(qs, props=['navn']):
     men kan også brukes til andre ting ved å endre props argumentet. En fremtidig utvikling er å utvide til å også 
     håndtere exclude, men da igjen er det mye vanligere å bruke filter exists enn exclude exists. 
 
-    Tror forresten det funke å cacheQS funke på related no, men det brukes ingen steder, 
-    så om det sku endre seg kan man endre slutten av medlem.tilganger følgende:
+    For å bruk cacheQS på relaterte fields, se eksempelet på medlem.tilganger:
     `return cacheQS(tilganger.select_related('kor'), props=['navn', 'kor', 'kor__navn'])`
-    Da kunne man skrevet `medlem.tilganger.filter(kor__navn='TSS')` uten ekstra query:)
     '''
     # Populate queryset cachen om den ikkje alt e populated
     qs._fetch_all()

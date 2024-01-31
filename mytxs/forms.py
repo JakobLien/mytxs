@@ -6,7 +6,7 @@ from django.shortcuts import redirect
 
 from mytxs import consts
 from mytxs.fields import MyDateFormField
-from mytxs.models import Hendelse, Kor, Medlem, Verv, Oppmøte
+from mytxs.models import Hendelse, Kor, Medlem, MedlemQuerySet, Verv, Oppmøte
 from mytxs.utils.formUtils import postIfPost, toolTip
 from mytxs.utils.modelUtils import getPathToKor, korLookup, qBool, refreshQueryset, stemmegruppeVerv, vervInnehavelseAktiv
 
@@ -194,6 +194,7 @@ class OppmøteFilterForm(KorFilterForm):
     gyldig = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + list(map(lambda c: (str(c[0]), c[1]), Oppmøte.GYLDIG_CHOICES)))
     hendelse = forms.ModelChoiceField(required=False, queryset=Hendelse.objects.all())
     medlem = forms.ModelChoiceField(required=False, queryset=Medlem.objects.all())
+    stemmegruppe = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + [(i, i) for i in ['Dirigent', 'ukjentStemmegruppe', *consts.hovedStemmegrupper]])
 
     def __init__(self, *args, request=None, **kwargs):
         'Vi må fiks at dem ikkje får opp alle medlemmer og hendelser'
@@ -220,6 +221,16 @@ class OppmøteFilterForm(KorFilterForm):
 
         if medlem := self.cleaned_data['medlem']:
             queryset = queryset.filter(medlem=medlem)
+
+        if sg := self.cleaned_data['stemmegruppe']:
+            queryset = MedlemQuerySet.annotateStemmegruppe(
+                queryset,
+                kor=self.cleaned_data['kor'],
+                includeUkjent=True,
+                pkPath='medlem__pk'
+            )
+
+            queryset = queryset.filter(stemmegruppe=sg)
 
         return queryset
 

@@ -60,12 +60,16 @@ for(const select of document.querySelectorAll('select')){
                 if(select.disabled || selectOption.disabled){
                     return;
                 }
-                if(!select.hasAttribute('multiple')){
-                    [...div.childNodes].map(divOpt => divOpt.classList.remove('bg-gray-300'));  
-                }
+
                 selectOption.selected = !selectOption.selected;
-                divOption.classList.toggle('bg-gray-300');
                 select.onchange ? select.onchange() : null;
+                
+                if(select.hasAttribute('multiple')){
+                    divOption.classList.toggle('bg-gray-300');
+                }else{
+                    // Ved click på non-multiselect, lukk menyen
+                    input.blur();
+                }
             }
 
             divOption.innerText = selectOption.text

@@ -33,6 +33,7 @@ ALLOWED_HOSTS = ['mytxs.samfundet.no', '127.0.0.1']
 
 # Email admins on error when DEBUG is False
 SERVER_EMAIL = 'mytxsServer@samfundet.no'
+DEFAULT_FROM_EMAIL = 'mytxs@samfundet.no'
 ADMINS = [('MyTXS admin', 'mytxs@samfundet.no')]
 
 if DEBUG:
