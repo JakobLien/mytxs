@@ -11,7 +11,7 @@
 {% block betweenForms %}
 
 {% if request.egenFøringLink %}
-    <a href="{{ request.egenFøringLink }}"><img src="{{ request.egenFøringLink }}"></img></a>
+    <a href="{{ request.egenFøringLink }}" target="_blank"><img src="{{ request.egenFøringLink }}"></img></a>
 {% endif %}
 
 {% toggleURLparam 'alleOppmøter' 'vis alle oppmøter' %}
@@ -21,13 +21,23 @@
 
 {% block afterForms %}
 
-<h2 class="text-xl mt-4">Stemmefordeling</h2>
-
-<ul class="flex flex-col">
+<br>
+<table>
+    <tr class="border-b border-black">
+        <th class="pr-2">Stemmefordeling</th>
+        <th class="pr-2">Kommer</th>
+        <th class="pr-2">Kanskje</th>
+        <th class="pr-2">Ikke</th>
+    </tr>
     {% for stemmegruppe, antall in request.instance.getStemmeFordeling.items %}
-    <li>{{stemmegruppe}}: {{antall}}</li>
+    <tr class="border-b border-black">
+        <td>{{ stemmegruppe }}</td>
+        <td>{{ antall.0 }}</td>
+        <td>{{ antall.1 }}</td>
+        <td>{{ antall.2 }}</td>
+    </tr>
     {% endfor %}
-</ul>
+</table>
 
 {% if request.eksportLenke %}
 <a href="{{ request.eksportLenke }}">Eksporter data for de som kommer</a>

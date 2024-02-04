@@ -5,14 +5,14 @@
 {% toggleURLparam 'heleSemesteret' 'for hele semesteret' %}
 
 <table class="text-left">
-    <tr class="[&>*]:w-52 border-b-[1px] border-black">
+    <tr class="[&>*]:w-52 border-b border-black">
         <th>Hvem</th>
         <th>Gyldig fravær</th>
         <th>Ugyldig fravær</th>
         <th>Semesterplan</th>
     </tr>
     {% for medlem in request.queryset %}
-    <tr class="border-b-[1px] border-black">
+    <tr class="border-b border-black">
         <td>{{ medlem.navn }}</td>
         <td>{{ medlem|showFravær:True }}</td>
         <td>{{ medlem|showFravær:False }}</td>

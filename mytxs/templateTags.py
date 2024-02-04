@@ -102,7 +102,7 @@ def bitIs1(int, bitNr):
 
 
 @register.simple_tag(takes_context=True)
-def toggleURLparam(context, urlParamName, linkName=None):
+def toggleURLparam(context, urlParamName, linkName=None, **kwargs):
     'Produsere en <a> tag som heter enten linkName eller "Ikke" + linkName, som legger til og fjerner urlParamName'
     if linkName == None:
         linkName = urlParamName
@@ -110,9 +110,9 @@ def toggleURLparam(context, urlParamName, linkName=None):
     urlParams = context['request'].GET.copy()
 
     if urlParamName not in urlParams.keys():
-        return mark_safe(f'<a href="{setURLParams(context, **{urlParamName: True})}">{defaultfilters.capfirst(linkName)}</a>')
+        return mark_safe(f'<a href="{setURLParams(context, **{urlParamName: True, **kwargs})}">{defaultfilters.capfirst(linkName)}</a>')
     else:
-        return mark_safe(f'<a href="{setURLParams(context, **{urlParamName: None})}">Ikke {linkName}</a>')
+        return mark_safe(f'<a href="{setURLParams(context, **{urlParamName: None, **kwargs})}">Ikke {linkName}</a>')
 
 
 @register.filter

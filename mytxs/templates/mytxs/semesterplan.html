@@ -16,14 +16,14 @@
 <span>Minutter ugyldig fravær: {{ medlem|showFravær:False }}</span>
 
 <table class="text-left">
-    <tr class="[&>*]:w-52 border-b-[1px] border-black">
+    <tr class="[&>*]:w-52 border-b border-black">
         <th>Hva</th>
         <th>Når</th>
         <th>Hvor</th>
         <th>Fravær</th>
     </tr>
     {% for hendelse in request.queryset %}
-    <tr class="border-b-[1px] border-black">
+    <tr class="border-b border-black">
         <td>{{ hendelse.navn }} {% if user.medlem|tilgangExists:'semesterplan,fravær' %}<a href="{% url 'hendelse' hendelse.pk %}">Rediger</a>{% endif %}</td>
         <td>
             {{ hendelse.startDate|date:'D j. M' }}

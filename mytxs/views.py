@@ -517,31 +517,40 @@ def hendelseListe(request):
 def hendelse(request, hendelsePK):
     if request.GET.get('fraværModus'):
         request.queryset = MedlemQuerySet.annotateStemmegruppe(
-            request.instance.oppmøter.filter(
-                qBool(True) if request.GET.get('medKommerIkke') else ~Q(ankomst=Oppmøte.KOMMER_IKKE),
-                qBool(True) if request.GET.get('medMøtt') else Q(fravær__isnull=True)
-            ),
+            request.instance.oppmøter,
             kor=request.instance.kor,
             pkPath='medlem__pk'
         ).select_related('medlem').order_by(stemmegruppeOrdering(fieldName='stemmegruppe'), 'medlem')
 
-        if medlemPK := request.GET.get('medlem'):
-            oppmøte = request.instance.oppmøter.filter(medlem__pk=medlemPK).first()
-            if not oppmøte:
-                messages.error(request, f'Medlem {medlemPK} har ikke et oppmøte for denne hendelsen')
-            elif oppmøte.fravær == None:
-                oppmøte.fravær = int(max((min(request.instance.slutt, datetime.datetime.now()) - request.instance.start).total_seconds() / 60, 0))
-                oppmøte.save()
-                logAuthorInstance(oppmøte, request.user.medlem)
-            else:
-                messages.info(request, f'Oppmøte allerede ført med {oppmøte.fravær} minutter forsentkomming!')
-            
-            urlParams = request.GET.copy()
-            urlParams.pop('medlem')
-            # Target identifier, altså # i urler sendes ikkje til django, derfor må vi reverse engineer det her
-            return redirect(request.path + '?' + urlParams.urlencode() + ('#' + oppmøte.stemmegruppe if oppmøte.stemmegruppe else ''))
+        endreFraværForm = None
+        if medlemPK := request.GET.get('førFraværFor') or request.GET.get('medlem'):
+            oppmøte = request.queryset.filter(medlem__pk=medlemPK).first()
+
+            if request.GET.get('førFraværFor'):
+                if oppmøte.fravær == None:
+                    oppmøte.fravær = int(max((min(request.instance.slutt, datetime.datetime.now()) - request.instance.start).total_seconds() / 60, 0))
+                    oppmøte.save()
+                    logAuthorInstance(oppmøte, request.user.medlem)
+                request.GET = request.GET.copy()
+                request.GET['medlem'] = request.GET['førFraværFor']
+                del request.GET['førFraværFor']
+                return redirectToInstance(request)
+
+            EndreFraværForm = modelform_factory(Oppmøte, fields=['fravær'])
+
+            endreFraværForm = EndreFraværForm(
+                postIfPost(request, 'endreFravær'), 
+                instance=oppmøte, 
+                prefix='endreFravær'
+            )
+
+            if request.method == 'POST' and endreFraværForm.is_valid():
+                logAuthorAndSave(endreFraværForm, request.user.medlem)
+                return redirectToInstance(request)
         
-        return render(request, 'mytxs/fraværModus.html')
+        return render(request, 'mytxs/fraværModus.html', {
+            'endreFraværForm': endreFraværForm
+        })
 
     HendelseForm = modelform_factory(Hendelse, exclude=['kor'])
     if not request.GET.get('alleOppmøter'):
@@ -585,7 +594,7 @@ def hendelse(request, hendelsePK):
         if hendelseForm.is_valid() and oppmøteFormset.is_valid():
             return redirectToInstance(request)
 
-    if request.instance.startTime != None and abs(datetime.datetime.now() - request.instance.start).total_seconds() / 60 <= 30:
+    if request.instance.sluttTime != None and abs(datetime.datetime.now() - request.instance.start).total_seconds() / 60 <= 30:
         request.egenFøringLink = consts.qrCodeLinkPrefix + 'http://' + request.get_host() + addHash(reverse('egenFøring', args=[request.instance.pk]))
     
     if request.user.medlem.tilganger.filter(navn='eksport', kor=request.instance.kor).exists():

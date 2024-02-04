@@ -1216,18 +1216,18 @@ class Hendelse(DbCacheModel):
         return Medlem.objects.filterIkkePermitert(kor=self.kor, dato=self.startDate)
 
     def getStemmeFordeling(self):
-        'Returne stemmefordelingen på en hendelse, basert på Oppmøte.KOMMER.'
-        stemmefordeling = {key: [] for key in self.kor.stemmegrupper()}
+        '''
+        Returne dict med stemmefordelingen på en hendelse, der key er stemmegruppen (len=2), 
+        og valuen med en liste av antall som KOMMER, KOMMER_KANSKJE og KOMMER_IKKE i den stemmegruppen. 
+        '''
+        stemmefordeling = {key: [0, 0, 0] for key in self.kor.stemmegrupper()}
 
-        for stemme in stemmefordeling:
-            stemmefordeling[stemme] = VervInnehavelse.objects.filter(
-                vervInnehavelseAktiv('', dato=self.startDate),
-                stemmegruppeVerv(),
-                medlem__oppmøter__hendelse=self,
-                verv__kor=self.kor,
-                medlem__oppmøter__ankomst=Oppmøte.KOMMER,
-                verv__navn__endswith=stemme
-            ).count()
+        for oppmøte in MedlemQuerySet.annotateStemmegruppe(self.oppmøter, kor=self.kor, pkPath='medlem__pk'):
+            if not oppmøte.stemmegruppe:
+                # Skip dirigenten
+                continue
+            stemmefordeling[oppmøte.stemmegruppe][[Oppmøte.KOMMER, Oppmøte.KOMMER_KANSKJE, Oppmøte.KOMMER_IKKE].index(oppmøte.ankomst)] += 1
+            
         return stemmefordeling
     
     @property

@@ -6,13 +6,13 @@
 <p>Her vises alle verv som har tilganger, og hvem som nå har disse vervene.</p>
 
 <table class="text-left">
-    <tr class="border-b-[1px] border-black">
+    <tr class="border-b border-black">
         <th>Hvem</th>
         <th>Verv</th>
         <th>Tilgang</th>
     </tr>
     {% for verv in tilgangVerv %}
-    <tr class="border-b-[1px] border-black [&>*]:pr-4">
+    <tr class="border-b border-black [&>*]:pr-4">
         <td>{% for vervInnehavelse in verv.vervInnehavelser.all %}{{ vervInnehavelse.medlem|linkTo }}{% if not vervInnehavelse.aktiv %} (påtroppende) {% endif %}<br>{% endfor %}</td>
         <td>{{ verv|linkTo }}</td>
         <td>{% for tilgang in verv.tilganger.all %}{{ tilgang|linkTo }}<br>{% endfor %}</td>

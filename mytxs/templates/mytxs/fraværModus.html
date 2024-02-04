@@ -3,13 +3,25 @@
 
 {% block beforeForms %}
 <div class="max-w-md">
-{% toggleURLparam 'fraværModus' 'Fravær modus' %}
+{% toggleURLparam 'fraværModus' 'Fravær modus' alleOppmøter=None medMøtt=None medKommerIkke=None medlem=None %}
 {% toggleURLparam 'medMøtt' 'med de førte' %}
 {% toggleURLparam 'medKommerIkke' 'med kommer ikke' %}
+<br><br>
 
-<p>Trykk på medlemmer når de møter opp. Om dere trykker feil, noter det, og rett opp i det senere:)</p><br>
+{% if endreFraværForm %}
+<h2 class="text-2xl">Fravær for {{ endreFraværForm.instance.medlem.navn }}</h2>
+<form action="{{ request.get_full_path }}" method="post">
+    {% csrf_token %}
+    {{ endreFraværForm }}
+    <input type="submit" value="Lagre">
+</form>
+{% endif %}
 
 {% for oppmøte in request.queryset %}
+
+{% if request.GET.medKommerIkke or oppmøte.ankomst != False or oppmøte.fravær != None %}
+{% if request.GET.medMøtt or oppmøte.fravær == None %}
+
 {% ifchanged oppmøte.stemmegruppe %}
 {% if oppmøte.stemmegruppe %}
 <h2 class="text-2xl max-w-sm target:backdrop-brightness-100" id="{{ oppmøte.stemmegruppe }}">{{ oppmøte.stemmegruppe }}</h2>
@@ -19,10 +31,14 @@
 {% endifchanged %}
 
 {% if oppmøte.fravær == None %}
-<a href="{% setURLParams medlem=oppmøte.medlem.pk %}#{{ oppmøte.stemmegruppe }}">{{ oppmøte.medlem }}</a><br>
-{% elif request.GET.medMøtt %}
-<p>{{ oppmøte.medlem }}, {{ oppmøte.fravær }} minutter fravær</p>
+<a href="{% setURLParams førFraværFor=oppmøte.medlem.pk %}#{{ oppmøte.stemmegruppe }}">
+{% else %}
+<a href="{% setURLParams medlem=oppmøte.medlem.pk %}">
 {% endif %}
+    {{ oppmøte.medlem }}{% if oppmøte.fravær != None  %}, {{ oppmøte.fravær }} minutter fravær{% endif %}
+</a><br>
+{% endif %}{% endif %}
+
 {% endfor %}
 
 </div>
