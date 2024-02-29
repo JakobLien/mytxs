@@ -78,11 +78,14 @@ def fixFileField(*forms):
 @register.simple_tag(takes_context=True)
 def getPaginatorNavigation(context, paginatorPage, navName=''):
     'Produsere en meny med linker for å navigere paginatoren'
+    navName = navName+'Page' if navName else 'page'
+
+    if context['request'].GET.get(navName) == 'all':
+        return mark_safe(f'<div>Sider: <a href="{setURLParams(context, **{navName: None})}">Ikke vis alle sider</a></div>')
+
     if not hasattr(paginatorPage, 'has_other_pages') or not paginatorPage.has_other_pages():
         return ''
     
-    navName = navName+'Page' if navName else 'page'
-
     pages = []
 
     for pageNumber in paginatorPage.paginator.get_elided_page_range(number=paginatorPage.number, on_ends=1):
@@ -93,7 +96,7 @@ def getPaginatorNavigation(context, paginatorPage, navName=''):
         else:
             pages.append(f'<span>{pageNumber}</span>')
 
-    return mark_safe(f'<div>Sider: {" ".join(pages)}</div>')
+    return mark_safe(f'<div>Sider: {" ".join(pages)} <a href="{setURLParams(context, **{navName: "all"})}">Vis alle sider</a></div>')
 
 
 @register.filter
@@ -155,7 +158,7 @@ def divideAndShowPercent(num1, num2):
 def showFravær(medlem, gyldig):
     'Hjelpefunksjon som tar et medlem og vise gyldig eller ugyldig fravær formatert som "minutt (prosent)"'
     fravær = medlem.gyldigFravær if gyldig else medlem.ugyldigFravær
-    return mark_safe(f'{fravær} ({divideAndShowPercent(fravær, medlem.hendelseVarighet)})')
+    return mark_safe(f'{round(fravær)} ({divideAndShowPercent(fravær, medlem.hendelseVarighet)})')
 
 
 @register.simple_tag(takes_context=True)

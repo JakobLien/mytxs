@@ -1,7 +1,6 @@
 import datetime
 import os
 import json
-from urllib.parse import unquote
 
 from django import forms
 from django.apps import apps
@@ -9,7 +8,7 @@ from django.conf import settings as djangoSettings
 from django.core import mail
 from django.db import models
 from django.db.models import Value as V, Q, Case, When, Min, Max, Sum, ExpressionWrapper, F, OuterRef, Subquery
-from django.db.models.functions import Concat, ExtractMinute, ExtractHour, Right
+from django.db.models.functions import Concat, ExtractMinute, ExtractHour, Right, Coalesce
 from django.forms import ValidationError
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -308,16 +307,17 @@ class MedlemQuerySet(models.QuerySet):
     
     def annotateFravær(self, kor, heleSemesteret=False):
         'Annotater gyldigFravær, ugyldigFravær og hendelseVarighet'
-        def getDateTime(fieldName):
+        def getDateTime(fieldName, backupDateFieldName=None):
             'Kombinere og returne separate Date og Time felt til ett DateTime felt'
             return ExpressionWrapper(
-                F(f'{fieldName}Date') + F(f'{fieldName}Time'),
+                (Coalesce(f'{fieldName}Date', f'{backupDateFieldName}Date') if backupDateFieldName else F(f'{fieldName}Date')) + 
+                F(f'{fieldName}Time'),
                 output_field=models.DateTimeField()
             )
 
         hendelseVarighet = ExpressionWrapper(
-            ExtractMinute(getDateTime('oppmøter__hendelse__slutt') - getDateTime('oppmøter__hendelse__start')) + 
-            ExtractHour(getDateTime('oppmøter__hendelse__slutt') - getDateTime('oppmøter__hendelse__start')) * 60,
+            ExtractMinute(getDateTime('oppmøter__hendelse__slutt', backupDateFieldName='oppmøter__hendelse__start') - getDateTime('oppmøter__hendelse__start')) + 
+            ExtractHour(getDateTime('oppmøter__hendelse__slutt', backupDateFieldName='oppmøter__hendelse__start') - getDateTime('oppmøter__hendelse__start')) * 60,
             output_field=models.IntegerField()
         )
 
@@ -409,6 +409,16 @@ class Medlem(DbCacheModel):
             verv__vervInnehavelser__medlem=self
         ).orderKor(), props=['navn'])
 
+    def getHendelser(self, korNavn):
+        'Returne et queryset av hendelsan dette medlemmet har i den kor-kalenderen (Sangern hendelser havner i storkor kalender)'
+        return Hendelse.objects.filter(
+            # For storkor skaffe vi hendelsa for dem og Sangern, for småkor skaffe vi bare det korets hendelsa. 
+            qBool(korNavn in consts.bareStorkorNavn, trueOption=Q(kor__navn__in=[korNavn, 'Sangern']), falseOption=Q(kor__navn=korNavn)),
+            # For undergruppe hendelsa må man vær invitert for å få det opp
+            ~Q(kategori=Hendelse.UNDERGRUPPE) | Q(oppmøter__medlem=self),
+            startDate__gte=datetime.datetime.today()-datetime.timedelta(days=90),
+        ).distinct()
+
     @property
     def faktiskeTilganger(self):
         'Returne aktive tilganger, til bruk i addOptionForm som trenger å vite hvilke tilganger du har før innstillinger filtrering'
@@ -499,10 +509,15 @@ class Medlem(DbCacheModel):
 
         if self.tilganger.filter(navn__in=['tversAvKor', 'fravær']).exists():
             fravær = navBarNode(admin, 'fravær', isPage=False)
-            navBarNode(fravær, 'søknader', defaultParameters='?gyldig=None')
+            navBarNode(fravær, 'søknader', defaultParameters='?gyldig=None&harMelding=on')
+
             fraværOversikt = navBarNode(fravær, 'oversikt', isPage=False)
             if korMedFraværTilgang := Kor.objects.filter(tilganger__in=self.tilganger.filter(navn='fravær')).values_list('navn', flat=True):
                 fraværOversikt.addChildren(*korMedFraværTilgang)
+
+            fraværStatistikk = navBarNode(fravær, 'statistikk', isPage=False)
+            if korMedFraværTilgang := Kor.objects.filter(tilganger__in=self.tilganger.filter(navn='fravær')).values_list('navn', flat=True):
+                fraværStatistikk.addChildren(*korMedFraværTilgang)
 
         if self.tilganger.filter(navn__in=['tversAvKor', 'vervInnehavelse', 'verv', 'tilganger']).exists():
             navBarNode(admin, 'verv', defaultParameters='?sistAktiv=1')
@@ -709,6 +724,8 @@ class Kor(models.Model):
 
     def stemmegrupper(self, lengde=2):
         'Skaffe stemmegruppan til koret (strings) opp til ønsket lengde'
+        if self.navn == 'Sangern':
+            return []
         stemmegrupper = ','.join(self.stemmefordeling)
         for i in range(1, lengde):
             stemmegrupper = ','.join([f'1{s},2{s}' for s in stemmegrupper.split(',')])
@@ -1032,53 +1049,6 @@ class Turne(DbCacheModel):
 
 
 class HendelseQuerySet(models.QuerySet):
-    def generateICal(self, medlemPK, name='MyTXS 2.0 semesterplan'):
-        'Returne en (forhåpentligvis) rfc5545 kompatibel string'
-        iCalString= f'''\
-BEGIN:VCALENDAR
-PRODID:-//mytxs.samfundet.no//MyTXS semesterplan//
-VERSION:2.0
-CALSCALE:GREGORIAN
-METHOD:PUBLISH
-X-WR-CALNAME:{name}
-X-WR-CALDESC:Denne kalenderen ble oppdatert av MyTXS {
-datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S')}Z
-X-WR-TIMEZONE:Europe/Oslo
-BEGIN:VTIMEZONE
-TZID:Europe/Oslo
-X-LIC-LOCATION:Europe/Oslo
-BEGIN:DAYLIGHT
-TZOFFSETFROM:+0100
-TZOFFSETTO:+0200
-TZNAME:CEST
-DTSTART:19700329T020000
-RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU
-END:DAYLIGHT
-BEGIN:STANDARD
-TZOFFSETFROM:+0200
-TZOFFSETTO:+0100
-TZNAME:CET
-DTSTART:19701025T030000
-RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU
-END:STANDARD
-END:VTIMEZONE
-{''.join(map(lambda h: h.getVevent(medlemPK), self))}END:VCALENDAR\n'''
-
-        # Split lines som e lenger enn 75 characters over fleir linja
-        iCalLines = iCalString.split('\n')
-        l = 0
-        while l < len(iCalLines):
-            if len(iCalLines[l]) > 75:
-                iCalLines.insert(l+1, ' ' + iCalLines[l][75:])
-                iCalLines[l] = iCalLines[l][:75]
-            l += 1
-        iCalString = '\n'.join(iCalLines)
-
-        # Erstatt alle newlines med CRLF
-        iCalString = iCalString.replace('\n', '\r\n')
-
-        return iCalString
-    
     def saveAllInPeriod(self, *dates):
         '''
         Utility method for å gjøre koden for lagring av vervInnehavelser enklere,
@@ -1094,25 +1064,29 @@ END:VTIMEZONE
             for hendelse in hendelser:
                 hendelse.save()
 
-    def filterSemester(self):
-        'Filtrere og returne bare hendelser for dette semesteret, enten januar-juni eller juli-desember'
-        today = datetime.date.today()
-        if today.month >= 7:
-            return self.filter(
-                startDate__year=today.year,
-                startDate__month__gte=7
-            )
-        else:
-            return self.filter(
-                startDate__year=today.year,
-                startDate__month__lt=7
-            )
-
 
 class Hendelse(DbCacheModel):
     objects = HendelseQuerySet.as_manager()
 
     navn = models.CharField(max_length=60)
+
+    @property
+    def prefiksArray(self):
+        return self.navn[1:].split(']')[0].split() if self.navn.startswith('[') else []
+    
+    @property
+    def navnMedPrefiks(self):
+        if self.navn.startswith('['):
+            return self.navn[2:].strip() if self.navn.startswith('[]') else self.navn
+        
+        if self.kor.navn == 'Sangern':
+            return f'[Sangern] {self.navn}'
+        
+        if self.kategori == Hendelse.FRIVILLIG:
+            return self.navn
+        
+        return f'[{self.get_kategori_display().upper()}] {self.navn}'
+
     beskrivelse = models.TextField(blank=True)
     sted = models.CharField(blank=True, max_length=50)
 
@@ -1123,11 +1097,12 @@ class Hendelse(DbCacheModel):
         null=True
     )
 
-    # Oblig e aktiv avmelding
+    # Oblig e aktiv avmelding, med fraværsføring
     # Påmelding e aktiv påmelding
     # Frivilling e uten føring av oppmøte/fravær
-    OBLIG, PÅMELDING, FRIVILLIG = 'O', 'P', 'F'
-    KATEGORI_CHOICES = ((OBLIG, 'Oblig'), (PÅMELDING, 'Påmelding'), (FRIVILLIG, 'Frivillig'))
+    # Undergruppe er for undergrupper, kommer bare i de koristene sin kalender, klassisk barvakter
+    OBLIG, PÅMELDING, FRIVILLIG, UNDERGRUPPE = 'O', 'P', 'F', 'U'
+    KATEGORI_CHOICES = ((OBLIG, 'Oblig'), (PÅMELDING, 'Påmelding'), (FRIVILLIG, 'Frivillig'), (UNDERGRUPPE, 'Undergruppe'))
     kategori = models.CharField(max_length=1, choices=KATEGORI_CHOICES, null=False, blank=False, default=OBLIG, help_text=toolTip('Ikke endre dette uten grunn!'))
 
     startDate = MyDateField(blank=False, verbose_name='Start dato', help_text=toolTip(\
@@ -1149,70 +1124,33 @@ class Hendelse(DbCacheModel):
     @property
     def slutt(self):
         'Slutt av hendelsen som datetime, date eller None'
-        if self.sluttTime:
+        if not self.sluttTime:
+            return self.sluttDate
+        
+        if self.sluttDate:
             return datetime.datetime.combine(self.sluttDate, self.sluttTime)
-        return self.sluttDate
+        
+        return datetime.datetime.combine(self.startDate, self.sluttTime)
 
     @property
     def varighet(self):
         return int((self.slutt - self.start).total_seconds() // 60) if self.sluttTime else None
 
-    def getVeventStart(self):
-        if self.startTime:
-            return self.start.strftime('%Y%m%dT%H%M%S')
-        return self.start.strftime('%Y%m%d')
-
-    def getVeventSlutt(self):
-        if self.sluttTime:
-            return self.slutt.strftime('%Y%m%dT%H%M%S')
-        if self.sluttDate:
-            # I utgangspunktet er slutt tiden (hovedsakling tidspunktet) ekskludert i ical formatet, 
-            # men følgelig om det er en sluttdato (uten tid), vil det vises som en dag for lite
-            # i kalenderapplikasjonene. Derfor hive vi på en dag her, så det vises rett:)
-            return (self.slutt + datetime.timedelta(days=1)).strftime('%Y%m%d')
-        return None
-
-    def getVevent(self, medlemPK):
-        vevent = 'BEGIN:VEVENT\n'
-        vevent += f'UID:{self.kor}-{self.pk}@mytxs.samfundet.no\n'
-
-        if self.kategori == Hendelse.OBLIG:
-            vevent += f'SUMMARY:[OBLIG]: {self.navn}\n'
-        elif self.kategori == Hendelse.PÅMELDING:
-            vevent += f'SUMMARY:[PÅMELDING]: {self.navn}\n'
-        else:
-            vevent += f'SUMMARY:{self.navn}\n'
-
-        vevent += 'DESCRIPTION:'+self.beskrivelse.replace('\r\n', '\\n')
-        if self.kategori != Hendelse.FRIVILLIG:
-            if self.beskrivelse:
-                vevent += '\\n\\n'
-            vevent += mytxsSettings.ALLOWED_HOSTS[0] + unquote(reverse('meldFravær', args=[medlemPK, self.pk]))
-
-        vevent += '\n'
-
-        vevent += f'LOCATION:{self.sted}\n'
-
-        if self.startTime:
-            vevent += f'DTSTART;TZID=Europe/Oslo:{self.getVeventStart()}\n'
-        else:
-            vevent += f'DTSTART;VALUE=DATE:{self.getVeventStart()}\n'
-
-        if slutt := self.getVeventSlutt():
-            if self.sluttTime:
-                vevent += f'DTEND;TZID=Europe/Oslo:{slutt}\n'
-            else:
-                vevent += f'DTEND;VALUE=DATE:{slutt}\n'
-        
-        vevent += f'DTSTAMP:{datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S")}Z\n'
-        vevent += 'END:VEVENT\n'
-        return vevent
-    
     @property
     def medlemmer(self):
         'Dette gir deg basert på stemmegruppeverv og permisjon, hvilke medlemmer som burde ha oppmøter for hendelsen'
         if self.kategori == Hendelse.FRIVILLIG:
             return Medlem.objects.none()
+        
+        if self.kategori == Hendelse.UNDERGRUPPE:
+            return getattr(self, '_medlemmer', Medlem.objects.filter(
+                Q(oppmøter__hendelse=self)
+            ).distinct()) | Medlem.objects.filter(
+                vervInnehavelseAktiv(),
+                vervInnehavelser__verv__tilganger__navn__in=self.prefiksArray,
+                vervInnehavelser__verv__tilganger__kor=self.kor
+            ).distinct()
+
         return Medlem.objects.filterIkkePermitert(kor=self.kor, dato=self.startDate)
 
     def getStemmeFordeling(self):
@@ -1232,7 +1170,7 @@ class Hendelse(DbCacheModel):
     
     @property
     def defaultAnkomst(self):
-        if self.kategori == Hendelse.OBLIG:
+        if self.kategori in [Hendelse.OBLIG, Hendelse.UNDERGRUPPE]:
             return Oppmøte.KOMMER
         return Oppmøte.KOMMER_KANSKJE
     
@@ -1241,7 +1179,7 @@ class Hendelse(DbCacheModel):
 
     @dbCache
     def __str__(self):
-        return f'{self.navn}({self.startDate})'
+        return f'{self.navn[2:].strip() if self.navn.startswith("[]") else self.navn}({self.startDate})'
 
     class Meta:
         unique_together = ('kor', 'navn', 'startDate')
@@ -1249,21 +1187,29 @@ class Hendelse(DbCacheModel):
         verbose_name_plural = 'hendelser'
 
     def clean(self, *args, **kwargs):
+        # Sjekk at navn har opptil et sett matchende '[' og ']' på begynnelsen
+        if '[' in self.navn or ']' in self.navn:
+            if not self.navn.startswith('[') or self.navn.count('[') != 1 or self.navn.count(']') != 1:
+                raise ValidationError(
+                    _('Firkantede parenteser i hendelse navn må være på starten, må matche hverandre, og maks et sett.'),
+                    code='invalidPrefix'
+                )
+        
         # Validering av start og slutt
-        if not self.sluttDate:
-            if self.sluttTime:
-                raise ValidationError(
-                    _('Kan ikke ha sluttTime uten sluttDate'),
-                    code='timeWithoutDate'
-                )
-        else:
-            if bool(self.startTime) != bool(self.sluttTime): # Dette er XOR
-                raise ValidationError(
-                    _('Må ha både startTime og sluttTime eller verken'),
-                    code='startAndEndTime'
-                )
-            
+        if bool(self.startTime) != bool(self.sluttTime): # Dette er XOR
+            raise ValidationError(
+                _('Må ha både startTime og sluttTime eller verken'),
+                code='startAndEndTime'
+            )
+        
+        if self.sluttTime:
             validateStartSlutt(self, canEqual=False)
+
+        if self.kor.navn == 'Sangern' and self.kategori in [Hendelse.OBLIG, Hendelse.PÅMELDING]:
+            raise ValidationError(
+                _('Sangern kan ikke ha obligatoriske hendelser'),
+                code='sangernOblig'
+            )
 
         # Sjekk at varigheten på en obligatorisk hendelse ikke e meir enn 12 timer
         if self.kategori == Hendelse.OBLIG and 720 < (self.varighet or 0):
@@ -1317,45 +1263,7 @@ class Hendelse(DbCacheModel):
                     oppmøte.save()
 
 
-class OppmøteQueryset(models.QuerySet):
-    def annotateHendelseVarighet(self):
-        'Annotate varighet av den relaterte hendelsen i minutt som hendelse__varighet'
-        # Ja, dette fungerer bare for hendelser som ikke varer mer enn 24 timer, men vi validerer det på hendelse.clean:)
-        return self.alias(
-            hendelse__startDateTime=ExpressionWrapper(
-                F('hendelse__startDate') + F('hendelse__startTime'),
-                output_field=models.DateTimeField()
-            ),
-            hendelse__sluttDateTime=ExpressionWrapper(
-                F('hendelse__sluttDate') + F('hendelse__sluttTime'),
-                output_field=models.DateTimeField()
-            )
-        ).annotate(
-            hendelse__varighet=ExtractMinute(
-                F('hendelse__sluttDateTime') - F('hendelse__startDateTime')
-            ) + ExtractHour(
-                F('hendelse__sluttDateTime') - F('hendelse__startDateTime')
-            ) * 60
-        )
-    
-    def filterSemester(self):
-        'Filtrere og returne bare oppmøter for dette semesteret, enten januar-juni eller juli-desember'
-        today = datetime.date.today()
-        if today.month >= 7:
-            return self.filter(
-                hendelse__startDate__year=today.year,
-                hendelse__startDate__month__gte=7
-            )
-        else:
-            return self.filter(
-                hendelse__startDate__year=today.year,
-                hendelse__startDate__month__lt=7
-            )
-
-
 class Oppmøte(DbCacheModel):
-    objects = OppmøteQueryset.as_manager()
-
     medlem = models.ForeignKey(
         Medlem,
         on_delete=models.CASCADE,
@@ -1389,6 +1297,21 @@ class Oppmøte(DbCacheModel):
     ankomst = models.BooleanField(null=True, blank=True, choices=ANKOMST_CHOICES, default=KOMMER_KANSKJE)
 
     melding = models.TextField(blank=True)
+
+    @property
+    def fraværTekst(self):
+        '''
+        Brukes som lenke tekst i semesterplan, og skrives før lenker i ical eksporten. 
+        Om ingenting returnes skal fraværet ikke lenkes til. 
+        '''
+        if self.hendelse.startDate < datetime.date.today():
+            if self.hendelse.kategori == Hendelse.OBLIG:
+                return f'{self.minutterBorte} min {"" if self.gyldig else "u"}gyldig fravær'
+        elif self.hendelse.kategori in [Hendelse.OBLIG, Hendelse.PÅMELDING]:
+            if self.ankomst != self.hendelse.defaultAnkomst or self.melding != '':
+                return 'Se melding'
+            else:
+                return 'Søk fravær' if self.hendelse.kategori == Hendelse.OBLIG else 'Meld ankomst'
 
     @property
     def kor(self):

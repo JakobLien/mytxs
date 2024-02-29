@@ -22,7 +22,7 @@
     <div class="fixed inset-x-0 top-4 text-center z-10" onclick="this.classList.add('hidden');">
         {% for message in messages %}
         <span class="{% if 'error' in message.tags %}bg-red-400{% else %}bg-green-400{% endif %} rounded-md p-2">
-            {{message.tags|capfirst}}: {{ message }}
+            {{ message.tags|capfirst }}: {{ message }}
         </span> <br>
         {% endfor %}
     </div>
@@ -37,7 +37,7 @@
             {% block sidebar %}
 
             {% if user.medlem %}
-            <a href="{{user.medlem.get_absolute_url}}">
+            <a href="{{ user.medlem.get_absolute_url }}">
                 <img src="{% static 'mytxs/bok.png' %}">
                 <p>Rediger Medlems-registerdata</p>
             </a>
@@ -115,7 +115,7 @@
                 {% block topbar %}
                 <div class="flex justify-between">
                     <b>Hei {{ user.medlem.navn }}!</b>
-                    <span class="ml-10">Siste login: {{user.last_login|date:"G:i d.m.Y"}}</span>
+                    <span class="ml-10">Siste login: {{ user.last_login|date:"G:i d.m.Y" }}</span>
                 </div>
                 {% endblock %}
             </div>
@@ -125,9 +125,9 @@
                 <div class="[&>*]:inline">
                     <h1 class="text-2xl">
                         {% if heading %}
-                        {{heading}}
+                        {{ heading }}
                         {% elif request.instance %}
-                        {{request.instance|capfirst}}
+                        {{ request.instance|capfirst }}
 
                         {% if user.medlem.tilganger %}
                         {% addLoggLink request.instance %}

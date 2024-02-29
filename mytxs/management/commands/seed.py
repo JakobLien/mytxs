@@ -288,7 +288,6 @@ def testData(self):
                 kor=kor,
                 startDate=nesteØvelseDate,
                 startTime=datetime.time.fromisoformat('18:30:00'),
-                sluttDate=nesteØvelseDate,
                 sluttTime=datetime.time.fromisoformat('21:30:00'),
             )
 

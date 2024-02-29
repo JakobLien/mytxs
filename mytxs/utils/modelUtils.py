@@ -3,6 +3,7 @@ import random
 import re
 
 from django.apps import apps
+from django.core.exceptions import FieldDoesNotExist
 from django.db.models import Q, Case, When, ManyToManyField, ManyToManyRel, ForeignObjectRel
 from django.db.models.fields.related import RelatedField
 from django.forms import ValidationError
@@ -91,6 +92,15 @@ def stemmegruppeOrdering(fieldName='navn'):
     ordering.append(When(**{fieldName:'ukjentStemmegruppe'}, then=count))
     return Case(*ordering, default=count+1)
 
+
+def inneværendeSemester(pathToDate):
+    'Produsere et Q objekt som sjekke om en date e innafor inneværende semester'
+    today = datetime.date.today()
+    return Q(**{f'{pathToDate}__year': today.year}) & qBool(
+        today.month >= 7,
+        trueOption=Q(**{f'{pathToDate}__month__gte': 7}),
+        falseOption=Q(**{f'{pathToDate}__month__lt': 7})
+    )
 
 def groupBy(queryset, prop):
     '''
@@ -263,13 +273,16 @@ def joinQ(*Qs, joinOp='|'):
 
 def getSourceM2MModel(model, fieldName):
     'Gitt en av modellene og et fieldName skaffer denne modellen som m2m feltet står på'
-    modelFieldOrRel = model._meta.get_field(fieldName)
-    if isinstance(modelFieldOrRel, ManyToManyField):
-        return model
-    elif isinstance(modelFieldOrRel, ManyToManyRel):
-        return modelFieldOrRel.related_model
-    
-    raise Exception("M2M Field not found")
+    try:
+        modelFieldOrRel = model._meta.get_field(fieldName)
+        if isinstance(modelFieldOrRel, ManyToManyField):
+            return model
+        elif isinstance(modelFieldOrRel, ManyToManyRel):
+            return modelFieldOrRel.related_model
+    except FieldDoesNotExist:
+        # Dette inntreffer bare om feltet er satt på manuelt, og ikke har et tilsvarende model m2m field. 
+        # F.eks. med hendelseForm sitt medlemmer field for undergruppe hendelser. 
+        return None
 
 
 def bareAktiveDecorator(func):
@@ -278,7 +291,7 @@ def bareAktiveDecorator(func):
         qs = func(self, *args, **kwargs)
 
         if qs.model.__name__ == 'Medlem' and self.innstillinger.get('bareAktive', False):
-            qs = qs.filter(vervInnehavelseAktiv(), stemmegruppeVerv('vervInnehavelser__verv'))
+            qs = qs.filter(vervInnehavelseAktiv(), stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True))
         return qs
 
     return _decorator

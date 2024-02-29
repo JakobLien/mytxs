@@ -13,7 +13,7 @@ from mytxs.utils.modelUtils import getPathToKor, korLookup, qBool, refreshQuerys
 
 class KorFilterForm(forms.Form):
     'Generisk FilterForm som filtrerre på kor'
-    kor = forms.ModelChoiceField(required=False, queryset=Kor.objects.filter(navn__in=consts.bareKorNavn))
+    kor = forms.ModelChoiceField(required=False, queryset=Kor.objects.filter(navn__in=consts.alleKorNavn))
 
     def applyFilter(self, queryset):
         'Filtrere et queryset basert på KorFilterForm'
@@ -192,6 +192,8 @@ class LoggFilterForm(KorFilterForm):
 
 class OppmøteFilterForm(KorFilterForm):
     gyldig = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + list(map(lambda c: (str(c[0]), c[1]), Oppmøte.GYLDIG_CHOICES)))
+    ankomst = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + list(map(lambda c: (str(c[0]), c[1]), Oppmøte.ANKOMST_CHOICES)))
+    harMelding = forms.BooleanField(required=False, label='Har melding')
     hendelse = forms.ModelChoiceField(required=False, queryset=Hendelse.objects.all())
     medlem = forms.ModelChoiceField(required=False, queryset=Medlem.objects.all())
     stemmegruppe = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + [(i, i) for i in ['Dirigent', 'ukjentStemmegruppe', *consts.hovedStemmegrupper]])
@@ -200,7 +202,7 @@ class OppmøteFilterForm(KorFilterForm):
         'Vi må fiks at dem ikkje får opp alle medlemmer og hendelser'
         super().__init__(*args, **kwargs)
 
-        self.fields['hendelse'].queryset = request.user.medlem.redigerTilgangQueryset(Oppmøte, resModel=Hendelse).filterSemester()
+        self.fields['hendelse'].queryset = request.user.medlem.redigerTilgangQueryset(Oppmøte, resModel=Hendelse)
         self.fields['medlem'].queryset = Medlem.objects.filter(
             oppmøter__hendelse__in=self.fields['hendelse'].queryset
         ).distinct()
@@ -208,13 +210,20 @@ class OppmøteFilterForm(KorFilterForm):
     def applyFilter(self, queryset):
         queryset = super().applyFilter(queryset)
 
+        if self.cleaned_data['harMelding']:
+            queryset = queryset.exclude(melding='')
+
         if gyldig := self.cleaned_data['gyldig']:
-            if gyldig == 'True':
-                queryset = queryset.filter(gyldig=True)
-            elif gyldig == 'None':
-                queryset = queryset.filter(gyldig=None)
-            elif gyldig == 'False':
-                queryset = queryset.filter(gyldig=False)
+            for bool in [True, None, False]:
+                if gyldig == str(bool):
+                    queryset = queryset.filter(gyldig=bool)
+                    break
+        
+        if ankomst := self.cleaned_data['ankomst']:
+            for bool in [True, None, False]:
+                if ankomst == str(bool):
+                    queryset = queryset.filter(ankomst=bool)
+                    break
 
         if hendelse := self.cleaned_data['hendelse']:
             queryset = queryset.filter(hendelse=hendelse)

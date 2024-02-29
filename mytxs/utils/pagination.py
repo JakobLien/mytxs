@@ -4,6 +4,8 @@ from django.forms import BaseInlineFormSet
 # Utils for pagination
 
 def addPaginatorPage(request, pageSize=40):
+    if request.GET.get('page') == 'all':
+        pageSize = 1000
     paginator = Paginator(request.queryset, pageSize)
     request.paginatorPage = paginator.get_page(request.GET.get('page'))
 
@@ -31,6 +33,9 @@ class PaginatedPageQueryset(Page):
 
 def getFormsetPaginator(request, queryset, prefix, pageSize=10):
     'Gitt et request med satt request.queryset og url param "page", returne denne en paginator page'
+    if request.GET.get(f'{prefix}Page') == 'all':
+        pageSize = 100
+
     paginator = PaginatedQueryset(queryset, pageSize)
     return paginator.get_page(request.GET.get(f'{prefix}Page'))
 

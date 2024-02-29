@@ -24,22 +24,22 @@
 </div>
 
 <ul>
-    <li>Tidspunkt: {{request.instance.timeStamp}}</li>
-    <li>Kor: {{request.instance.kor}}</li>
-    <li>Forfatter: {{request.instance.author}}</li>
-    <li>Endring: {{request.instance.get_change_display}}</li>
-    <li>Model: {{request.instance.model}}</li>
-    <li>InstancePK: {{request.instance.instancePK}}</li>
+    <li>Tidspunkt: {{ request.instance.timeStamp }}</li>
+    <li>Kor: {{ request.instance.kor }}</li>
+    <li>Forfatter: {{ request.instance.author }}</li>
+    <li>Endring: {{ request.instance.get_change_display }}</li>
+    <li>Model: {{ request.instance.model }}</li>
+    <li>InstancePK: {{ request.instance.instancePK }}</li>
 </ul>
 
-<pre class="bg-white p-4 w-fit my-4">{{request.instance.formatValue}}</pre>
+<pre class="bg-white p-4 w-fit my-4">{{ request.instance.formatValue }}</pre>
 
 {% if request.instance.getReverseRelated %}
 <h2 class="text-xl">Logger som refererer til denne loggen: </h2>
 <ul>
     {% paginateList request.instance.getReverseRelated 'reverseRelated' %}
     {% for related in reverseRelatedPage %}
-    <li><span>{{ related.timeStamp }}: </span><a href="{{related.get_absolute_url}}">{{related}}</a></li>
+    <li><span>{{ related.timeStamp }}: </span><a href="{{ related.get_absolute_url }}">{{ related }}</a></li>
     {% endfor %}
 </ul>
 {% endif %}
@@ -47,16 +47,16 @@
 
 {% if request.instance.getM2MRelated %}
 {% for m2mName, M2Ms in request.instance.getM2MRelated.items %}
-<h2 class="text-xl">{{m2mName}} M2M relasjoner</h2>
+<h2 class="text-xl">{{ m2mName }} M2M relasjoner</h2>
 <ul>
 
 {% paginateList M2Ms 'm2mRelated' %}
 {% for M2M in m2mRelatedPage %}
-    <li id="m2m_{{M2M.pk}}">
-        <span title="Author: {{M2M.author}}">{{ M2M.timeStamp }}: {{ M2M.get_change_display }}</span>
+    <li id="m2m_{{ M2M.pk }}">
+        <span title="Author: {{ M2M.author }}">{{ M2M.timeStamp }}: {{ M2M.get_change_display }}</span>
         
         {% if M2M.fromLogg.get_absolute_url != request.path %}
-        <a href="{{ M2M.fromLogg.get_absolute_url }}#m2m_{{M2M.pk}}">{{ M2M.fromLogg.strRep }}</a>
+        <a href="{{ M2M.fromLogg.get_absolute_url }}#m2m_{{ M2M.pk }}">{{ M2M.fromLogg.strRep }}</a>
         {% else  %}
         {{ M2M.fromLogg.strRep }}
         {% endif %}
@@ -64,16 +64,16 @@
         &lt;-&gt; 
 
         {% if M2M.toLogg.get_absolute_url != request.path %}
-        <a href="{{ M2M.toLogg.get_absolute_url }}#m2m_{{M2M.pk}}">{{ M2M.toLogg.strRep }}</a>
+        <a href="{{ M2M.toLogg.get_absolute_url }}#m2m_{{ M2M.pk }}">{{ M2M.toLogg.strRep }}</a>
         {% else  %}
         {{ M2M.toLogg.strRep }}
         {% endif %}
 
         {% if M2M.correspondingM2M %} 
         {% if  M2M.fromLogg.get_absolute_url == request.path %}
-        <a href="{{ M2M.correspondingM2M.fromLogg.get_absolute_url }}#m2m_{{M2M.correspondingM2M.pk}}">(Tilsvarende)</a>
+        <a href="{{ M2M.correspondingM2M.fromLogg.get_absolute_url }}#m2m_{{ M2M.correspondingM2M.pk }}">(Tilsvarende)</a>
         {% else %}
-        <a href="{{ M2M.correspondingM2M.toLogg.get_absolute_url }}#m2m_{{M2M.correspondingM2M.pk}}">(Tilsvarende)</a>
+        <a href="{{ M2M.correspondingM2M.toLogg.get_absolute_url }}#m2m_{{ M2M.correspondingM2M.pk }}">(Tilsvarende)</a>
         {% endif %}
         {% endif %}
     </li>

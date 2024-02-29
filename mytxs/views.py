@@ -21,14 +21,14 @@ from mytxs.management.commands.transfer import transferByJWT
 from mytxs.models import Dekorasjon, DekorasjonInnehavelse, Hendelse, Kor, Lenke, Logg, Medlem, MedlemQuerySet, Tilgang, Turne, Verv, VervInnehavelse, Oppmøte
 from mytxs.forms import HendelseFilterForm, LoggFilterForm, MedlemFilterForm, NavnKorFilterForm, TurneFilterForm, VervFilterForm, OppmøteFilterForm
 from mytxs.utils.formAccess import addHelpText, disableBrukt, disableFields, disableFormMedlem, removeFields
-from mytxs.utils.formAddField import addDeleteCheckbox, addDeleteUserCheckbox, addReverseM2M
+from mytxs.utils.formAddField import addDeleteCheckbox, addDeleteUserCheckbox, addHendelseMedlemmer, addReverseM2M
 from mytxs.utils.lazyDropdown import lazyDropdown
 from mytxs.utils.formUtils import filesIfPost, postIfPost, inlineFormsetArgs
 from mytxs.utils.hashUtils import addHash, testHash
 from mytxs.utils.logAuthorUtils import logAuthorAndSave, logAuthorInstance
-from mytxs.utils.modelUtils import qBool, randomDistinct, stemmegruppeOrdering, vervInnehavelseAktiv, stemmegruppeVerv
+from mytxs.utils.modelUtils import inneværendeSemester, qBool, randomDistinct, stemmegruppeOrdering, vervInnehavelseAktiv, stemmegruppeVerv
 from mytxs.utils.pagination import getPaginatedInlineFormSet, addPaginatorPage
-from mytxs.utils.downloadUtils import downloadCSV, downloadFile, downloadVCard
+from mytxs.utils.downloadUtils import downloadCSV, downloadICal, downloadVCard
 from mytxs.utils.viewUtils import harTilgang, redirectToInstance
 from mytxs.utils.modelUtils import annotateInstance
 
@@ -343,7 +343,7 @@ def semesterplan(request, kor):
         messages.error(request, f'Du har ikke tilgang til andre kors kalender')
         return redirect(request.user.medlem)
     
-    request.queryset = Hendelse.objects.filter(kor__navn=kor)
+    request.queryset = request.user.medlem.getHendelser(kor)
 
     if not request.GET.get('gammelt'):
         request.queryset = request.queryset.filter(startDate__gte=datetime.datetime.today())
@@ -370,8 +370,7 @@ def iCal(request, kor, medlemPK):
         messages.error(request, 'Du har ikke tilgang til dette korets kalender')
         return redirect('login')
 
-    content = Hendelse.objects.filter(kor__navn=kor, startDate__gte=datetime.datetime.today()-datetime.timedelta(days=90)).generateICal(medlemPK, name=f'{kor} semesterplan.ics')
-    return downloadFile(f'{kor} semesterplan.ics', content, content_type='text/calendar')
+    return downloadICal(medlem, kor)
 
 
 @harTilgang(instanceModel=Oppmøte, lookupToArgNames={'medlem__pk': 'medlemPK', 'hendelse__pk': 'hendelsePK'}, 
@@ -427,7 +426,7 @@ def egenFøring(request, hendelsePK):
         messages.error(request, 'For sent eller tidlig å føre fravær selv')
         return redirect('semesterplan', kor=hendelse.kor.navn)
 
-    if request.instance.fravær:
+    if request.instance.fravær != None:
         messages.info(request, f'Oppmøte allerede ført med {request.instance.fravær} minutter forsentkomming!')
         return redirect('semesterplan', kor=hendelse.kor.navn)
 
@@ -446,15 +445,10 @@ def egenFøring(request, hendelsePK):
 
 @harTilgang
 def fraværSide(request, side, underside=None):
-    if side == 'oversikt':
-        request.queryset = Medlem.objects.filterIkkePermitert(kor=Kor.objects.get(navn=underside))\
-            .annotateFravær(kor=underside, heleSemesteret=bool(request.GET.get('heleSemesteret'))).order_by(*Medlem._meta.ordering)
-        return render(request, 'mytxs/fraværListe.html')
-    
     if side == 'søknader':
         oppmøteFilterForm = OppmøteFilterForm(request.GET, request=request)
 
-        request.queryset = request.user.medlem.sideTilgangQueryset(Oppmøte).distinct().exclude(melding='')
+        request.queryset = request.user.medlem.sideTilgangQueryset(Oppmøte).distinct()
 
         request.queryset = oppmøteFilterForm.applyFilter(request.queryset)
 
@@ -463,6 +457,75 @@ def fraværSide(request, side, underside=None):
         return render(request, 'mytxs/instanceListe.html', {
             'filterForm': oppmøteFilterForm
         })
+
+    if side == 'oversikt':
+        request.queryset = Medlem.objects.filterIkkePermitert(kor=Kor.objects.get(navn=underside))\
+            .annotateFravær(kor=underside, heleSemesteret=bool(request.GET.get('heleSemesteret'))).order_by(*Medlem._meta.ordering)
+        return render(request, 'mytxs/fraværListe.html')
+    
+    if side == 'statistikk':
+        medlemmer = Medlem.objects.filterIkkePermitert(kor=Kor.objects.get(navn=underside))\
+            .annotateFravær(kor=underside, heleSemesteret=bool(request.GET.get('heleSemesteret')))\
+            .annotateKarantenekor(kor=underside)\
+            .annotateStemmegruppe(kor=underside)\
+            .order_by(*Medlem._meta.ordering)
+        
+        class fraværGruppe:
+            def __init__(self, navn):
+                self._navn = navn
+                self.medlemmer = []
+
+            @property
+            def navn(self):
+                return f'{self._navn} ({len(self.medlemmer)})'
+
+            def addMedlem(self, medlem):
+                self.medlemmer.append(medlem)
+
+            @property
+            def gyldigFravær(self):
+                return sum([m.gyldigFravær for m in self.medlemmer])/len(self.medlemmer)
+            
+            @property
+            def ugyldigFravær(self):
+                return sum([m.ugyldigFravær for m in self.medlemmer])/len(self.medlemmer)
+        
+            @property
+            def hendelseVarighet(self):
+                return sum([m.hendelseVarighet for m in self.medlemmer])/len(self.medlemmer)
+        
+        fraværGrupper = {}
+
+        # Opprett småkor om dette e storkor
+        if underside in consts.bareStorkorNavn:
+            for småkor in consts.småkorForStorkor[underside]:
+                fraværGrupper[småkor] = fraværGruppe(småkor)
+
+                fraværGrupper[småkor].medlemmer = medlemmer.filter(
+                    vervInnehavelseAktiv(),
+                    stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
+                    vervInnehavelser__verv__kor__navn=småkor
+                )
+        
+        # Opprett stemmegrupper
+        for stemmegruppe in Kor.objects.get(navn=underside).stemmegrupper():
+            fraværGrupper[stemmegruppe] = fraværGruppe(stemmegruppe)
+
+        # Opprett karantenekor
+        for karantenekor in medlemmer.values_list('karantenekor', flat=True).order_by('karantenekor'):
+            fraværGrupper[karantenekor] = fraværGruppe('K'+str(karantenekor-2000 if karantenekor >= 2000 else karantenekor))
+
+        for medlem in medlemmer:
+            # Legg dem inn i stemmegruppe fraværGruppa
+            if medlem.stemmegruppe != None:
+                fraværGrupper[medlem.stemmegruppe].addMedlem(medlem)
+            
+            # Legg dem inn i karantenekor fraværGruppa
+            fraværGrupper[medlem.karantenekor].addMedlem(medlem)
+
+        request.queryset = list(filter(lambda fg: fg.medlemmer, fraværGrupper.values()))
+
+        return render(request, 'mytxs/fraværListe.html')
 
 
 @login_required
@@ -473,7 +536,7 @@ def fraværSemesterplan(request, kor, medlemPK):
     
     medlem = Medlem.objects.get(pk=medlemPK)
 
-    request.queryset = Hendelse.objects.filter(kor__navn=kor)
+    request.queryset = medlem.getHendelser(kor).filter(kor__navn=kor, kategori=Hendelse.OBLIG)
 
     if not request.GET.get('gammelt'):
         request.queryset = request.queryset.filter(startDate__gte=datetime.datetime.today())
@@ -552,38 +615,52 @@ def hendelse(request, hendelsePK):
             'endreFraværForm': endreFraværForm
         })
 
+    if request.GET.get('dupliser'):
+        # Dupliser hendelsen
+        request.instance.pk = None
+        request.instance._state.adding = True
+        request.instance.startDate += datetime.timedelta(weeks=1)
+        if request.instance.sluttDate:
+            request.instance.sluttDate += datetime.timedelta(weeks=1)
+        request.instance.save()
+        logAuthorInstance(request.instance, request.user.medlem)
+
+        request.GET = request.GET.copy()
+        del request.GET['dupliser']
+        return redirectToInstance(request)
+
     HendelseForm = modelform_factory(Hendelse, exclude=['kor'])
-    if not request.GET.get('alleOppmøter'):
-        OppmøteFormset = inlineformset_factory(Hendelse, Oppmøte, exclude=[], extra=0, can_delete=True, formset=getPaginatedInlineFormSet(request))
-    else:
-        OppmøteFormset = inlineformset_factory(Hendelse, Oppmøte, exclude=[], extra=0, can_delete=True)
+
+    if request.instance.kategori == Hendelse.UNDERGRUPPE:
+        HendelseForm = addHendelseMedlemmer(HendelseForm, request.user.medlem)
 
     HendelseForm = addDeleteCheckbox(HendelseForm)
 
     hendelseForm = HendelseForm(postIfPost(request, 'hendelse'), instance=request.instance, prefix='hendelse')
-    oppmøteFormset = OppmøteFormset(postIfPost(request, 'oppmøte'), instance=request.instance, prefix='oppmøte')
 
     disableFormMedlem(request.user.medlem, hendelseForm)
 
-    if disableFormMedlem(request.user.medlem, oppmøteFormset): 
-        disableFields(oppmøteFormset, 'medlem')
-        if not request.instance.varighet:
-            disableFields(oppmøteFormset, 'fravær')
+    if request.instance.kategori != Hendelse.UNDERGRUPPE:
+        OppmøteFormset = inlineformset_factory(Hendelse, Oppmøte, exclude=[], extra=0, can_delete=True, formset=getPaginatedInlineFormSet(request))
+        oppmøteFormset = OppmøteFormset(postIfPost(request, 'oppmøte'), instance=request.instance, prefix='oppmøte')
 
-        addHelpText(oppmøteFormset, 'DELETE', helpText=\
-            'Dette medlemmet skal ifølge stemmegruppeverv og permisjon ikke være på denne hendelsen. '+
-            'Følgelig hadde oppmøtet vært slettet automatisk om de ikke hadde en fraværsmelding eller en fraværsføring.')        
-        for form in oppmøteFormset.forms:
-            if form.instance.medlem in oppmøteFormset.instance.medlemmer:
-                # Dette er et medlem som egentlig ikke har stemmegrupper/permisjon kombinasjon 
-                # til å ha dette opmøtet, men vi vil ikke automatisk slette dataen på oppmøtet heller.
-                removeFields(form, 'DELETE')
-    else:
-        removeFields(oppmøteFormset, 'DELETE')
+        if disableFormMedlem(request.user.medlem, oppmøteFormset): 
+            disableFields(oppmøteFormset, 'medlem')
+            if not request.instance.varighet:
+                disableFields(oppmøteFormset, 'fravær')
+
+            addHelpText(oppmøteFormset, 'DELETE', helpText=\
+                'Dette medlemmet skal ifølge stemmegruppeverv og permisjon ikke være på denne hendelsen. '+
+                'Følgelig hadde oppmøtet vært slettet automatisk om de ikke hadde en fraværsmelding eller en fraværsføring.')        
+            for form in oppmøteFormset.forms:
+                if form.instance.medlem in oppmøteFormset.instance.medlemmer:
+                    removeFields(form, 'DELETE')
+        else:
+            removeFields(oppmøteFormset, 'DELETE')
 
     if request.method == 'POST':
         # Rekkefølgen her e viktig for at bruker skal kunne slette oppmøter nødvendig for å flytte hendelse på en submit:)
-        if oppmøteFormset.is_valid():
+        if request.instance.kategori != Hendelse.UNDERGRUPPE and oppmøteFormset.is_valid():
             logAuthorAndSave(oppmøteFormset, request.user.medlem)
         if hendelseForm.is_valid():
             logAuthorAndSave(hendelseForm, request.user.medlem)
@@ -591,7 +668,7 @@ def hendelse(request, hendelsePK):
                 messages.info(request, f'{hendelseForm.instance} slettet')
                 return redirect('hendelse')
         
-        if hendelseForm.is_valid() and oppmøteFormset.is_valid():
+        if hendelseForm.is_valid() and (request.instance.kategori == Hendelse.UNDERGRUPPE or oppmøteFormset.is_valid()):
             return redirectToInstance(request)
 
     if request.instance.sluttTime != None and abs(datetime.datetime.now() - request.instance.start).total_seconds() / 60 <= 30:
@@ -602,7 +679,7 @@ def hendelse(request, hendelsePK):
 
     return render(request, 'mytxs/hendelse.html', {
         'forms': [hendelseForm],
-        'formsets': [oppmøteFormset],
+        'formsets': [oppmøteFormset] if request.instance.kategori != Hendelse.UNDERGRUPPE else [],
     })
 
 
@@ -772,12 +849,12 @@ def dekorasjon(request, kor, dekorasjonNavn):
 def tilgangSide(request, side=None):
     if side == 'oversikt':
         tilgangVerv = Verv.objects.filter(
-            tilganger__kor__tilganger__in=request.user.medlem.tilganger.filter(navn='tilgang'),
-            tilganger__bruktIKode=True
+            qBool(request.GET.get('ikkeBruktIKode'), falseOption=Q(tilganger__bruktIKode=True)),
+            tilganger__kor__tilganger__in=request.user.medlem.tilganger.filter(navn='tilgang')
         ).distinct().prefetch_related(
             'kor',
             Prefetch('tilganger', queryset=Tilgang.objects.filter(
-                bruktIKode=True
+                qBool(request.GET.get('ikkeBruktIKode'), falseOption=Q(bruktIKode=True)),
             ).prefetch_related('kor')),
             Prefetch('vervInnehavelser', queryset=VervInnehavelse.objects.filter(
                 vervInnehavelseAktiv('', utvidetStart=datetime.timedelta(days=60)),
@@ -944,9 +1021,9 @@ For disse medlemmene hentet de ut: %s\n
 
         return downloadCSV('MyTXS-eksport.csv', csv)
 
-
     if 'fraværEksport' in request.GET:
-        hendelser = Hendelse.objects.filterSemester().filter(
+        hendelser = Hendelse.objects.filter(inneværendeSemester('startDate')).filter(
+            kategori=Hendelse.OBLIG,
             kor__navn=kor,
             sluttTime__isnull=False # Dette betyr at hendelsen har en varighet
         )
@@ -972,7 +1049,9 @@ For disse medlemmene hentet de ut: %s\n
             # Må ta høyde for at permisjon kan medføre færre oppmøter enn hendelser
             oppmøteIndex=0
             for hendelse in hendelser:
-                if medlem.oppmøter.all()[oppmøteIndex].hendelse_id == hendelse.id:
+                if oppmøteIndex == len(medlem.oppmøter.all()):
+                    line.append('')
+                elif medlem.oppmøter.all()[oppmøteIndex].hendelse_id == hendelse.id:
                     line.append('X' if medlem.oppmøter.all()[oppmøteIndex].fravær != None else '')
                     oppmøteIndex += 1
                 else:

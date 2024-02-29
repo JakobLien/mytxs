@@ -24,7 +24,7 @@
     </tr>
     {% for hendelse in request.queryset %}
     <tr class="border-b border-black">
-        <td>{{ hendelse.navn }} {% if user.medlem|tilgangExists:'semesterplan,fravær' %}<a href="{% url 'hendelse' hendelse.pk %}">Rediger</a>{% endif %}</td>
+        <td>{{ hendelse.navnMedPrefiks }} {% if user.medlem|tilgangExists:'semesterplan,fravær' %}<a href="{% url 'hendelse' hendelse.pk %}">Rediger</a>{% endif %}</td>
         <td>
             {{ hendelse.startDate|date:'D j. M' }}
             {% if hendelse.startTime %}
@@ -33,30 +33,20 @@
 
             {% if hendelse.sluttDate %}
             -
-            {% if hendelse.sluttDate != hendelse.startDate%}
+            {% if hendelse.sluttDate != hendelse.startDate %}
             <br>{{ hendelse.sluttDate|date:'D j. M' }}
             {% endif %}
             {% if hendelse.sluttTime %}
-            {{ hendelse.sluttTime}}
+            {{ hendelse.sluttTime }}
             {% endif %}
             {% endif %}
         </td>
         <td>{{ hendelse.sted }}</td>
 
-        {% with oppmøte=hendelse.oppmøter|filterMedlemFirst:medlem %}{% if oppmøte %}
-        {% ifAll %}<td>
-            <a href="{{oppmøte.get_absolute_url}}">{% ifAll %}
-                {% if oppmøte.hendelse.kategori == 'O' and oppmøte.minutterBorte and hendelse.start|past %}
-                    {{ oppmøte.minutterBorte }} min {% if not oppmøte.gyldig %}u{% endif %}gyldig fravær
-                {% elif not hendelse.start|past %}
-                    {% if hendelse.kategori == 'O' and oppmøte.ankomst == 1 %}
-                    Søk fravær
-                    {% elif hendelse.kategori == 'P' and oppmøte.ankomst == 0 %}
-                    Meld om du kommer
-                    {% else %}Se melding{% endif %}
-                {% endif %}
-            {% ifAll %}</a><br>
-        </td>{% endIfAll %}
+        {% with oppmøte=hendelse.oppmøter|filterMedlemFirst:medlem %}{% if oppmøte and oppmøte.fraværTekst %}
+        <td><a href="{{ oppmøte.get_absolute_url }}">
+            {{ oppmøte.fraværTekst }}
+        </a></td>
         {% endif %}{% endwith%}
     </tr>
     {% endfor %}

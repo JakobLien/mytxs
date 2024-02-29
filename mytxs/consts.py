@@ -15,6 +15,10 @@ alleKorStemmeFordeling = ['TB', 'SA', 'TB', 'SATB', 'SA', '']
 bareKorNavn = ['TSS', 'TKS', 'Pirum', 'Knauskoret', 'Candiss']
 bareStorkorNavn = ['TSS', 'TKS']
 bareSmåkorNavn = ['Pirum', 'Knauskoret', 'Candiss']
+småkorForStorkor = {
+    'TSS': ['Pirum', 'Knauskoret'],
+    'TKS': ['Candiss', 'Knauskoret']
+}
 
 bareKorNavnTKSRekkefølge = ['TKS', 'TSS', 'Candiss', 'Knauskoret', 'Pirum']
 

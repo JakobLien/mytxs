@@ -14,13 +14,11 @@
     <a href="{{ request.egenFøringLink }}" target="_blank"><img src="{{ request.egenFøringLink }}"></img></a>
 {% endif %}
 
-{% toggleURLparam 'alleOppmøter' 'vis alle oppmøter' %}
-
 {% endblock %}
 
 
 {% block afterForms %}
-
+{% if request.instance.getStemmeFordeling.items %}
 <br>
 <table>
     <tr class="border-b border-black">
@@ -38,9 +36,12 @@
     </tr>
     {% endfor %}
 </table>
+{% endif %}
 
 {% if request.eksportLenke %}
-<a href="{{ request.eksportLenke }}">Eksporter data for de som kommer</a>
+<a href="{{ request.eksportLenke }}">Eksporter data for de som kommer</a><br>
 {% endif %}
+
+<a href="?dupliser=True" onclick="return confirm('Dupliser hendelsen?')">Dupliser hendelsen</a>
 
 {% endblock %}

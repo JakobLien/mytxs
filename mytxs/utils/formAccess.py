@@ -133,6 +133,9 @@ def disableFormMedlem(medlem, form):
             # Skaff modellen som styre vår tilgang til dette feltet
             tilgangModel = getSourceM2MModel(type(form.instance), fieldName)
 
+            if not tilgangModel: # Om det ikke finnes et tilsvarende m2m field
+                continue
+
             # Skaff options du kan redigere
             tilgangQueryset = medlem.redigerTilgangQueryset(tilgangModel, field.queryset.model, fieldType=forms.ModelMultipleChoiceField)
 

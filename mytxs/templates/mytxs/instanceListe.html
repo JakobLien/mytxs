@@ -17,13 +17,13 @@
 
 {% getPaginatorNavigation request.paginatorPage %}
 {% for instance in request.paginatorPage %}
-<p><a href="{{instance.get_absolute_url}}">{{instance}}</a></p>
+<p><a href="{{ instance.get_absolute_url }}">{{ instance }}</a></p>
 {% endfor %}
 
 {% else %}
 
 {% for instance in request.queryset %}
-<p><a href="{{instance.get_absolute_url}}">{{instance}}</a></p>
+<p><a href="{{ instance.get_absolute_url }}">{{ instance }}</a></p>
 {% endfor %}
 
 {% endif %}

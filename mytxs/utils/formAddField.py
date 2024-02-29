@@ -1,6 +1,8 @@
 from django import forms
 
 from mytxs.fields import MyModelMultipleChoiceField
+from mytxs.models import Hendelse, Medlem
+from mytxs.utils.modelUtils import stemmegruppeVerv, vervInnehavelseAktiv
 
 # Alt som legg til fields på forms
 
@@ -62,4 +64,34 @@ def addDeleteUserCheckbox(MedlemModelForm):
                 return self.instance.user.delete()
             return super().save()
     
+    return NewForm
+
+
+def addHendelseMedlemmer(HendelseForm, medlem):
+    class NewForm(HendelseForm):
+        medlemmer = MyModelMultipleChoiceField(
+            queryset=medlem.redigerTilgangQueryset(Hendelse, resModel=Medlem, fieldType=forms.ModelMultipleChoiceField)
+                .filter(vervInnehavelseAktiv(), stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True)).distinct(),
+            required=False
+        )
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+
+            self.fields['medlemmer'].initial = self.instance.medlemmer
+
+            self.fields['medlemmer'].setEnableQueryset(
+                enableQueryset=self.fields['medlemmer'].queryset.exclude(
+                    vervInnehavelseAktiv(),
+                    vervInnehavelser__verv__tilganger__navn__in=self.instance.prefiksArray,
+                    vervInnehavelser__verv__tilganger__kor=self.instance.kor
+                ),
+                initialValue=self.fields['medlemmer'].initial
+            )
+
+        def save(self, *args, **kwargs):
+            if self.is_valid():
+                self.instance._medlemmer = self.cleaned_data['medlemmer']
+            super().save(*args, **kwargs)
+
     return NewForm
