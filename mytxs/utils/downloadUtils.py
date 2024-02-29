@@ -100,12 +100,12 @@ def getVeventFromHendelse(hendelse, medlem):
 
     if hendelse.slutt:
         if isinstance(hendelse.slutt, datetime.datetime):
-            veventDict['DTSTART;TZID=Europe/Oslo'] = dateToICal(hendelse.slutt)
+            veventDict['DTEND;TZID=Europe/Oslo'] = dateToICal(hendelse.slutt)
         else:
             # I utgangspunktet er slutt tiden (hovedsakling tidspunktet) ekskludert i ical formatet, 
             # men følgelig om det er en sluttdato (uten tid), vil det vises som en dag for lite
             # i kalenderapplikasjonene. Derfor hive vi på en dag her, så det vises rett:)
-            veventDict['DTSTART;VALUE=DATE'] = dateToICal(hendelse.slutt + datetime.timedelta(days=1))
+            veventDict['DTEND;VALUE=DATE'] = dateToICal(hendelse.slutt + datetime.timedelta(days=1))
     
     veventDict['DTSTAMP'] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S") + 'Z'
 
