@@ -9,13 +9,15 @@
         <th>Hvem</th>
         <th>Gyldig fravær</th>
         <th>Ugyldig fravær</th>
-        {% if medlem.pk %}<th>Semesterplan</th>{% endif %}
+        <th>Totalt fravær</th>
+        {% if request.queryset.0.pk %}<th>Semesterplan</th>{% endif %}
     </tr>
     {% for medlem in request.queryset %}
     <tr class="border-b border-black">
         <td>{{ medlem.navn }}</td>
         <td>{{ medlem|showFravær:True }}</td>
         <td>{{ medlem|showFravær:False }}</td>
+        <td>{{ medlem|showFravær:None }}</td>
         {% if medlem.pk %}<td><a href="{% url 'fraværSemesterplan' request.resolver_match.kwargs.underside medlem.pk %}?gammelt=True">Se semesterplan</a></td>{% endif %}
     </tr>
     {% endfor %}

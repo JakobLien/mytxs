@@ -19,9 +19,10 @@ from mytxs import consts
 from mytxs.fields import intToBitList
 from mytxs.management.commands.transfer import transferByJWT
 from mytxs.models import Dekorasjon, DekorasjonInnehavelse, Hendelse, Kor, Lenke, Logg, Medlem, MedlemQuerySet, Tilgang, Turne, Verv, VervInnehavelse, Oppmøte
-from mytxs.forms import HendelseFilterForm, LoggFilterForm, MedlemFilterForm, NavnKorFilterForm, TurneFilterForm, VervFilterForm, OppmøteFilterForm
+from mytxs.forms import HendelseFilterForm, LoggFilterForm, MedlemFilterForm, NavnKorFilterForm, ShareCalendarForm, TurneFilterForm, VervFilterForm, OppmøteFilterForm
 from mytxs.utils.formAccess import addHelpText, disableBrukt, disableFields, disableFormMedlem, removeFields
 from mytxs.utils.formAddField import addDeleteCheckbox, addDeleteUserCheckbox, addHendelseMedlemmer, addReverseM2M
+from mytxs.utils.googleCalendar import getOrCreateAndShareCalendar
 from mytxs.utils.lazyDropdown import lazyDropdown
 from mytxs.utils.formUtils import filesIfPost, postIfPost, inlineFormsetArgs
 from mytxs.utils.hashUtils import addHash, testHash
@@ -48,6 +49,8 @@ def login(request):
                 messages.info(request, 'Login successful')
                 if request.GET.get('next'):
                     return redirect(request.GET.get('next'))
+                if request.user.medlem.storkorNavn():
+                    return redirect('semesterplan', request.user.medlem.storkorNavn())
             return redirect(request.get_full_path())
         else:
             messages.error(request, 'Login failed')
@@ -139,7 +142,7 @@ def sjekkheftet(request, side, underside=None):
         medlemFilterForm = MedlemFilterForm(request.GET)
 
         request.queryset = medlemFilterForm.applyFilter(request.queryset)\
-            .order_by(*Medlem._meta.ordering).prefetchVervDekorasjonKor()
+            .order_by(*Medlem._meta.ordering).annotatePublic().sjekkheftePrefetch(kor=None)
 
         if request.GET.get('vcard'):
             return downloadVCard(request.queryset)
@@ -153,17 +156,14 @@ def sjekkheftet(request, side, underside=None):
     if side == 'kart':
         request.medlemMapData = json.dumps([{
             'navn': medlem.navn,
-            'boAdresse': medlem.boAdresse if medlem.sjekkhefteSynligBoadresse != 0 else '',
-            'foreldreAdresse': medlem.foreldreAdresse if medlem.sjekkhefteSynligForeldreadresse != 0 else '',
+            'boAdresse': medlem.public__boAdresse,
+            'foreldreAdresse': medlem.public__foreldreAdresse,
             'storkorNavn': medlem.storkorNavn(),
             'pk': medlem.pk
         } for medlem in Medlem.objects.distinct().filter(
             vervInnehavelseAktiv(),
             stemmegruppeVerv('vervInnehavelser__verv')
-        ).annotate(
-            sjekkhefteSynligBoadresse=F('sjekkhefteSynlig').bitand(2**4),
-            sjekkhefteSynligForeldreadresse=F('sjekkhefteSynlig').bitand(2**5)
-        ).exclude((Q(boAdresse='') | Q(sjekkhefteSynligBoadresse=0)) & (Q(foreldreAdresse='') & Q(sjekkhefteSynligForeldreadresse=0)))])
+        ).annotatePublic().exclude(public__boAdresse__isnull=True, public__foreldreAdresse__isnull=True)])
 
         return render(request, 'mytxs/sjekkhefteKart.html')
 
@@ -183,36 +183,45 @@ def sjekkheftet(request, side, underside=None):
     # Gruperinger er visuelle grupperinger i sjekkheftet på samme side, klassisk stemmegrupper. 
     grupperinger = {}
     if kor := Kor.objects.filter(navn=side).first():
-        request.queryset = Medlem.objects.distinct().annotateKarantenekor(kor=kor if kor.navn != 'Sangern' else None)
+        request.queryset = Medlem.objects.distinct().order_by(*Medlem._meta.ordering).annotateKarantenekor(
+            kor=kor if kor.navn != 'Sangern' else None
+        )
+
         if tilgang := Tilgang.objects.filter(sjekkheftetSynlig=True, navn=underside, kor=kor).first():
             # Om det e en tilgangsdefinert undergruppe vi ser på, f.eks. styret
             request.queryset = request.queryset.filter(
                 vervInnehavelseAktiv(),
                 vervInnehavelser__verv__kor=kor,
                 vervInnehavelser__verv__tilganger=tilgang
-            ).order_by(*Medlem._meta.ordering).prefetchVervDekorasjonKor()
+            ).annotatePublic(
+                overrideVisible=request.user.medlem.tilganger.filter(navn='sjekkhefteSynlig', kor=kor).exists()
+            ).sjekkheftePrefetch(kor=kor)
 
             grupperinger = {'': request.queryset}
         else:
             # Om det e heile koret
             request.queryset = request.queryset.filter(
-                stemmegruppeVerv('vervInnehavelser__verv'),
+                stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
                 vervInnehavelseAktiv(),
                 vervInnehavelser__verv__kor=kor
-            ).order_by(*Medlem._meta.ordering).annotateStemmegruppe(kor).exclude(stemmegruppe=None).prefetchVervDekorasjonKor()
+            ).annotatePublic(
+                overrideVisible=request.user.medlem.tilganger.filter(navn='sjekkhefteSynlig', kor=kor).exists()
+            ).annotateStemmegruppe(kor, includeDirr=True)
 
-            grupperinger = {key: [] for key in kor.stemmegrupper()}
+            if kor.navn not in consts.bareSmåkorNavn:
+                request.queryset = request.queryset.annotateKor(annotationNavn='småkor', korAlternativ=consts.bareSmåkorNavn, aktiv=True)
+            
+            request.queryset = request.queryset.sjekkheftePrefetch(kor=kor)
+
+            grupperinger = {key: [] for key in ['Dirigent'] + kor.stemmegrupper() }
             for medlem in request.queryset:
                 grupperinger[medlem.stemmegruppe].append(medlem)
 
     elif side == 'jubileum':
-        request.queryset = Medlem.objects.distinct().annotateKarantenekor(storkor=True).annotate(
-            sjekkhefteSynligFødselsdatoBit=F('sjekkhefteSynlig').bitand(1)
-        ).filter(
+        request.queryset = Medlem.objects.distinct().annotateKarantenekor(storkor=True).annotatePublic().filter(
             vervInnehavelseAktiv(), 
             stemmegruppeVerv('vervInnehavelser__verv'),
-            fødselsdato__isnull=False,
-            sjekkhefteSynligFødselsdatoBit__gte=1
+            public__fødselsdato__isnull=False
         )
 
         # Måten dette funke e at for å produser en index med tilsvarende sortering som
@@ -223,7 +232,7 @@ def sjekkheftet(request, side, underside=None):
 
         request.queryset = request.queryset\
             .order_by(Cast((F('fødselsdato__month') * 31 + F('fødselsdato__day') - today + 403), output_field=IntegerField()) % 403)\
-            .prefetchVervDekorasjonKor()
+            .sjekkheftePrefetch(kor=None)
 
         grupperinger = {'': request.queryset}
 
@@ -306,8 +315,6 @@ def medlem(request, medlemPK):
             disableFields(medlemsDataForm, 'gammeltMedlemsnummer')
         if 'notis' in medlemsDataForm.fields and not request.user.medlem.redigerTilgangQueryset(Medlem, includeExtended=False).contains(request.instance):
             disableFields(medlemsDataForm, 'notis')
-        if 'sjekkhefteSynlig' in medlemsDataForm.fields and request.instance != request.user.medlem:
-            disableFields(medlemsDataForm, 'sjekkhefteSynlig')
     
     disableFormMedlem(request.user.medlem, vervInnehavelseFormset)
 
@@ -343,6 +350,13 @@ def semesterplan(request, kor):
         messages.error(request, f'Du har ikke tilgang til andre kors kalender')
         return redirect(request.user.medlem)
     
+    shareCalendarForm = ShareCalendarForm(postIfPost(request, 'shareCalendar'), prefix='shareCalendar')
+
+    if request.method == 'POST':
+        if shareCalendarForm.is_valid():
+            getOrCreateAndShareCalendar(kor, request.user.medlem, shareCalendarForm.cleaned_data['gmail'])
+            return redirect(request.path)
+
     request.queryset = request.user.medlem.getHendelser(kor)
 
     if not request.GET.get('gammelt'):
@@ -352,7 +366,10 @@ def semesterplan(request, kor):
 
     annotateInstance(request.user.medlem, MedlemQuerySet.annotateFravær, kor=kor)
     
-    return render(request, 'mytxs/semesterplan.html', { 'medlem': request.user.medlem })
+    return render(request, 'mytxs/semesterplan.html', { 
+        'medlem': request.user.medlem,
+        'shareCalendarForm': shareCalendarForm
+    })
 
 
 def iCal(request, kor, medlemPK):
@@ -415,7 +432,7 @@ def egenFøring(request, hendelsePK):
     request.instance = Oppmøte.objects.filter(medlem=request.user.medlem, hendelse=hendelse).first()
     
     if not request.instance:
-        if not hendelse.medlemmer.contains(request.user.medlem):
+        if not hendelse.oppmøteMedlemmer.contains(request.user.medlem):
             messages.error(request, 'Du er ikke blant de som skal føres fravær på')
             return redirect('semesterplan', kor=hendelse.kor.navn)
         else:
@@ -582,6 +599,7 @@ def hendelse(request, hendelsePK):
         request.queryset = MedlemQuerySet.annotateStemmegruppe(
             request.instance.oppmøter,
             kor=request.instance.kor,
+            includeDirr=True,
             pkPath='medlem__pk'
         ).select_related('medlem').order_by(stemmegruppeOrdering(fieldName='stemmegruppe'), 'medlem')
 
@@ -632,7 +650,7 @@ def hendelse(request, hendelsePK):
     HendelseForm = modelform_factory(Hendelse, exclude=['kor'])
 
     if request.instance.kategori == Hendelse.UNDERGRUPPE:
-        HendelseForm = addHendelseMedlemmer(HendelseForm, request.user.medlem)
+        HendelseForm = addHendelseMedlemmer(HendelseForm)
 
     HendelseForm = addDeleteCheckbox(HendelseForm)
 
@@ -640,6 +658,7 @@ def hendelse(request, hendelsePK):
 
     disableFormMedlem(request.user.medlem, hendelseForm)
 
+    oppmøteFormset = None
     if request.instance.kategori != Hendelse.UNDERGRUPPE:
         OppmøteFormset = inlineformset_factory(Hendelse, Oppmøte, exclude=[], extra=0, can_delete=True, formset=getPaginatedInlineFormSet(request))
         oppmøteFormset = OppmøteFormset(postIfPost(request, 'oppmøte'), instance=request.instance, prefix='oppmøte')
@@ -653,14 +672,14 @@ def hendelse(request, hendelsePK):
                 'Dette medlemmet skal ifølge stemmegruppeverv og permisjon ikke være på denne hendelsen. '+
                 'Følgelig hadde oppmøtet vært slettet automatisk om de ikke hadde en fraværsmelding eller en fraværsføring.')        
             for form in oppmøteFormset.forms:
-                if form.instance.medlem in oppmøteFormset.instance.medlemmer:
+                if form.instance.medlem in oppmøteFormset.instance.oppmøteMedlemmer:
                     removeFields(form, 'DELETE')
         else:
             removeFields(oppmøteFormset, 'DELETE')
 
     if request.method == 'POST':
         # Rekkefølgen her e viktig for at bruker skal kunne slette oppmøter nødvendig for å flytte hendelse på en submit:)
-        if request.instance.kategori != Hendelse.UNDERGRUPPE and oppmøteFormset.is_valid():
+        if oppmøteFormset and oppmøteFormset.is_valid():
             logAuthorAndSave(oppmøteFormset, request.user.medlem)
         if hendelseForm.is_valid():
             logAuthorAndSave(hendelseForm, request.user.medlem)
@@ -668,7 +687,7 @@ def hendelse(request, hendelsePK):
                 messages.info(request, f'{hendelseForm.instance} slettet')
                 return redirect('hendelse')
         
-        if hendelseForm.is_valid() and (request.instance.kategori == Hendelse.UNDERGRUPPE or oppmøteFormset.is_valid()):
+        if hendelseForm.is_valid() and (not oppmøteFormset or oppmøteFormset.is_valid()):
             return redirectToInstance(request)
 
     if request.instance.sluttTime != None and abs(datetime.datetime.now() - request.instance.start).total_seconds() / 60 <= 30:
@@ -1000,7 +1019,7 @@ def eksport(request, kor):
 
         medlemmer = medlemmer.annotateFulltNavn()
         if 'stemmegruppe' in fields:
-            medlemmer = medlemmer.annotateStemmegruppe(kor=kor, understemmegruppe=True)
+            medlemmer = medlemmer.annotateStemmegruppe(kor=kor, understemmegruppe=True, includeDirr=True)
 
         csv = [['Navn'] + fields]
         for medlem in medlemmer:
@@ -1030,7 +1049,7 @@ For disse medlemmene hentet de ut: %s\n
 
         medlemmer = Medlem.objects.filter(
             oppmøter__hendelse__in=hendelser
-        ).distinct().annotateStorkor().prefetch_related(
+        ).distinct().prefetch_related(
             Prefetch('oppmøter', queryset=Oppmøte.objects.filter(
                 hendelse__in=hendelser
             ).order_by('hendelse'))

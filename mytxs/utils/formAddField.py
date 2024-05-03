@@ -1,5 +1,6 @@
 from django import forms
 
+from mytxs import consts
 from mytxs.fields import MyModelMultipleChoiceField
 from mytxs.models import Hendelse, Medlem
 from mytxs.utils.modelUtils import stemmegruppeVerv, vervInnehavelseAktiv
@@ -67,18 +68,20 @@ def addDeleteUserCheckbox(MedlemModelForm):
     return NewForm
 
 
-def addHendelseMedlemmer(HendelseForm, medlem):
+def addHendelseMedlemmer(HendelseForm):
     class NewForm(HendelseForm):
-        medlemmer = MyModelMultipleChoiceField(
-            queryset=medlem.redigerTilgangQueryset(Hendelse, resModel=Medlem, fieldType=forms.ModelMultipleChoiceField)
-                .filter(vervInnehavelseAktiv(), stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True)).distinct(),
-            required=False
-        )
+        medlemmer = MyModelMultipleChoiceField(required=False, queryset=Medlem.objects.none())
 
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
 
-            self.fields['medlemmer'].initial = self.instance.medlemmer
+            self.fields['medlemmer'].queryset = Medlem.objects.filter(
+                vervInnehavelseAktiv(), 
+                stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
+                vervInnehavelser__verv__kor__navn__in=consts.bareStorkorNavn if self.instance.kor.navn == 'Sangern' else [self.instance.kor.navn]
+            ).distinct()
+
+            self.fields['medlemmer'].initial = self.instance.oppmøteMedlemmer
 
             self.fields['medlemmer'].setEnableQueryset(
                 enableQueryset=self.fields['medlemmer'].queryset.exclude(
@@ -91,7 +94,7 @@ def addHendelseMedlemmer(HendelseForm, medlem):
 
         def save(self, *args, **kwargs):
             if self.is_valid():
-                self.instance._medlemmer = self.cleaned_data['medlemmer']
+                self.instance._oppmøteMedlemmer = self.cleaned_data['medlemmer']
             super().save(*args, **kwargs)
 
     return NewForm

@@ -7,8 +7,8 @@ from django.apps import apps
 from django.conf import settings as djangoSettings
 from django.core import mail
 from django.db import models
-from django.db.models import Value as V, Q, Case, When, Min, Max, Sum, ExpressionWrapper, F, OuterRef, Subquery
-from django.db.models.functions import Concat, ExtractMinute, ExtractHour, Right, Coalesce
+from django.db.models import Value as V, Q, Case, When, Min, Max, Sum, ExpressionWrapper, F, OuterRef, Subquery, Prefetch
+from django.db.models.functions import Concat, ExtractMinute, ExtractHour, Right, Coalesce, Cast
 from django.forms import ValidationError
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -19,6 +19,7 @@ from mytxs import consts
 from mytxs import settings as mytxsSettings
 from mytxs.fields import BitmapMultipleChoiceField, MyDateField, MyManyToManyField, MyTimeField
 from mytxs.utils.formUtils import toolTip
+from mytxs.utils.googleCalendar import updateGoogleCalendar
 from mytxs.utils.modelCacheUtils import DbCacheModel, cacheQS, dbCache
 from mytxs.utils.modelUtils import annotateInstance, bareAktiveDecorator, qBool, groupBy, getInstancesForKor, isStemmegruppeVervNavn, korLookup, stemmegruppeOrdering, strToModels, validateBruktIKode, validateM2MFieldEmpty, validateStartSlutt, vervInnehavelseAktiv, stemmegruppeVerv
 from mytxs.utils.navBar import navBarNode
@@ -255,32 +256,74 @@ class MedlemQuerySet(models.QuerySet):
             )
         )
     
-    def annotateStorkor(self):
+    def annotateKor(self, annotationNavn='korNavn', korAlternativ=consts.bareStorkorNavn, aktiv=False):
         '''
-        Annotate navn til storkoret de hadde sitt første stemmegruppe i. 
-        Merk at man kanskje må refresh querysettet dersom man allerede har filtrert på stemmegruppeverv. 
+        Annotater korNavn som det tidligste koret av korAlternativ, bare aktive kor dersom aktiv=True.
+        I utgangspunktet annotater dette storkoret til vedkommende. 
         '''
         return self.annotate(
-            storkor=Subquery(
+            **{annotationNavn: Subquery(
                 VervInnehavelse.objects.filter(
                     stemmegruppeVerv(includeDirr=True),
-                    verv__kor__navn__in=consts.bareStorkorNavn,
+                    vervInnehavelseAktiv('') if aktiv else qBool(True),
+                    verv__kor__navn__in=korAlternativ,
                     medlem=OuterRef('pk')
                 ).order_by('start').values('verv__kor__navn')[:1]
-            )
+            )}
         )
 
-    def annotateStemmegruppe(self, kor=None, includeUkjent=False, understemmegruppe=False, pkPath='pk'):
-        'Annotate navnet på stemmegruppen medlemmet har i koret'
+    def annotateStemmegruppe(self, kor=None, includeUkjent=False, understemmegruppe=False, includeDirr=False, pkPath='pk'):
+        '''
+        Annotate navnet på stemmegruppen medlemmet har i koret. 
+        Om includeDirr er False og querysettet inneholder dirra, annotates None på dirrigenten. 
+        '''
         return self.annotate(
-            stemmegruppe=Right(Subquery(
+            stemmegruppe=Subquery(
                 VervInnehavelse.objects.filter(
                     vervInnehavelseAktiv(''),
-                    stemmegruppeVerv(includeUkjentStemmegruppe=includeUkjent),
+                    stemmegruppeVerv(includeUkjentStemmegruppe=includeUkjent, includeDirr=includeDirr),
                     korLookup(kor, 'verv__kor') if kor else qBool(True),
                     medlem=OuterRef(pkPath)
                 ).values('verv__navn')[:1]
-            ), 3 if understemmegruppe else 2)
+            )
+        ).annotate(
+            stemmegruppe=Case(
+                When(
+                    stemmegruppe__in=[None, 'ukjentStemmegruppe', 'Dirigent'],
+                    then='stemmegruppe'
+                ),
+                default=Right('stemmegruppe', 3 if understemmegruppe else 2)
+            )
+        )
+
+    def annotatePublic(self, overrideVisible=False):
+        'Annotate public__[personinfo], og fylle det inn basert på ka som e sjekkheftesynlig'
+        conditionDict = {}
+        valueDict = {}
+        for i, option in enumerate(consts.sjekkhefteSynligOptions):
+            conditionDict[f'public__{option}'] = Cast(F('innstillinger__sjekkhefteSynlig'), models.IntegerField()).bitand(i)
+
+            valueDict[f'public__{option}'] = Case(
+                When(
+                    Q(**{f'public__{option}__gt': 0}) | qBool(overrideVisible),
+                    then=F(option)
+                ),
+                default=V(None)
+            )
+        
+        return self.annotate(**conditionDict).annotate(**valueDict)
+
+    def sjekkheftePrefetch(self, kor):
+        'Prefetch all dataen vi skal ha i det koret. Om Kor er None prefetches ingenting.'
+        return self.prefetch_related(
+            Prefetch('vervInnehavelser', queryset=VervInnehavelse.objects.filter(
+                vervInnehavelseAktiv(''),
+                ~stemmegruppeVerv(includeDirr=True),
+                Q(verv__kor__navn__in=[kor.navn, 'Sangern']) if kor in consts.bareStorkorNavn else Q(verv__kor=kor)
+            ).prefetch_related('verv__kor')),
+            Prefetch('dekorasjonInnehavelser', queryset=DekorasjonInnehavelse.objects.filter(
+                Q(dekorasjon__kor__navn__in=[kor.navn, 'Sangern']) if kor in consts.bareStorkorNavn else Q(dekorasjon__kor=kor)
+            ).prefetch_related('dekorasjon__kor')),
         )
 
     def filterIkkePermitert(self, kor, dato=None):
@@ -301,9 +344,6 @@ class MedlemQuerySet(models.QuerySet):
         ).exclude(# ...som ikke har permisjon
             pk__in=permiterte.values_list('pk', flat=True)
         ).distinct() # distinct fordi dirigenten også kan syng i koret
-    
-    def prefetchVervDekorasjonKor(self):
-        return self.prefetch_related('vervInnehavelser__verv__kor', 'dekorasjonInnehavelser__dekorasjon__kor')
     
     def annotateFravær(self, kor, heleSemesteret=False):
         'Annotater gyldigFravær, ugyldigFravær og hendelseVarighet'
@@ -375,7 +415,7 @@ class Medlem(DbCacheModel):
     boAdresse = models.CharField(max_length=100, blank=True, verbose_name='Bo adresse')
     foreldreAdresse = models.CharField(max_length=100, blank=True, verbose_name='Foreldre adresse')
 
-    sjekkhefteSynlig = BitmapMultipleChoiceField(choicesList=consts.sjekkhefteSynligOptions, verbose_name='Synlig i sjekkheftet')
+    sjekkhefteSynlig = BitmapMultipleChoiceField(choicesList=consts.sjekkhefteSynligOptions, verbose_name='Synlig i sjekkheftet', editable=False)
     matpreferanse = BitmapMultipleChoiceField(choicesList=consts.matpreferanseOptions)
 
     def generateUploadTo(instance, fileName):
@@ -397,8 +437,8 @@ class Medlem(DbCacheModel):
 
     @dbCache(affectedByFields=['vervInnehavelser'])
     def storkorNavn(self):
-        annotateInstance(self, MedlemQuerySet.annotateStorkor)
-        return self.storkor
+        annotateInstance(self, lambda qs: qs.annotateKor())
+        return self.korNavn
 
     @cached_property
     def aktiveKor(self):
@@ -416,13 +456,13 @@ class Medlem(DbCacheModel):
             qBool(korNavn in consts.bareStorkorNavn, trueOption=Q(kor__navn__in=[korNavn, 'Sangern']), falseOption=Q(kor__navn=korNavn)),
             # For undergruppe hendelsa må man vær invitert for å få det opp
             ~Q(kategori=Hendelse.UNDERGRUPPE) | Q(oppmøter__medlem=self),
-            startDate__gte=datetime.datetime.today()-datetime.timedelta(days=90),
+            startDate__gte=datetime.datetime.today()-datetime.timedelta(days=90)
         ).distinct()
 
     @property
     def faktiskeTilganger(self):
-        'Returne aktive tilganger, til bruk i addOptionForm som trenger å vite hvilke tilganger du har før innstillinger filtrering'
-        return Tilgang.objects.filter(vervInnehavelseAktiv('verv__vervInnehavelser', utvidetStart=datetime.timedelta(days=60)), verv__vervInnehavelser__medlem=self).distinct()
+        'Returne aktive bruktIKode tilganger, til bruk i addOptionForm som trenger å vite hvilke tilganger du har før innstillinger filtrering'
+        return Tilgang.objects.filter(vervInnehavelseAktiv('verv__vervInnehavelser', utvidetStart=datetime.timedelta(days=60)), verv__vervInnehavelser__medlem=self, bruktIKode=True).distinct()
 
     @cached_property
     def tilganger(self):
@@ -431,16 +471,10 @@ class Medlem(DbCacheModel):
             return Tilgang.objects.none()
         
         if self.user.is_superuser:
-            tilgangFilter = []
-            if adminTilganger := self.innstillinger.get('adminTilganger'):
-               tilgangFilter.append(Q(navn__in=adminTilganger))
-            if adminTilgangerKor := self.innstillinger.get('adminTilgangerKor'):
-                tilgangFilter.append(Q(kor__navn__in=adminTilgangerKor))
-
-            if adminTilganger and adminTilgangerKor:
-                tilganger = Tilgang.objects.filter(*tilgangFilter)
-            else:
-                tilganger = Tilgang.objects.none()
+            tilganger = Tilgang.objects.filter(
+                Q(navn__in=self.innstillinger.get('adminTilganger', [])),
+                Q(kor__navn__in=self.innstillinger.get('adminTilgangerKor', []))
+            )
         else:
             tilganger = self.faktiskeTilganger
         
@@ -674,8 +708,8 @@ class Medlem(DbCacheModel):
 
     @property
     def kor(self):
-        annotateInstance(self, MedlemQuerySet.annotateStorkor)
-        return Kor.objects.get(navn=self.storkor) if self.storkor else None
+        annotateInstance(self, MedlemQuerySet.annotateKor)
+        return Kor.objects.get(navn=self.korNavn) if self.korNavn else None
     
     def get_absolute_url(self):
         return reverse('medlem', args=[self.pk])
@@ -684,10 +718,10 @@ class Medlem(DbCacheModel):
     def __str__(self):
         if self.pk:
             # Det som allerede e annotata kan vær feil no, så gjør det på nytt!
-            annotateInstance(self, MedlemQuerySet.annotateStorkor)
+            annotateInstance(self, MedlemQuerySet.annotateKor)
             annotateInstance(self, MedlemQuerySet.annotateKarantenekor, storkor=True)
-            if self.storkor:
-                return f'{self.navn} {self.storkor} ' + 'K' + (str(self.karantenekor)[-2:] if self.karantenekor >= 2000 else str(self.karantenekor))
+            if self.korNavn:
+                return f'{self.navn} {self.korNavn} ' + 'K' + (str(self.karantenekor)[-2:] if self.karantenekor >= 2000 else str(self.karantenekor))
         return self.navn
     
     class Meta:
@@ -1135,15 +1169,29 @@ class Hendelse(DbCacheModel):
     @property
     def varighet(self):
         return int((self.slutt - self.start).total_seconds() // 60) if self.sluttTime else None
+    
+    def getKalenderMedlemmer(self):
+        'Omvendte av Medlem.getHendelser, returne queryset av medlemmer som skal få opp dette i kalendern sin.'
+        if self.startDate < (datetime.datetime.today() - datetime.timedelta(days=90)).date():
+            return Medlem.objects.none()
+
+        if self.kategori == Hendelse.UNDERGRUPPE:
+            return Medlem.objects.filter(oppmøter__hendelse=self)
+        
+        return Medlem.objects.filter(
+            vervInnehavelseAktiv(dato=self.startDate),
+            stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
+            vervInnehavelser__verv__kor__navn__in=consts.bareStorkorNavn if self.kor.navn == 'Sangern' else [self.kor.navn]
+        )
 
     @property
-    def medlemmer(self):
+    def oppmøteMedlemmer(self):
         'Dette gir deg basert på stemmegruppeverv og permisjon, hvilke medlemmer som burde ha oppmøter for hendelsen'
         if self.kategori == Hendelse.FRIVILLIG:
             return Medlem.objects.none()
         
         if self.kategori == Hendelse.UNDERGRUPPE:
-            return getattr(self, '_medlemmer', Medlem.objects.filter(
+            return getattr(self, '_oppmøteMedlemmer', Medlem.objects.filter(
                 Q(oppmøter__hendelse=self)
             ).distinct()) | Medlem.objects.filter(
                 vervInnehavelseAktiv(),
@@ -1240,17 +1288,21 @@ class Hendelse(DbCacheModel):
 
         oldSelf = Hendelse.objects.filter(pk=self.pk).first()
 
-        # Fiksing av relaterte oppmøter
+        oldMedlemmer = []
+        if oldSelf:
+            # Om det e nytt finnes det ikkje i google calendar
+            oldMedlemmer = list(self.getKalenderMedlemmer())
+
         super().save(*args, **kwargs)
-        
+
         # Legg til oppmøter som skal være der
-        for medlem in self.medlemmer.filter(~Q(oppmøter__hendelse=self)):
+        for medlem in self.oppmøteMedlemmer.filter(~Q(oppmøter__hendelse=self)):
             self.oppmøter.create(medlem=medlem, hendelse=self, ankomst=self.defaultAnkomst)
         
         if oldSelf:
             # Slett oppmøter som ikke skal være der (og ikke har noen informasjon assosiert med seg)
             self.oppmøter.filter(
-                ~Q(medlem__in=self.medlemmer),
+                ~Q(medlem__in=self.oppmøteMedlemmer),
                 fravær__isnull=True,
                 ankomst=oldSelf.defaultAnkomst,
                 melding=''
@@ -1261,6 +1313,15 @@ class Hendelse(DbCacheModel):
                 for oppmøte in self.oppmøter.filter(melding=''):
                     oppmøte.ankomst = self.defaultAnkomst
                     oppmøte.save()
+
+        newMedlemmer = list(self.getKalenderMedlemmer())
+
+        updateGoogleCalendar(self, oldMedlemmer=oldMedlemmer, newMedlemmer=newMedlemmer)
+
+    def delete(self, *args, **kwargs):
+        updateGoogleCalendar(self, oldMedlemmer=list(self.getKalenderMedlemmer()))
+
+        super().delete(*args, **kwargs)
 
 
 class Oppmøte(DbCacheModel):
@@ -1305,7 +1366,7 @@ class Oppmøte(DbCacheModel):
         Om ingenting returnes skal fraværet ikke lenkes til. 
         '''
         if self.hendelse.startDate < datetime.date.today():
-            if self.hendelse.kategori == Hendelse.OBLIG:
+            if self.hendelse.kategori == Hendelse.OBLIG and self.hendelse.varighet:
                 return f'{self.minutterBorte} min {"" if self.gyldig else "u"}gyldig fravær'
         elif self.hendelse.kategori in [Hendelse.OBLIG, Hendelse.PÅMELDING]:
             if self.ankomst != self.hendelse.defaultAnkomst or self.melding != '':
@@ -1365,8 +1426,8 @@ class Oppmøte(DbCacheModel):
                 self.gyldig = Oppmøte.IKKE_BEHANDLET
 
             # Dersom de har en epost, og en gyldig endres til GYLDIG eller UGYLDIG, skyt de en epost
-            if self.medlem.epost and self.hendelse.kategori == Hendelse.OBLIG and self.gyldig != Oppmøte.IKKE_BEHANDLET and self.gyldig != oldSelf.gyldig:
-                print(f'Fraværssøknad besvart for {self.hendelse}')
+            if self.medlem.epost and self.medlem.innstillinger.get('epost', 0) & 0 == 0 \
+                and self.hendelse.kategori == Hendelse.OBLIG and self.gyldig != Oppmøte.IKKE_BEHANDLET and self.gyldig != oldSelf.gyldig:
                 mail.send_mail(
                     subject=f'Fraværssøknad besvart for {self.hendelse}',
                     message=f'Markert som: {"Gyldig" if self.gyldig else "Ugyldig"} fravær\nLenke: {"http://" + mytxsSettings.ALLOWED_HOSTS[0] + self.get_absolute_url()}\nMelding:\n{self.melding}',

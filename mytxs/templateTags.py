@@ -99,11 +99,6 @@ def getPaginatorNavigation(context, paginatorPage, navName=''):
     return mark_safe(f'<div>Sider: {" ".join(pages)} <a href="{setURLParams(context, **{navName: "all"})}">Vis alle sider</a></div>')
 
 
-@register.filter
-def bitIs1(int, bitNr):
-    return bool(int & 1 << bitNr)
-
-
 @register.simple_tag(takes_context=True)
 def toggleURLparam(context, urlParamName, linkName=None, **kwargs):
     'Produsere en <a> tag som heter enten linkName eller "Ikke" + linkName, som legger til og fjerner urlParamName'
@@ -155,9 +150,14 @@ def divideAndShowPercent(num1, num2):
 
 
 @register.filter
-def showFravær(medlem, gyldig):
+def showFravær(medlem, gyldig=None):
     'Hjelpefunksjon som tar et medlem og vise gyldig eller ugyldig fravær formatert som "minutt (prosent)"'
-    fravær = medlem.gyldigFravær if gyldig else medlem.ugyldigFravær
+    if gyldig == True:
+        fravær = medlem.gyldigFravær
+    elif gyldig == False:
+        fravær = medlem.ugyldigFravær
+    elif gyldig == None:
+        fravær = medlem.gyldigFravær + medlem.ugyldigFravær
     return mark_safe(f'{round(fravær)} ({divideAndShowPercent(fravær, medlem.hendelseVarighet)})')
 
 

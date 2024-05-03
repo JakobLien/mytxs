@@ -5,7 +5,7 @@ from django.db.models.fields import BLANK_CHOICE_DASH
 from django.shortcuts import redirect
 
 from mytxs import consts
-from mytxs.fields import MyDateFormField
+from mytxs.fields import BitmapMultipleChoiceField, MyDateFormField
 from mytxs.models import Hendelse, Kor, Medlem, MedlemQuerySet, Verv, Oppmøte
 from mytxs.utils.formUtils import postIfPost, toolTip
 from mytxs.utils.modelUtils import getPathToKor, korLookup, qBool, refreshQueryset, stemmegruppeVerv, vervInnehavelseAktiv
@@ -244,18 +244,30 @@ class OppmøteFilterForm(KorFilterForm):
         return queryset
 
 
-class BaseOptionForm(forms.Form):
+class ShareCalendarForm(forms.Form):
+    gmail = forms.EmailField(help_text=toolTip('Skriv in gmailen din her for å inviteres til en google kalender som oppdaterer umiddelbart!'))
+
+
+class InnstillingerForm(forms.Form):
     optionFormSubmitted = forms.BooleanField(widget=forms.HiddenInput(), initial=True)
+
+    # Ting som admin har
+    adminTilganger = forms.MultipleChoiceField(required=False, choices=[(o, o) for o in consts.alleTilganger], 
+        help_text=toolTip('Dette sier hvilke tilganger du får i det valgte koret, bare tilgjengelig for admin brukere.'))
+    adminTilgangerKor = forms.MultipleChoiceField(required=False, choices=[(o, o) for o in consts.alleKorNavn], 
+        help_text=toolTip('Dette gir deg alle tilganger i det valgte koret, bare tilgjengelig for admin brukere.'))
+
+    # Ting som folk med tilgang har
     disableTilganger = forms.BooleanField(required=False, help_text=toolTip(
         'Vis hvordan siden ser ut uten dine tilganger.'))
     bareAktive = forms.BooleanField(required=False, help_text=toolTip(
         'Bare få opp/ha tilgang til aktive medlemmer.'))
     tversAvKor = forms.BooleanField(required=False, help_text=toolTip(
         'Dette skrur på tversAvKor tilgangen din, altså gjør at du kan sette relasjoner på tvers av kor.'))
-    adminTilganger = forms.MultipleChoiceField(required=False, choices=[(o, o) for o in consts.alleTilganger], 
-        help_text=toolTip('Dette sier hvilke tilganger du får i det valgte koret, bare tilgjengelig for admin brukere.'))
-    adminTilgangerKor = forms.MultipleChoiceField(required=False, choices=[(o, o) for o in consts.alleKorNavn], 
-        help_text=toolTip('Dette gir deg alle tilganger i det valgte koret, bare tilgjengelig for admin brukere.'))
+
+    # Personlige innstillinger
+    sjekkhefteSynlig = BitmapMultipleChoiceField(choicesList=consts.sjekkhefteSynligOptions, verbose_name='Synlig i sjekkheftet').formfield()
+    epost = BitmapMultipleChoiceField(choicesList=consts.epostOptions, verbose_name='Epost du ikke vil motta').formfield()
 
 
 def subForm(baseForm, fields=None, exclude=None):
@@ -270,33 +282,29 @@ def subForm(baseForm, fields=None, exclude=None):
     return SubForm
 
 
-def addOptionForm(request):
+def addInnstillingerForm(request):
     if not hasattr(request.user, 'medlem'):
-        # Om de ikke har en user, skip dette. Det e mest nyttig for admin
+        # Om de ikke er logga inn, skip dette
         return
     
     faktiskeTilganger = request.user.medlem.faktiskeTilganger
 
-    optionFormFields = ['optionFormSubmitted']
-    if request.user.is_superuser:
-        optionFormFields.extend(['disableTilganger', 'bareAktive', 'tversAvKor', 'adminTilgangerKor', 'adminTilganger'])
-    
+    instillingerFields = ['optionFormSubmitted', 'sjekkhefteSynlig', 'epost']
     # Den store majoritet av brukere har ikke tilgang til noe, derfor filtrere vi på det først. 
-    elif faktiskeTilganger.exists():
-        optionFormFields.extend(['disableTilganger', 'bareAktive'])
+    if not request.user.is_superuser and faktiskeTilganger.exists():
+        instillingerFields.extend(['disableTilganger', 'bareAktive'])
         if faktiskeTilganger.filter(navn='tversAvKor').exists():
-            optionFormFields.extend(['tversAvKor'])
+            instillingerFields.extend(['tversAvKor'])
 
-    if len(optionFormFields) == 1:
-        # Om du ikke har noen options, ikke legg til optionForm på request
-        # (og følgelig ikke vis det til brukeren)
-        return
-    
-    OptionForm = subForm(BaseOptionForm, fields=optionFormFields)
+    OptionForm = subForm(InnstillingerForm, fields=None if request.user.is_superuser else instillingerFields)
     
     request.optionForm = OptionForm(postIfPost(request, 'optionForm'), initial=request.user.medlem.innstillinger, prefix='optionForm')
- 
-    # Vi bruke optionFormSubmitted for å sjekk om optionform va sendt. 
+
+    if not faktiskeTilganger.filter(navn='fravær').exists():
+        # Fjerk alternativ for fraværEpost dersom de ikke har tilgangen
+        request.optionForm.fields['epost'].choices = [c for c in request.optionForm.fields['epost'].choices if c[0] != 1]
+    
+    # Vi bruke optionFormSubmitted for å sjekk om optionform vart sendt. 
     # Trur ellers det er umulig å sjekke dette sida når booleanFields er false sendes 
     # de ikke i request.POST, som medfører at når andre forms sendes telles det i utgangspunktet 
     # som et gyldig optionForm med bare false verdier. 

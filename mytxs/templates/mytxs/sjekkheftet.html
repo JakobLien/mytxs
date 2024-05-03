@@ -10,6 +10,7 @@
 {% if grupperinger|length > 1%}
 <div id="sjekkheftetNavigator" class="my-2 flex flex-row flex-wrap justify-between w-[56rem]">
     {% for gruppenavn, gruppe in grupperinger.items %}
+    {% if gruppenavn|lower != 'dirigent' %}
     <div class="w-[14rem]">
         <h2 class="text-3xl">{{ gruppenavn|capfirst }}</h2>
 
@@ -17,9 +18,12 @@
         <a class="text-sm" href="#m_{{ medlem.pk }}">{{ medlem.navn }}</a><br>
         {% endfor %}
     </div>
+    {% endif %}
     {% endfor %}
 </div>
 {% endif %}
+
+<br>
 
 {% for gruppenavn, gruppe in grupperinger.items %}
 
@@ -28,7 +32,6 @@
 {% endif %}
 
 {% for medlem in gruppe %}
-<br>
 <div id="m_{{ medlem.pk }}" class="flex flex-row space-x-2 w-[56rem] p-2 backdrop-brightness-110 rounded-xl">
     {% if medlem.bilde %}
     <img src="{{ medlem.bilde.url }}" class="h-44 aspect-[139/169] object-cover align-top border-2 border-black">
@@ -37,60 +40,65 @@
     {% endif %}
 
     <ul>
-        <li class="text-2xl">{{ medlem.navn }}
+        <li class="text-2xl">
+            {% if request.resolver_match.kwargs.side not in consts.bareStorkorNavn and medlem.storkorNavn %}
+            <a href="{% url 'sjekkheftet' medlem.storkorNavn %}#m_{{medlem.pk}}">{{ medlem.navn }}</a>
+            {% else %}
+            {{ medlem.navn }}
+            {% endif %}
+
             {% if user.medlem|tilgangExists:'medlemsdata' %} <a class="text-sm" href="{% url 'medlem' medlem.pk %}">Rediger</a> {% endif %}
         </li>
+
+        {% if medlem.karantenekor %}
         {% if request.resolver_match.kwargs.side in consts.bareSmåkorNavn %}
         <li>Tatt opp: {{ medlem.karantenekor }}</li>
         {% else %}
         <li>Karantenekor: {{ medlem.karantenekor }}</li>
         {% endif %}
-        {% if medlem.sjekkhefteSynlig|bitIs1:0 %}
-        <li>Fødselsdato: {{ medlem.fødselsdato|date }}</li>
+        {% endif%}
+        
+        {% if medlem.public__fødselsdato %}
+        <li>Fødselsdato: {{ medlem.public__fødselsdato }}</li>
         {% endif %}
-        {% if medlem.sjekkhefteSynlig|bitIs1:1 %}
-        <li>Epost: <a href="mailto:{{ medlem.epost }}">{{ medlem.epost }}</a></li>
+        {% if medlem.public__epost %}
+        <li>Epost: <a href="mailto:{{ medlem.public__epost }}">{{ medlem.public__epost }}</a></li>
         {% endif %}
-        {% if medlem.sjekkhefteSynlig|bitIs1:2 %}
-        <li>Telefon: <a href="tel:{{ medlem.tlf|cut:' ' }}">{{ medlem.tlf }}</a></li>
+        {% if medlem.public__tlf %}
+        <li>Telefon: <a href="tel:{{ medlem.public__tlf|cut:' ' }}">{{ medlem.public__tlf }}</a></li>
         {% endif %}
-        {% if medlem.sjekkhefteSynlig|bitIs1:3 %}
-        <li>Studie eller jobb: {{ medlem.studieEllerJobb }}</li>
+        {% if medlem.public__studieEllerJobb %}
+        <li>Studie eller jobb: {{ medlem.public__studieEllerJobb }}</li>
         {% endif %}
-        {% if medlem.sjekkhefteSynlig|bitIs1:4 %}
-        <li>Bostedsadresse: <a href="https://maps.google.com/?q={{ medlem.boAdresse }}">{{ medlem.boAdresse }}</a></li>
+        {% if medlem.public__boAdresse %}
+        <li>Bostedsadresse: <a href="https://maps.google.com/?q={{ medlem.public__boAdresse }}">{{ medlem.public__boAdresse }}</a></li>
         {% endif %}
-        {% if medlem.sjekkhefteSynlig|bitIs1:5 %}
-        <li>Foreldreadresse: <a href="https://maps.google.com/?q={{ medlem.foreldreAdresse }}">{{ medlem.foreldreAdresse }}</a></li>
+        {% if medlem.public__foreldreAdresse %}
+        <li>Foreldreadresse: <a href="https://maps.google.com/?q={{ medlem.public__foreldreAdresse }}">{{ medlem.public__foreldreAdresse }}</a></li>
         {% endif %}
 
-        {% ifAll %}<li>Verv: {% ifAll %}
-        {% for vervInnehavelse in medlem.vervInnehavelser.all %}
-        {% if vervInnehavelse.aktiv and not vervInnehavelse.verv.stemmegruppeVerv and vervInnehavelse.verv.kor.navn == request.resolver_match.kwargs.side %} 
-        <span>{{ vervInnehavelse.verv }}</span>
+        {% if medlem.vervInnehavelser.all %}
+        <li>Verv: 
+            {% for vervInnehavelse in medlem.vervInnehavelser.all %}
+            <span>{{ vervInnehavelse.verv }}</span>
+            {% endfor %}
+        </li>
         {% endif %}
-        {% endfor %}
-        {% ifAll %}</li>{% endIfAll%}
 
-        {% ifAll %}<li>Dekorasjoner: {% ifAll %}
-        {% for dekorasjonInnehavelse in medlem.dekorasjonInnehavelser.all %}
-        {% if dekorasjonInnehavelse.dekorasjon.kor.navn == request.resolver_match.kwargs.side %}
-        <span> {{ dekorasjonInnehavelse.dekorasjon }}</span>
+        {% if medlem.dekorasjonInnehavelser.all %}
+        <li>Dekorasjoner: 
+            {% for dekorasjonInnehavelse in medlem.dekorasjonInnehavelser.all %}
+            <span> {{ dekorasjonInnehavelse.dekorasjon }}</span>
+            {% endfor %}
+        </li>
         {% endif %}
-        {% endfor %}
-        {% ifAll %}</li>{% endIfAll %}
 
-        {% if request.resolver_match.kwargs.side not in consts.bareSmåkorNavn %}
-        {% ifAll %}<li>Småkor: {% ifAll %}
-        {% for vervInnehavelse in medlem.vervInnehavelser.all %}
-        {% if vervInnehavelse.aktiv and vervInnehavelse.verv.stemmegruppeVerv and vervInnehavelse.verv.kor.navn in consts.bareSmåkorNavn %}
-        <span>{{ vervInnehavelse.verv.kor }}</span>
-        {% endif %}
-        {% endfor %}
-        {% ifAll %}</li>{% endIfAll %}
+        {% if medlem.småkor %}
+        <li>Småkor: <span>{{medlem.småkor}}</span></li>
         {% endif %}
     </ul>
 </div>
+<br>
 {% endfor %}
 
 {% endfor %}

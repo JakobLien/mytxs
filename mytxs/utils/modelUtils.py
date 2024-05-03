@@ -77,9 +77,9 @@ def isStemmegruppeVervNavn(navn, includeUkjentStemmegruppe=True):
     return re.match(stemmegruppeVervRegex, navn) or (includeUkjentStemmegruppe and navn == 'ukjentStemmegruppe')
 
 
-def stemmegruppeOrdering(fieldName='navn'):
-    ordering = []
-    count = 0
+def stemmegruppeOrdering(fieldName='navn', includeDirr=False):
+    ordering = [When(**{fieldName:'Dirigent'}, then=0)] if includeDirr else []
+    count = 1 if includeDirr else 0
 
     for letter in 'SATB':
         for y in '12':

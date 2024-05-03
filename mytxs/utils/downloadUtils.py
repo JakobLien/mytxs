@@ -1,12 +1,11 @@
 import datetime
 from urllib.parse import unquote
 
-from django.db.models import Q, F
+from django.db.models import Q
 from django.http import HttpResponse
 from django.urls import reverse
 
 from mytxs import settings as mytxsSettings
-from mytxs.models import Hendelse, Medlem
 
 def downloadFile(fileName, content, content_type='text/plain'):
     'I en view, return returnverdien av denne funksjonen'
@@ -18,9 +17,7 @@ def downloadFile(fileName, content, content_type='text/plain'):
 
 def downloadVCard(queryset):
     'Laste ned vCard for medlemmene i request.queryset, som har tlf og sjekkhefteSynlig tlf'
-    medlemmer = queryset.annotate(
-        sjekkhefteSynligTlf=F('sjekkhefteSynlig').bitand(2**2)
-    ).exclude(Q(tlf='') | Q(sjekkhefteSynligTlf=0))
+    medlemmer = queryset.annotatePublic().exclude(Q(public__tlf__isnull=True))
 
     content = ''
     for medlem in medlemmer:
@@ -77,6 +74,7 @@ def dateToICal(date):
 
 
 def getVeventFromHendelse(hendelse, medlem):
+    'Genererer en dictionary med keys og values tilsvarende en iCal hendelse'
     veventDict = {
         'BEGIN': 'VEVENT',
         'UID': f'{hendelse.kor}-{hendelse.pk}@mytxs.samfundet.no'
@@ -85,8 +83,8 @@ def getVeventFromHendelse(hendelse, medlem):
     veventDict['SUMMARY'] = hendelse.navnMedPrefiks
 
     veventDict['DESCRIPTION'] = [hendelse.beskrivelse.replace('\r\n', '\\n')] if hendelse.beskrivelse else []
-    if hendelse.kategori == Hendelse.UNDERGRUPPE:
-        veventDict['DESCRIPTION'].append('De inviterte:\\n- ' + '\\n- '.join([str(m) for m in hendelse.medlemmer]))
+    if hendelse.kategori == type(hendelse).UNDERGRUPPE:
+        veventDict['DESCRIPTION'].append('De inviterte:\\n- ' + '\\n- '.join([str(m) for m in hendelse.oppmøteMedlemmer]))
     elif (oppmøte := hendelse.oppmøter.filter(medlem=medlem).first()) and oppmøte.fraværTekst:
         veventDict['DESCRIPTION'].append(oppmøte.fraværTekst + ': ' + mytxsSettings.ALLOWED_HOSTS[0] + unquote(reverse('meldFravær', args=[medlem.pk, hendelse.pk])))
     veventDict['DESCRIPTION'] = '\\n\\n'.join(veventDict['DESCRIPTION'])
@@ -107,7 +105,7 @@ def getVeventFromHendelse(hendelse, medlem):
             # i kalenderapplikasjonene. Derfor hive vi på en dag her, så det vises rett:)
             veventDict['DTEND;VALUE=DATE'] = dateToICal(hendelse.slutt + datetime.timedelta(days=1))
     
-    veventDict['DTSTAMP'] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S") + 'Z'
+    veventDict['DTSTAMP'] = dateToICal(datetime.datetime.now(datetime.timezone.utc)) + 'Z'
 
     veventDict['END'] = 'VEVENT'
 

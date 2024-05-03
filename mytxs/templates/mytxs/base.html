@@ -9,6 +9,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" href={% static 'mytxs/styles.css' %}>
     
+    <script src="https://unpkg.com/htmx.org@1.9.12" integrity="sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2XoQrxeTUQyRjrOnlCoYta87iKBWq3EsdM2" crossorigin="anonymous"></script>
+
     <script src="{% static 'mytxs/formSafety.js' %}" defer></script>
     {% if request.lazyDropdownData %}<script src="{% static 'mytxs/lazyDropdown.js' %}" defer data-json="{{ request.lazyDropdownData }}"></script>{% endif %}
     <script src="{% static 'mytxs/searchDropdown.js' %}" defer></script>
@@ -122,20 +124,18 @@
 
             <div id="content">
                 {% block heading %}
-                <div class="[&>*]:inline">
-                    <h1 class="text-2xl">
-                        {% if heading %}
-                        {{ heading }}
-                        {% elif request.instance %}
-                        {{ request.instance|capfirst }}
+                <h1 class="text-2xl">
+                    {% if heading %}
+                    {{ heading }}
+                    {% elif request.instance %}
+                    {{ request.instance|capfirst }}
 
-                        {% if user.medlem.tilganger %}
-                        {% addLoggLink request.instance %}
-                        {% endif %}
+                    {% if user.medlem.tilganger %}
+                    {% addLoggLink request.instance %}
+                    {% endif %}
 
-                        {% endif %}
-                    </h1>
-                </div>
+                    {% endif %}
+                </h1>
                 {% addSubNavigation %}
                 {% endblock %}
 
@@ -148,10 +148,11 @@
 
     {% if request.optionForm %}
     <div class="fixed right-6 bottom-6 p-2 rounded-md bg-customPurple border-2 border-red-700 group">
-        <div class="block group-hover:hidden">Innstillinger</div>
-        <form class="hidden group-hover:block" action="{{ request.get_full_path }}" method="post" onChange="this.submit()">
+        <div class="block text-xl" onclick='this.nextElementSibling.classList.toggle("hidden")'>Innstillinger</div>
+        <form class="hidden managedForm" action="{{ request.get_full_path }}" method="post">
             {% csrf_token %}
             {{ request.optionForm.as_p }}
+            <input type="submit" value="Lagre">
         </form>
     </div>
     {% endif %}

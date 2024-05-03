@@ -82,9 +82,9 @@ def dbCache(actualMethod=None, affectedByFields=[], affectedByCache=[]):
             return actualMethod(self)
 
         # Return verdien om den finnes
-        if value := self.dbCacheField.get(actualMethod.__name__):
-            return value
-        
+        if actualMethod.__name__ in self.dbCacheField:
+            return self.dbCacheField.get(actualMethod.__name__)
+
         # Om ikke, sett den og return den
         if self.pk:
             # Om dbCache calles via str av objektet i modellens save metode, før save calles videre oppover,

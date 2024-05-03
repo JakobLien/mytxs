@@ -50,9 +50,8 @@ def fieldIsRequired(field):
         return not field.blank
     return not field.null
 
-def objectsGenerator(model):
+def objectsGenerator(objects):
     'Generere en stream av objects, og printe prosent av gjennomgang i strømmen.'
-    objects = model.objects.all()
     numberOfObjects = len(objects)
     print(f'Number of objects: {numberOfObjects}')
 
@@ -74,7 +73,7 @@ def trim(model, fieldName, options):
     if not fieldName:
         raise CommandError('trim function needs a fieldName')
     
-    for instance in objectsGenerator(model):
+    for instance in objectsGenerator(model.objects.all()):
         value = getattr(instance, fieldName)
 
         if value.isspace() and fieldIsRequired(field):
@@ -88,7 +87,7 @@ def trim(model, fieldName, options):
         setattr(instance, fieldName, value)
 
 def saveAll(model, fieldName, options):
-    for instance in objectsGenerator(model):
+    for instance in objectsGenerator(model.objects.all()):
         pass
 
 updateFunctions = [trim, saveAll]

@@ -4,8 +4,20 @@
 {% block content %}
 
 {% if request.iCalLink %}
-<a href="{{ request.iCalLink }}">Last ned iCal fil</a>
-<a href="https://www.google.com/calendar/render?cid={{ request.iCalLink }}">Legg til i google Calendar</a>
+<a href="{{ request.iCalLink }}">Kalenderfeed lenke</a>
+
+{% if shareCalendarForm %}
+<form action="{{ request.get_full_path }}" method="post" class="creationForm inline-block">
+{% csrf_token %}
+{{ shareCalendarForm.non_field_errors }}
+{% for field in shareCalendarForm.visible_fields %}
+{{ field.errors }} {{ field.label_tag }} {{ field }} {{ field.help_text|safe }}
+{% endfor %}
+{% for field in shareCalendarForm.hidden_fields %}{{ field }}{% endfor %}
+<input type="submit" value="Inviter">
+</form>
+{% endif %}
+
 <br>
 {% endif %}
 
@@ -31,10 +43,10 @@
             {{ hendelse.startTime }}
             {% endif %}
 
-            {% if hendelse.sluttDate %}
+            {% if hendelse.slutt %}
             -
-            {% if hendelse.sluttDate != hendelse.startDate %}
-            <br>{{ hendelse.sluttDate|date:'D j. M' }}
+            {% if hendelse.slutt.date != hendelse.startDate %}
+            <br>{{ hendelse.slutt.date|date:'D j. M' }}
             {% endif %}
             {% if hendelse.sluttTime %}
             {{ hendelse.sluttTime }}

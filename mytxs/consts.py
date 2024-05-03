@@ -22,7 +22,7 @@ småkorForStorkor = {
 
 bareKorNavnTKSRekkefølge = ['TKS', 'TSS', 'Candiss', 'Knauskoret', 'Pirum']
 
-tilganger = ['dekorasjon', 'dekorasjonInnehavelse', 'verv', 'vervInnehavelse', 'tilgang', 'semesterplan', 'fravær', 'lenke', 'turne', 'tversAvKor', 'eksport']
+tilganger = ['dekorasjon', 'dekorasjonInnehavelse', 'verv', 'vervInnehavelse', 'tilgang', 'semesterplan', 'fravær', 'lenke', 'turne', 'tversAvKor', 'eksport', 'sjekkhefteSynlig']
 tilgangBeskrivelser = [
     'For å opprette og slette dekorasjoner, samt endre på eksisterende dekorasjoner.',
     'For å opprette og slette dekorasjonInnehavelser, altså hvem som fikk hvilken dekorasjon når.',
@@ -34,7 +34,8 @@ tilgangBeskrivelser = [
     'For å endre på korets lenker.',
     'For å administrere turnerer, samt endre hvem som deltok.',
     'For å kunne sette relasjoner til objekter i andre kor.',
-    'For å kunne eksportere medlemsregisterdata.'
+    'For å kunne eksportere medlemsregisterdata.',
+    'Gjør at all dataen i sjekkheftet er synlig for deg.'
 ]
 
 storkorTilganger = ['medlemsdata']
@@ -126,6 +127,11 @@ matpreferanseOptions = [
     'Fiskeallergi',
     'Løkallergi',
     'Steinfruktallergi'
+]
+
+epostOptions = [
+    'Endring av eget fravær', 
+    'Fraværepost før øvelse'
 ]
 
 def constsContextProcessor(request):
