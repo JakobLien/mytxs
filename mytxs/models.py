@@ -451,12 +451,16 @@ class Medlem(DbCacheModel):
 
     def getHendelser(self, korNavn):
         'Returne et queryset av hendelsan dette medlemmet har i den kor-kalenderen (Sangern hendelser havner i storkor kalender)'
+        semesterstart = datetime.date.today()
+        semesterstart.month = (semesterstart.month // 7) * 7
+        semesterstart.day = 1
+
         return Hendelse.objects.filter(
             # For storkor skaffe vi hendelsa for dem og Sangern, for småkor skaffe vi bare det korets hendelsa. 
             qBool(korNavn in consts.bareStorkorNavn, trueOption=Q(kor__navn__in=[korNavn, 'Sangern']), falseOption=Q(kor__navn=korNavn)),
             # For undergruppe hendelsa må man vær invitert for å få det opp
             ~Q(kategori=Hendelse.UNDERGRUPPE) | Q(oppmøter__medlem=self),
-            inneværendeSemester('startDate')
+            startDate__gte=semesterstart
         ).distinct()
 
     @property
@@ -1172,8 +1176,10 @@ class Hendelse(DbCacheModel):
     
     def getKalenderMedlemmer(self):
         'Omvendte av Medlem.getHendelser, returne queryset av medlemmer som skal få opp dette i kalendern sin.'
-        today = datetime.date.today()
-        if self.startDate.year != today.year or (self.startDate.month > 6) != (today.month > 6):
+        semesterstart = datetime.date.today()
+        semesterstart.month = (semesterstart.month // 7) * 7
+        
+        if self.startDate.year < semesterstart.year or self.startDate.month < semesterstart.month:
             return Medlem.objects.none()
 
         if self.kategori == Hendelse.UNDERGRUPPE:
