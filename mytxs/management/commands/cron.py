@@ -53,7 +53,7 @@ def fraværEpost(now):
 
     for hendelse in hendelser:
         mottakere = Medlem.objects.annotate(
-            fraværEpost=Cast(F('innstillinger__epost'), IntegerField()).bitand(1)
+            fraværEpost=Cast(F('innstillinger__epost'), IntegerField()).bitand(2**1)
         ).filter(
             ~Q(epost=''),
             vervInnehavelseAktiv(),

@@ -355,7 +355,7 @@ def semesterplan(request, kor):
     if request.method == 'POST':
         if shareCalendarForm.is_valid():
             getOrCreateAndShareCalendar(kor, request.user.medlem, shareCalendarForm.cleaned_data['gmail'])
-            return redirect(request.path)
+            return redirect(request.get_full_path())
 
     request.queryset = request.user.medlem.getHendelser(kor)
 

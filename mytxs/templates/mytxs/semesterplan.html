@@ -45,8 +45,8 @@
 
             {% if hendelse.slutt %}
             -
-            {% if hendelse.slutt.date != hendelse.startDate %}
-            <br>{{ hendelse.slutt.date|date:'D j. M' }}
+            {% if hendelse.slutt.date|default:hendelse.slutt != hendelse.startDate %}
+            <br>{{ hendelse.slutt|date:'D j. M' }}
             {% endif %}
             {% if hendelse.sluttTime %}
             {{ hendelse.sluttTime }}

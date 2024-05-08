@@ -21,7 +21,7 @@ from mytxs.fields import BitmapMultipleChoiceField, MyDateField, MyManyToManyFie
 from mytxs.utils.formUtils import toolTip
 from mytxs.utils.googleCalendar import updateGoogleCalendar
 from mytxs.utils.modelCacheUtils import DbCacheModel, cacheQS, dbCache
-from mytxs.utils.modelUtils import annotateInstance, bareAktiveDecorator, qBool, groupBy, getInstancesForKor, isStemmegruppeVervNavn, korLookup, stemmegruppeOrdering, strToModels, validateBruktIKode, validateM2MFieldEmpty, validateStartSlutt, vervInnehavelseAktiv, stemmegruppeVerv
+from mytxs.utils.modelUtils import annotateInstance, bareAktiveDecorator, inneværendeSemester, qBool, groupBy, getInstancesForKor, isStemmegruppeVervNavn, korLookup, stemmegruppeOrdering, strToModels, validateBruktIKode, validateM2MFieldEmpty, validateStartSlutt, vervInnehavelseAktiv, stemmegruppeVerv
 from mytxs.utils.navBar import navBarNode
 from mytxs.utils.utils import cropImage
 
@@ -301,7 +301,7 @@ class MedlemQuerySet(models.QuerySet):
         conditionDict = {}
         valueDict = {}
         for i, option in enumerate(consts.sjekkhefteSynligOptions):
-            conditionDict[f'public__{option}'] = Cast(F('innstillinger__sjekkhefteSynlig'), models.IntegerField()).bitand(i)
+            conditionDict[f'public__{option}'] = Cast(F('innstillinger__sjekkhefteSynlig'), models.IntegerField()).bitand(2**i)
 
             valueDict[f'public__{option}'] = Case(
                 When(
@@ -456,7 +456,7 @@ class Medlem(DbCacheModel):
             qBool(korNavn in consts.bareStorkorNavn, trueOption=Q(kor__navn__in=[korNavn, 'Sangern']), falseOption=Q(kor__navn=korNavn)),
             # For undergruppe hendelsa må man vær invitert for å få det opp
             ~Q(kategori=Hendelse.UNDERGRUPPE) | Q(oppmøter__medlem=self),
-            startDate__gte=datetime.datetime.today()-datetime.timedelta(days=90)
+            inneværendeSemester('startDate')
         ).distinct()
 
     @property
@@ -1172,7 +1172,8 @@ class Hendelse(DbCacheModel):
     
     def getKalenderMedlemmer(self):
         'Omvendte av Medlem.getHendelser, returne queryset av medlemmer som skal få opp dette i kalendern sin.'
-        if self.startDate < (datetime.datetime.today() - datetime.timedelta(days=90)).date():
+        today = datetime.date.today()
+        if self.startDate.year != today.year or (self.startDate.month > 6) != (today.month > 6):
             return Medlem.objects.none()
 
         if self.kategori == Hendelse.UNDERGRUPPE:
@@ -1426,7 +1427,7 @@ class Oppmøte(DbCacheModel):
                 self.gyldig = Oppmøte.IKKE_BEHANDLET
 
             # Dersom de har en epost, og en gyldig endres til GYLDIG eller UGYLDIG, skyt de en epost
-            if self.medlem.epost and self.medlem.innstillinger.get('epost', 0) & 0 == 0 \
+            if self.medlem.epost and self.medlem.innstillinger.get('epost', 0) & 2**0 == 0 \
                 and self.hendelse.kategori == Hendelse.OBLIG and self.gyldig != Oppmøte.IKKE_BEHANDLET and self.gyldig != oldSelf.gyldig:
                 mail.send_mail(
                     subject=f'Fraværssøknad besvart for {self.hendelse}',
