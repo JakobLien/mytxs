@@ -452,8 +452,7 @@ class Medlem(DbCacheModel):
     def getHendelser(self, korNavn):
         'Returne et queryset av hendelsan dette medlemmet har i den kor-kalenderen (Sangern hendelser havner i storkor kalender)'
         semesterstart = datetime.date.today()
-        semesterstart.month = (semesterstart.month // 7) * 7
-        semesterstart.day = 1
+        semesterstart = semesterstart.replace(month=(semesterstart.month // 7) * 6 + 1, day=1)
 
         return Hendelse.objects.filter(
             # For storkor skaffe vi hendelsa for dem og Sangern, for småkor skaffe vi bare det korets hendelsa. 
@@ -1177,8 +1176,8 @@ class Hendelse(DbCacheModel):
     def getKalenderMedlemmer(self):
         'Omvendte av Medlem.getHendelser, returne queryset av medlemmer som skal få opp dette i kalendern sin.'
         semesterstart = datetime.date.today()
-        semesterstart.month = (semesterstart.month // 7) * 7
-        
+        semesterstart = semesterstart.replace(month=(semesterstart.month // 7) * 6 + 1, day=1)
+
         if self.startDate.year < semesterstart.year or self.startDate.month < semesterstart.month:
             return Medlem.objects.none()
 
