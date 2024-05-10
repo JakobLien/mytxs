@@ -319,10 +319,10 @@ class MedlemQuerySet(models.QuerySet):
             Prefetch('vervInnehavelser', queryset=VervInnehavelse.objects.filter(
                 vervInnehavelseAktiv(''),
                 ~stemmegruppeVerv(includeDirr=True),
-                Q(verv__kor__navn__in=[kor.navn, 'Sangern']) if kor in consts.bareStorkorNavn else Q(verv__kor=kor)
+                Q(verv__kor__navn__in=[kor.navn, 'Sangern']) if kor.navn in consts.bareStorkorNavn else Q(verv__kor=kor)
             ).prefetch_related('verv__kor')),
             Prefetch('dekorasjonInnehavelser', queryset=DekorasjonInnehavelse.objects.filter(
-                Q(dekorasjon__kor__navn__in=[kor.navn, 'Sangern']) if kor in consts.bareStorkorNavn else Q(dekorasjon__kor=kor)
+                Q(dekorasjon__kor__navn__in=[kor.navn, 'Sangern']) if kor.navn in consts.bareStorkorNavn else Q(dekorasjon__kor=kor)
             ).prefetch_related('dekorasjon__kor')),
         )
 
@@ -1178,7 +1178,7 @@ class Hendelse(DbCacheModel):
         semesterstart = datetime.date.today()
         semesterstart = semesterstart.replace(month=(semesterstart.month // 7) * 6 + 1, day=1)
 
-        if self.startDate.year < semesterstart.year or self.startDate.month < semesterstart.month:
+        if self.startDate < semesterstart:
             return Medlem.objects.none()
 
         if self.kategori == Hendelse.UNDERGRUPPE:
