@@ -316,13 +316,13 @@ class MedlemQuerySet(models.QuerySet):
     def sjekkheftePrefetch(self, kor):
         'Prefetch all dataen vi skal ha i det koret. Om Kor er None prefetches ingenting.'
         return self.prefetch_related(
-            Prefetch('vervInnehavelser', queryset=VervInnehavelse.objects.filter(
+            Prefetch('vervInnehavelser', queryset=VervInnehavelse.objects.none() if kor == None else VervInnehavelse.objects.filter(
                 vervInnehavelseAktiv(''),
                 ~stemmegruppeVerv(includeDirr=True),
-                Q(verv__kor__navn__in=[kor.navn, 'Sangern']) if kor.navn in consts.bareStorkorNavn else Q(verv__kor=kor)
+                verv__kor__navn__in=[kor.navn, 'Sangern'] if kor.navn in consts.bareStorkorNavn else [kor.navn]
             ).prefetch_related('verv__kor')),
-            Prefetch('dekorasjonInnehavelser', queryset=DekorasjonInnehavelse.objects.filter(
-                Q(dekorasjon__kor__navn__in=[kor.navn, 'Sangern']) if kor.navn in consts.bareStorkorNavn else Q(dekorasjon__kor=kor)
+            Prefetch('dekorasjonInnehavelser', queryset=DekorasjonInnehavelse.objects.none() if kor == None else DekorasjonInnehavelse.objects.filter(
+                dekorasjon__kor__navn__in=[kor.navn, 'Sanger'] if kor.navn in consts.bareStorkorNavn else [kor.navn]
             ).prefetch_related('dekorasjon__kor')),
         )
 
