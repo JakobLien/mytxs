@@ -1,9 +1,9 @@
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import BaseCommand
 
 from mytxs.models import Kor, Medlem
 from mytxs.utils.downloadUtils import getVeventFromHendelse
 from mytxs.utils.googleCalendar import GoogleCalendarManager, getHendelseBody
-
+from mytxs.utils.modelUtils import stemmegruppeVerv, vervInnehavelseAktiv
 
 class Command(BaseCommand):
     help = 'Denne sjekke alle mytxs sine google calendars, og fikser feil.'
@@ -11,14 +11,11 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         fixGoogleCalendar()
 
-def fixGoogleCalendar():
-    'Denne sjekke alle mytxs sine google calendars, og fikser feil.'
-    gCalManager = GoogleCalendarManager()
 
+def fixGoogleCalendar(gCalManager=None):
+    'Denne sjekke alle mytxs sine google calendars, og fikser feil.'
     if not gCalManager:
-        raise CommandError(f'gCalManager could not be created')
-    
-    gCalManager.skipMailing = True
+        gCalManager = GoogleCalendarManager()
     
     for calendar in gCalManager.getCalendarList():
         if not calendar.get('description', ''):
@@ -29,6 +26,15 @@ def fixGoogleCalendar():
             continue
         medlem = Medlem.objects.filter(pk=int(calendar.get('description', '').split('-')[1])).first()
         if not medlem:
+            continue
+
+        # Håndter sletting av kalendere for gamle korister
+        if not medlem.vervInnehavelser.filter(
+            vervInnehavelseAktiv(''),
+            stemmegruppeVerv(includeDirr=True),
+            verv__kor=kor
+        ).exists():
+            gCalManager.deleteCalendar(calendarId=calendar['id'])
             continue
 
         remoteEvents = gCalManager.listEvents(calendar['id'])
@@ -76,6 +82,5 @@ def diffEvents(localEvent, gCalEvent):
             if 'dateTime' in gCalEvent[key]:
                 gCalEvent[key]['dateTime'] = gCalEvent[key]['dateTime'][:len(value['dateTime'])]
         if value and gCalEvent.get(key) != value:
-            print(f'Found diff {key}: {value} {gCalEvent.get(key)}')
             return True
     return False

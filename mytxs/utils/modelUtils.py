@@ -4,14 +4,14 @@ import re
 
 from django.apps import apps
 from django.core.exceptions import FieldDoesNotExist
-from django.db.models import Q, Case, When, ManyToManyField, ManyToManyRel, ForeignObjectRel
+from django.db.models import Q, Case, When, ManyToManyField, ManyToManyRel, ForeignObjectRel, Min
 from django.db.models.fields.related import RelatedField
 from django.forms import ValidationError
 from django.utils.translation import gettext_lazy as _
 
 # Utils for modeller
 
-def vervInnehavelseAktiv(pathToVervInnehavelse='vervInnehavelser', dato=None, utvidetStart=datetime.timedelta(0)):
+def vervInnehavelseAktiv(pathToVervInnehavelse='vervInnehavelser', dato=None, utvidetStart=datetime.timedelta(), utvidetSlutt=datetime.timedelta()):
     '''
     Produsere et Q object som querye for aktive vervInnehavelser. Siden man 
     ikke kan si Tilganger.objects.filter(verv__vervInnehavelser=Q(...)) er dette en funksjon.
@@ -37,13 +37,15 @@ def vervInnehavelseAktiv(pathToVervInnehavelse='vervInnehavelser', dato=None, ut
     if pathToVervInnehavelse:
         pathToVervInnehavelse += '__'
 
-    return (
-        Q(**{f'{pathToVervInnehavelse}start__lte': dato + utvidetStart}) & 
-        (
-            Q(**{f'{pathToVervInnehavelse}slutt': None}) | 
-            Q(**{f'{pathToVervInnehavelse}slutt__gte': dato})
-        )
-    )
+    startQ, sluttQ = qBool(True), qBool(True)
+
+    if utvidetStart != datetime.timedelta.max:
+        startQ = Q(**{f'{pathToVervInnehavelse}start__lte': dato + utvidetStart})
+
+    if utvidetSlutt != datetime.timedelta.max:
+        sluttQ = Q(**{f'{pathToVervInnehavelse}slutt': None}) | Q(**{f'{pathToVervInnehavelse}slutt__gte': dato - utvidetSlutt})
+
+    return startQ & sluttQ
 
 
 stemmegruppeVervRegex = '^[12][12]?[SATB]$'
@@ -298,9 +300,19 @@ def bareAktiveDecorator(func):
 
 
 def korLookup(kor, path=''):
-    'Returne et Q lookup for å spør om kor=kor, der vi omformer til kor__navn=kor dersom kor er en string'
+    '''
+    Returne et Q lookup for å spør om kor=kor, der vi
+    - Legg på __navn=kor dersom kor er en string.
+    - Legg på __in=kor dersom kor er en liste, både av string og ikke.
+    '''
     if isinstance(kor, str):
         return Q(**{path+'__navn': kor})
+    if isinstance(kor, list):
+        if len(kor) == 0:
+            return qBool(False)
+        if isinstance(kor[0], str):
+            return Q(**{path+'__navn__in': kor})
+        return Q(**{path+'__in': kor})
     return Q(**{path: kor})
 
 
@@ -321,8 +333,7 @@ def annotateInstance(instance, annotateFunction, *args, **kwargs):
 
 
 def refreshQueryset(queryset):
-    # Om man treng å filter basert på noe som allerede er filtrert bort, så må man
-    # refresh querysettet ved å si pk__in=values_list('pk', flat=True)
+    'En quick fix funksjon som hindrer at filters ikkje kombineres på uintensjonelle måter.'
     return queryset.model.objects.filter(pk__in=queryset.values_list('pk', flat=True))
 
 
@@ -343,3 +354,9 @@ def dbCacheChanged(instance):
     'Sjekke om dbCacheField er annerledes fra det som er i databasen'
     dbInstance = type(instance).objects.filter(pk=instance.pk).first()
     return not dbInstance or instance.dbCacheField != dbInstance.dbCacheField
+
+
+class NoReuseMin(Min):
+    'Versjon av Min som generere nye joins heller enn å bruk de som allerede finnes.'
+    def resolve_expression(self, query=None, allow_joins=True, reuse=None, summarize=False, for_save=False):
+        return super().resolve_expression(query=query, allow_joins=allow_joins, reuse=set(), summarize=summarize, for_save=for_save)

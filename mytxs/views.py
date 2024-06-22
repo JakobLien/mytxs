@@ -27,7 +27,7 @@ from mytxs.utils.lazyDropdown import lazyDropdown
 from mytxs.utils.formUtils import filesIfPost, postIfPost, inlineFormsetArgs
 from mytxs.utils.hashUtils import addHash, testHash
 from mytxs.utils.logAuthorUtils import logAuthorAndSave, logAuthorInstance
-from mytxs.utils.modelUtils import inneværendeSemester, qBool, randomDistinct, stemmegruppeOrdering, vervInnehavelseAktiv, stemmegruppeVerv
+from mytxs.utils.modelUtils import inneværendeSemester, korLookup, qBool, randomDistinct, stemmegruppeOrdering, vervInnehavelseAktiv, stemmegruppeVerv
 from mytxs.utils.pagination import getPaginatedInlineFormSet, addPaginatorPage
 from mytxs.utils.downloadUtils import downloadCSV, downloadICal, downloadVCard
 from mytxs.utils.viewUtils import harTilgang, redirectToInstance
@@ -475,17 +475,23 @@ def fraværSide(request, side, underside=None):
             'filterForm': oppmøteFilterForm
         })
 
+    if side == 'oversikt' or side == 'statistikk':
+        request.queryset = Medlem.objects.filter(
+            vervInnehavelseAktiv(),
+            stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
+            korLookup(underside, 'vervInnehavelser__verv__kor'),
+        ).annotateFravær(
+            kor=underside, 
+            heleSemesteret=bool(request.GET.get('heleSemesteret'))
+        ).annotatePermisjon(kor=underside).filter(permisjon=False)
+
     if side == 'oversikt':
-        request.queryset = Medlem.objects.filterIkkePermitert(kor=Kor.objects.get(navn=underside))\
-            .annotateFravær(kor=underside, heleSemesteret=bool(request.GET.get('heleSemesteret'))).order_by(*Medlem._meta.ordering)
+        request.queryset = request.queryset.order_by(*Medlem._meta.ordering)
         return render(request, 'mytxs/fraværListe.html')
     
     if side == 'statistikk':
-        medlemmer = Medlem.objects.filterIkkePermitert(kor=Kor.objects.get(navn=underside))\
-            .annotateFravær(kor=underside, heleSemesteret=bool(request.GET.get('heleSemesteret')))\
-            .annotateKarantenekor(kor=underside)\
-            .annotateStemmegruppe(kor=underside)\
-            .order_by(*Medlem._meta.ordering)
+        medlemmer = request.queryset.annotateKarantenekor(kor=underside).annotateStemmegruppe(kor=underside)\
+            .annotateKor(annotationNavn="småkorNavn", korAlternativ=consts.bareSmåkorNavn, aktiv=True)
         
         class fraværGruppe:
             def __init__(self, navn):
@@ -495,9 +501,6 @@ def fraværSide(request, side, underside=None):
             @property
             def navn(self):
                 return f'{self._navn} ({len(self.medlemmer)})'
-
-            def addMedlem(self, medlem):
-                self.medlemmer.append(medlem)
 
             @property
             def gyldigFravær(self):
@@ -513,33 +516,24 @@ def fraværSide(request, side, underside=None):
         
         fraværGrupper = {}
 
-        # Opprett småkor om dette e storkor
-        if underside in consts.bareStorkorNavn:
-            for småkor in consts.småkorForStorkor[underside]:
-                fraværGrupper[småkor] = fraværGruppe(småkor)
-
-                fraværGrupper[småkor].medlemmer = medlemmer.filter(
-                    vervInnehavelseAktiv(),
-                    stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
-                    vervInnehavelser__verv__kor__navn=småkor
-                )
-        
-        # Opprett stemmegrupper
         for stemmegruppe in Kor.objects.get(navn=underside).stemmegrupper():
             fraværGrupper[stemmegruppe] = fraværGruppe(stemmegruppe)
 
-        # Opprett karantenekor
         for karantenekor in medlemmer.values_list('karantenekor', flat=True).order_by('karantenekor'):
             fraværGrupper[karantenekor] = fraværGruppe('K'+str(karantenekor-2000 if karantenekor >= 2000 else karantenekor))
 
-        for medlem in medlemmer:
-            # Legg dem inn i stemmegruppe fraværGruppa
-            if medlem.stemmegruppe != None:
-                fraværGrupper[medlem.stemmegruppe].addMedlem(medlem)
-            
-            # Legg dem inn i karantenekor fraværGruppa
-            fraværGrupper[medlem.karantenekor].addMedlem(medlem)
+        for småkorNavn in consts.småkorForStorkor.get(underside, []):
+            fraværGrupper[småkorNavn] = fraværGruppe(småkorNavn)
 
+        for medlem in medlemmer:
+            fraværGrupper[medlem.karantenekor].medlemmer.append(medlem)
+
+            if medlem.stemmegruppe != None:
+                fraværGrupper[medlem.stemmegruppe].medlemmer.append(medlem)
+            
+            if medlem.småkorNavn in fraværGrupper:
+                fraværGrupper[medlem.småkorNavn].medlemmer.append(medlem)
+        
         request.queryset = list(filter(lambda fg: fg.medlemmer, fraværGrupper.values()))
 
         return render(request, 'mytxs/fraværListe.html')

@@ -1,13 +1,8 @@
-import base64
 import datetime
 import os
-import sys
 import threading
-import traceback
+from time import sleep
 
-from django.core import mail
-
-from mytxs import settings
 from mytxs.utils.downloadUtils import getVeventFromHendelse
 
 from google.auth.transport.requests import Request
@@ -16,44 +11,41 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-def mailException(func):
+def exponentialBackoff(func):
+    'Implementasjon av exponential backoff, samt at den begrense antall requests.'
     def _decorator(self, *args, **kwargs):
-        if hasattr(self, 'skipMailing') or settings.DEBUG:
-            return func(self, *args, **kwargs)
-        
-        try:
-            return func(self, *args, **kwargs)
-        except Exception as exception:
-            arguments = ''
-            if args:
-                if not isinstance(args, list):
-                    args = [args]
-                arguments += '\nArgs:\n- ' + '\n- '.join(map(lambda a: str(a), args))
-            if kwargs:
-                arguments += '\nKwargs:\n- ' + '\n- '.join(map(lambda kv: f'{kv[0]}: {kv[1]}', kwargs.items()))
-            exception_traceback = ''.join(traceback.format_exception(type(exception), exception, exception.__traceback__))
-            mail.mail_admins(
-                subject='Google Calenadar Exception!', 
-                message=f'GoogleCalendarManager method {func.__name__} hadd et exception!\n{arguments}\n\n\n{exception_traceback}'
-            )
-            sys.exit(1)
+        attempt = 0
+        while True:
+            if self.requestCountDown != None:
+                if self.requestCountDown <= 0:
+                    raise Exception('Google Calendar exceeded 100 requests.')
+                self.requestCountDown -= 1
+            try:
+                return func(self, *args, **kwargs)
+            except HttpError as httpError:
+                if attempt >= 5 or not (httpError.status_code in [403, 429] or httpError.status_code >= 500):
+                    raise httpError
+                sleep(2**attempt)
+                attempt += 1
     return _decorator
 
 
 class GoogleCalendarManager:
-    def __init__(self, *args, **kwargs):
+    'Denne raise diverse exceptions om den ikkje kan instansieres.'
+    def __init__(self, requestCountDown=None):
+        self.requestCountDown = requestCountDown
         self.service = None
         creds = None
         SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
         tokenPath = os.environ.get('GOOGLE_CALENDAR_TOKEN_PATH')
         if not tokenPath or not os.path.exists(tokenPath):
-            return
+            raise Exception('Missing Google Calendar Token')
         
         creds = Credentials.from_authorized_user_file(tokenPath, SCOPES)
 
-        if not creds: 
-            return
+        if not creds:
+            raise Exception('Credentials could not be created')
         
         if creds.expired:
             creds.refresh(Request())
@@ -67,12 +59,9 @@ class GoogleCalendarManager:
             with open(tokenPath, "w") as token:
                 print('Wrote new google calendar token!')
                 token.write(creds.to_json())
-        try:
-            self.service = build("calendar", "v3", credentials=creds)
-        except HttpError as error:
-            print(f"An error occurred: {error}")
+        self.service = build("calendar", "v3", credentials=creds)
 
-    @mailException
+    @exponentialBackoff
     def createCalendar(self, name, description):
         return self.service.calendars().insert(body={
             'summary': name,
@@ -80,7 +69,7 @@ class GoogleCalendarManager:
             'description': description
         }).execute()['id']
 
-    @mailException
+    @exponentialBackoff
     def shareCalendar(self, calendarId, gmail):
         return self.service.acl().insert(calendarId=calendarId, body={
             'scope': {
@@ -90,31 +79,34 @@ class GoogleCalendarManager:
             'role': 'reader'
         }).execute()
 
-    @mailException
+    @exponentialBackoff
+    def deleteCalendar(self, calendarId):
+        return self.service.calendars().delete(calendarId=calendarId).execute()
+
+    @exponentialBackoff
     def getCalendarList(self):
         return self.service.calendarList().list(maxResults=250).execute().get('items', [])
     
-    @mailException
+    @exponentialBackoff
     def listEvents(self, calendarId):
         return self.service.events().list(calendarId=calendarId, maxResults=2500).execute().get('items', [])
 
-    @mailException
+    @exponentialBackoff
     def getEventId(self, calendarId, UID):
         return self.service.events().list(calendarId=calendarId, privateExtendedProperty=[f'UID={UID}']).execute().get('items', [])[0]['id']
 
-    @mailException
+    @exponentialBackoff
     def createEvent(self, calendarId, body):
         return self.service.events().insert(calendarId=calendarId, body=body).execute()
 
-    @mailException
+    @exponentialBackoff
     def updateEvent(self, calendarId, body):
         eventId = self.getEventId(calendarId, body['extendedProperties']['private']['UID'])
         return self.service.events().update(calendarId=calendarId, eventId=eventId, body=body).execute()
 
-    @mailException
+    @exponentialBackoff
     def deleteEvent(self, calendarId, UID):
-        eventId = self.getEventId(calendarId, UID)
-        return self.service.events().delete(calendarId=calendarId, eventId=eventId).execute()
+        return self.service.events().delete(calendarId=calendarId, eventId=self.getEventId(calendarId, UID)).execute()
 
     def getCalendarIDs(self, korNavn, medlemmer):
         'Returne en dicitonary som mappe fra medlem til google kalender id'
@@ -146,7 +138,11 @@ def iCalDateTimeToISO(dateTimeStr, addTimeDelta=None):
 
 
 def getHendelseBody(veventDict):
-    # Vi tar utgangspunkt i downloadUtils.py sin getVeventFromHendelse, slik at endringer der reflekteres her!
+    '''
+    Konverterer en veventDict fra iCal eksport koden til en Google Calendar Request body.
+    Dette medfører at Google Calendar semesterplan vil være identisk til en iCal semesterplan,
+    og at vi bare må endre på iCal eksport for å fikse på all kalendereksport.
+    '''
     body = {
         'summary': veventDict['SUMMARY'],
         'location': veventDict['LOCATION'],
@@ -197,12 +193,11 @@ def thread(func):
 
 @thread
 def getOrCreateAndShareCalendar(korNavn, medlem, gmail):
-    gCalManager = GoogleCalendarManager()
+    gCalManager = GoogleCalendarManager(requestCountDown=200)
     
-    if not gCalManager.service:
-        return
-
     calendarId = gCalManager.getCalendarIDs(korNavn, [medlem]).get(medlem)
+
+    gCalManager.shareCalendar(calendarId, gmail)
 
     if not calendarId:
         calendarId = gCalManager.createCalendar(f'{korNavn} semesterplan', f'{korNavn}-{medlem.pk}')
@@ -213,15 +208,11 @@ def getOrCreateAndShareCalendar(korNavn, medlem, gmail):
                 getHendelseBody(getVeventFromHendelse(hendelse, medlem))
             )
 
-    gCalManager.shareCalendar(calendarId, gmail)
-
 
 @thread
-def updateGoogleCalendar(hendelse, oldMedlemmer=[], newMedlemmer=[]):
-    gCalManager = GoogleCalendarManager()
-
-    if not gCalManager.service:
-        return
+def updateGoogleCalendar(hendelse, changed=False, oldMedlemmer=[], newMedlemmer=[], hendelsePK=None):
+    'Oppdatere Google Calendar gitt liste av gamle og nye medlemmer. hendelsePK til bruk ved sletting.'
+    gCalManager = GoogleCalendarManager(requestCountDown=200)
     
     # Sangern hendelser kan vær i begge storkor sine kalendere
     if hendelse.kor.navn == 'Sangern':
@@ -230,21 +221,21 @@ def updateGoogleCalendar(hendelse, oldMedlemmer=[], newMedlemmer=[]):
         medlemCalendars = gCalManager.getCalendarIDs(hendelse.kor.navn, oldMedlemmer+newMedlemmer)
     
     for medlem, calendarId in medlemCalendars.items():
-        vevent = getVeventFromHendelse(hendelse, medlem)
+        vevent = getVeventFromHendelse(hendelse, medlem, hendelsePK=hendelsePK)
         old = medlem in oldMedlemmer
         new = medlem in newMedlemmer
-        if old and new:
+        if new and not old:
+            gCalManager.createEvent(
+                calendarId, 
+                getHendelseBody(vevent)
+            )
+        elif new and old and changed:
             gCalManager.updateEvent(
                 calendarId,
                 getHendelseBody(vevent)
             )
-        elif old:
+        elif old and not new:
             gCalManager.deleteEvent(
                 calendarId, 
                 vevent['UID']
-            )
-        elif new:
-            gCalManager.createEvent(
-                calendarId, 
-                getHendelseBody(vevent)
             )

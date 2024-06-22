@@ -73,11 +73,11 @@ def dateToICal(date):
     return date.strftime('%Y%m%d')
 
 
-def getVeventFromHendelse(hendelse, medlem):
+def getVeventFromHendelse(hendelse, medlem, hendelsePK=None):
     'Genererer en dictionary med keys og values tilsvarende en iCal hendelse'
     veventDict = {
         'BEGIN': 'VEVENT',
-        'UID': f'{hendelse.kor}-{hendelse.pk}@mytxs.samfundet.no'
+        'UID': f'{hendelse.kor}-{hendelsePK if hendelsePK else hendelse.pk}@mytxs.samfundet.no'
     }
 
     veventDict['SUMMARY'] = hendelse.navnMedPrefiks
@@ -85,7 +85,7 @@ def getVeventFromHendelse(hendelse, medlem):
     veventDict['DESCRIPTION'] = [hendelse.beskrivelse.replace('\r\n', '\\n')] if hendelse.beskrivelse else []
     if hendelse.kategori == type(hendelse).UNDERGRUPPE:
         veventDict['DESCRIPTION'].append('De inviterte:\\n- ' + '\\n- '.join([str(m) for m in hendelse.oppmøteMedlemmer]))
-    elif (oppmøte := hendelse.oppmøter.filter(medlem=medlem).first()) and oppmøte.fraværTekst:
+    elif hendelse.pk and (oppmøte := hendelse.oppmøter.filter(medlem=medlem).first()) and oppmøte.fraværTekst:
         veventDict['DESCRIPTION'].append(oppmøte.fraværTekst + ': ' + mytxsSettings.ALLOWED_HOSTS[0] + unquote(reverse('meldFravær', args=[medlem.pk, hendelse.pk])))
     veventDict['DESCRIPTION'] = '\\n\\n'.join(veventDict['DESCRIPTION'])
 
@@ -123,7 +123,7 @@ PRODID:-//mytxs.samfundet.no//MyTXS semesterplan//
 VERSION:2.0
 CALSCALE:GREGORIAN
 METHOD:PUBLISH
-X-WR-CALNAME:MyTXS 2.0 Semesterplan
+X-WR-CALNAME:{korNavn} semesterplan (iCal)
 X-WR-CALDESC:Denne kalenderen ble oppdatert av MyTXS {
 datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S')}Z
 X-WR-TIMEZONE:Europe/Oslo
@@ -165,4 +165,4 @@ END:VTIMEZONE
     # Join alle lines med CRLF
     iCalString = '\r\n'.join(iCalLines)
 
-    return downloadFile(f'{korNavn} semesterplan.ics', iCalString, content_type='text/calendar')
+    return downloadFile(f'{korNavn} semesterplan (iCal).ics', iCalString, content_type='text/calendar')

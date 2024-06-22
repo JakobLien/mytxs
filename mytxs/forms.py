@@ -115,9 +115,6 @@ class MedlemFilterForm(NavnKorFilterForm):
             sgVerv = sgVerv.filter(kor=kor)
         
         if karantenekor := self.cleaned_data['K']:
-            # Siden vi må annotateKarantenekor må vi først refresh querysettet siden man 
-            # kanskje ikkje har tilgang til medlemmer via småkoret man filtrerer på.
-            queryset = refreshQueryset(queryset)
             queryset = queryset.annotateKarantenekor(
                 kor=kor or None
             )
@@ -142,13 +139,10 @@ class MedlemFilterForm(NavnKorFilterForm):
             queryset = queryset.filter(overførtData=False)
 
         if harPermisjon := self.cleaned_data['harPermisjon']:
-            queryset = refreshQueryset(queryset)
-            harPermQ = Q(
-                vervInnehavelseAktiv(dato=dato) if dato else qBool(True),
-                korLookup(kor, 'vervInnehavelser__verv__kor') if kor else qBool(True),
-                Q(vervInnehavelser__verv__navn='Permisjon')
-            )
-            queryset = queryset.filter(harPermQ if harPermisjon == 'True' else ~harPermQ)
+            queryset = queryset.annotatePermisjon(
+                kor=kor if kor else consts.bareStorkorNavn,
+                dato=dato
+            ).filter(permisjon=harPermisjon == 'True')
         
         if 'notisInnhold' in self.fields and (notis := self.cleaned_data['notisInnhold']):
             queryset = queryset.filter(*map(lambda n: Q(notis__icontains=n), notis.split()))

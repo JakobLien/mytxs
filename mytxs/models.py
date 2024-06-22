@@ -7,7 +7,7 @@ from django.apps import apps
 from django.conf import settings as djangoSettings
 from django.core import mail
 from django.db import models
-from django.db.models import Value as V, Q, Case, When, Min, Max, Sum, ExpressionWrapper, F, OuterRef, Subquery, Prefetch
+from django.db.models import Value as V, Q, Case, When, Max, Sum, ExpressionWrapper, F, OuterRef, Subquery, Prefetch, Exists
 from django.db.models.functions import Concat, ExtractMinute, ExtractHour, Right, Coalesce, Cast
 from django.forms import ValidationError
 from django.urls import reverse
@@ -21,7 +21,7 @@ from mytxs.fields import BitmapMultipleChoiceField, MyDateField, MyManyToManyFie
 from mytxs.utils.formUtils import toolTip
 from mytxs.utils.googleCalendar import updateGoogleCalendar
 from mytxs.utils.modelCacheUtils import DbCacheModel, cacheQS, dbCache
-from mytxs.utils.modelUtils import annotateInstance, bareAktiveDecorator, inneværendeSemester, qBool, groupBy, getInstancesForKor, isStemmegruppeVervNavn, korLookup, stemmegruppeOrdering, strToModels, validateBruktIKode, validateM2MFieldEmpty, validateStartSlutt, vervInnehavelseAktiv, stemmegruppeVerv
+from mytxs.utils.modelUtils import NoReuseMin, annotateInstance, bareAktiveDecorator, qBool, groupBy, getInstancesForKor, isStemmegruppeVervNavn, korLookup, stemmegruppeOrdering, strToModels, validateBruktIKode, validateM2MFieldEmpty, validateStartSlutt, vervInnehavelseAktiv, stemmegruppeVerv
 from mytxs.utils.navBar import navBarNode
 from mytxs.utils.utils import cropImage
 
@@ -247,7 +247,7 @@ class MedlemQuerySet(models.QuerySet):
         Merk at man kanskje må refresh querysettet dersom man allerede har filtrert på stemmegruppeverv. 
         '''
         return self.annotate(
-            karantenekor=Min(
+            karantenekor=NoReuseMin(
                 'vervInnehavelser__start__year',
                 filter=
                     stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True) &
@@ -326,25 +326,16 @@ class MedlemQuerySet(models.QuerySet):
             ).prefetch_related('dekorasjon__kor')),
         )
 
-    def filterIkkePermitert(self, kor, dato=None):
-        'Returne et queryset av (medlemmer som er aktive) AND (ikke permiterte)'
-        if dato == None:
-            dato = datetime.datetime.today()
-
-        permiterte = self.filter(
-            vervInnehavelseAktiv(dato=dato),
-            vervInnehavelser__verv__navn='Permisjon',
-            vervInnehavelser__verv__kor=kor
+    def annotatePermisjon(self, kor, dato=None):
+        return self.annotate(
+            permisjon=Exists(VervInnehavelse.objects.filter(
+                vervInnehavelseAktiv('', dato=dato),
+                korLookup(kor, 'verv__kor'),
+                verv__navn='Permisjon',
+                medlem=OuterRef('pk')
+            ))
         )
 
-        return self.filter(# Skaff aktive korister...
-            vervInnehavelseAktiv(dato=dato),
-            stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
-            vervInnehavelser__verv__kor=kor
-        ).exclude(# ...som ikke har permisjon
-            pk__in=permiterte.values_list('pk', flat=True)
-        ).distinct() # distinct fordi dirigenten også kan syng i koret
-    
     def annotateFravær(self, kor, heleSemesteret=False):
         'Annotater gyldigFravær, ugyldigFravær og hendelseVarighet'
         def getDateTime(fieldName, backupDateFieldName=None):
@@ -451,15 +442,17 @@ class Medlem(DbCacheModel):
 
     def getHendelser(self, korNavn):
         'Returne et queryset av hendelsan dette medlemmet har i den kor-kalenderen (Sangern hendelser havner i storkor kalender)'
-        semesterstart = datetime.date.today()
-        semesterstart = semesterstart.replace(month=(semesterstart.month // 7) * 6 + 1, day=1)
+        korStart = self.vervInnehavelser.filter(
+            stemmegruppeVerv(includeDirr=True),
+            verv__kor__navn=korNavn
+        ).order_by('start').first().start
 
         return Hendelse.objects.filter(
             # For storkor skaffe vi hendelsa for dem og Sangern, for småkor skaffe vi bare det korets hendelsa. 
             qBool(korNavn in consts.bareStorkorNavn, trueOption=Q(kor__navn__in=[korNavn, 'Sangern']), falseOption=Q(kor__navn=korNavn)),
             # For undergruppe hendelsa må man vær invitert for å få det opp
             ~Q(kategori=Hendelse.UNDERGRUPPE) | Q(oppmøter__medlem=self),
-            startDate__gte=semesterstart
+            startDate__gte=korStart
         ).distinct()
 
     @property
@@ -889,7 +882,7 @@ class VervInnehavelse(DbCacheModel):
         # Oppdater hvilke oppmøter man har basert på stemmegruppeVerv og permisjon
 
         # Per no ser e ikkje en ryddigar måte å gjør dette på, enn å bare prøv å minimer antall 
-        # hendelser vi calle save metoden på. Det e vanskelig å skaff hvilke hendelser 
+        # hendelser vi calle genererOppmøter på. Det e vanskelig å skaff hvilke oppmøter 
         # som blir lagt til og fjernet av en endring av varighet eller type av verv. Sammenlign
         # - "Medlemmer som har aktive stemmegruppeverv som ikke har permisjon den dagen."
         # - "Hendelsene som faller på dager der vi har endret et permisjon/stemmegruppeverv, 
@@ -901,35 +894,25 @@ class VervInnehavelse(DbCacheModel):
             
             if not oldSelf:
                 # Om ny vervInnehavelse, save på alle hendelser i varigheten
-                hendelser.saveAllInPeriod(self.start, self.slutt)
-
+                hendelser.genererHendelseOppmøter(self.start, self.slutt)
             elif self.verv.stemmegruppeVerv != oldSelf.verv.stemmegruppeVerv or \
-                self.verv.navn == 'Permisjon' != oldSelf.verv.navn == 'Permisjon':
+                (self.verv.navn == 'Permisjon') != (oldSelf.verv.navn == 'Permisjon'):
                 # Om vi bytte hvilken type verv det er, save alle hendelser i hele perioden
-                hendelser.saveAllInPeriod(self.start, self.slutt, oldSelf.start, oldSelf.slutt)
-
-            elif (self.verv.stemmegruppeVerv and oldSelf.verv.stemmegruppeVerv) or \
-                (self.verv.navn == 'Permisjon' and oldSelf.verv.navn == 'Permisjon'):
+                hendelser.genererHendelseOppmøter(self.start, self.slutt, oldSelf.start, oldSelf.slutt)
+            else:
                 # Om vi ikke bytte hvilken type verv det er, save hendelser som er 
                 # mellom start og start, og mellom slutt og slutt
-
                 if oldSelf.start != self.start:
-                    # Start av verv er aldri None
-                    hendelser.saveAllInPeriod(self.start, oldSelf.start)
-
+                    hendelser.genererHendelseOppmøter(self.start, oldSelf.start)
                 if oldSelf.slutt != self.slutt:
-                    if oldSelf.slutt != None and self.slutt != None:
-                        # Om verken e None, lagre som vanlig
-                        hendelser.saveAllInPeriod(self.slutt, oldSelf.slutt)
-                    else:
-                        hendelser.saveAllInPeriod(self.slutt, oldSelf.slutt)
+                    hendelser.genererHendelseOppmøter(self.slutt, oldSelf.slutt)
     
     def delete(self, *args, **kwargs):
         super().delete(*args, **kwargs)
 
         # Om vi sletter vervInnehavelsen, save alle i varigheten
         if self.verv.stemmegruppeVerv or self.verv.navn == 'Permisjon':
-            Hendelse.objects.filter(kor=self.verv.kor).saveAllInPeriod(self.start, self.slutt)
+            Hendelse.objects.filter(kor=self.verv.kor).genererHendelseOppmøter(self.start, self.slutt)
 
 
 class Tilgang(DbCacheModel):
@@ -1086,20 +1069,13 @@ class Turne(DbCacheModel):
 
 
 class HendelseQuerySet(models.QuerySet):
-    def saveAllInPeriod(self, *dates):
-        '''
-        Utility method for å gjøre koden for lagring av vervInnehavelser enklere,
-        dates argumentet kan inneholde datoer eller None, i hvilken som helst rekkefølge.
-        '''
-
-        if len(dates) > 0:
-            if None in dates:
-                datesWithoutNone = [*filter(lambda d: d != None, dates)]
-                hendelser = self.filter(startDate__gte=min(datesWithoutNone))
-            else:
-                hendelser = self.filter(startDate__gte=min(dates), startDate__lte=max(dates))
-            for hendelse in hendelser:
-                hendelse.save()
+    def genererHendelseOppmøter(self, *dates):
+        'Call genererOppmøter på hendelser mellom minste og støste Date i dates. None skal tolkes som date.max'
+        for hendelse in self.filter(
+            qBool(True) if None in dates else Q(startDate__lte=max(dates)), 
+            startDate__gte=min([d for d in dates if d != None]), 
+        ):
+            hendelse.genererOppmøter()
 
 
 class Hendelse(DbCacheModel):
@@ -1175,18 +1151,17 @@ class Hendelse(DbCacheModel):
     
     def getKalenderMedlemmer(self):
         'Omvendte av Medlem.getHendelser, returne queryset av medlemmer som skal få opp dette i kalendern sin.'
-        semesterstart = datetime.date.today()
-        semesterstart = semesterstart.replace(month=(semesterstart.month // 7) * 6 + 1, day=1)
-
-        if self.startDate < semesterstart:
-            return Medlem.objects.none()
-
         if self.kategori == Hendelse.UNDERGRUPPE:
             return Medlem.objects.filter(oppmøter__hendelse=self)
-        
-        return Medlem.objects.filter(
-            vervInnehavelseAktiv(dato=self.startDate),
+
+        # Dette må vær det nøyaktig omvendte av Medlem.getHendelser, om ikkje vil vi få unødvendige updates
+        return Medlem.objects.filter(# Dem som e aktiv no
+            vervInnehavelseAktiv(),
             stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
+            vervInnehavelser__verv__kor__navn__in=consts.bareStorkorNavn if self.kor.navn == 'Sangern' else [self.kor.navn]
+        ).filter(# Og som begynt før hendelsen her
+            stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
+            vervInnehavelser__start__lte=self.startDate,
             vervInnehavelser__verv__kor__navn__in=consts.bareStorkorNavn if self.kor.navn == 'Sangern' else [self.kor.navn]
         )
 
@@ -1197,15 +1172,50 @@ class Hendelse(DbCacheModel):
             return Medlem.objects.none()
         
         if self.kategori == Hendelse.UNDERGRUPPE:
-            return getattr(self, '_oppmøteMedlemmer', Medlem.objects.filter(
+            return getattr(self, '_oppmøteMedlemmer', Medlem.objects.filter( # De som er valgt til hendelsen
                 Q(oppmøter__hendelse=self)
-            ).distinct()) | Medlem.objects.filter(
+            ).distinct()) | Medlem.objects.filter( # De som er i en tilgangPrefix
                 vervInnehavelseAktiv(),
                 vervInnehavelser__verv__tilganger__navn__in=self.prefiksArray,
                 vervInnehavelser__verv__tilganger__kor=self.kor
             ).distinct()
 
-        return Medlem.objects.filterIkkePermitert(kor=self.kor, dato=self.startDate)
+        return Medlem.objects.filter(# Skaff aktive korister...
+            vervInnehavelseAktiv(dato=self.startDate),
+            stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
+            korLookup(self.kor, 'vervInnehavelser__verv__kor'),
+        ).annotatePermisjon(kor=self.kor, dato=self.startDate).filter(# ...som ikke har permisjon
+            permisjon=False
+        ).distinct() # distinct fordi dirigenten også kan syng i koret
+
+    def genererOppmøter(self, oldSelf=None, softDelete=True):
+        '''
+        Legg til og fjerner så hendelsen har oppmøtene den skal ha. 
+        Sletter ikke oppmøter som har informasjon assosiert med seg, om ikke softDelete er False.
+        '''
+        if not oldSelf:
+            oldSelf = Hendelse.objects.filter(pk=self.pk).first()
+
+        # Legg til oppmøter som skal være der
+        for medlem in self.oppmøteMedlemmer.filter(~Q(oppmøter__hendelse=self)):
+            self.oppmøter.create(medlem=medlem, hendelse=self, ankomst=self.defaultAnkomst)
+
+        if oldSelf:
+            # Slett oppmøter som ikke skal være der (og ikke har noen informasjon assosiert med seg)
+            self.oppmøter.filter(
+                ~Q(medlem__in=self.oppmøteMedlemmer),
+                qBool(True) if not softDelete else Q(
+                    fravær__isnull=True,
+                    ankomst=oldSelf.defaultAnkomst,
+                    melding=''
+                )
+            ).delete()
+
+            # Bytt resten av oppmøtene sin ankomst til default ankomsten, dersom de ikke har en medling. 
+            if self.defaultAnkomst != oldSelf.defaultAnkomst:
+                for oppmøte in self.oppmøter.filter(melding=''):
+                    oppmøte.ankomst = self.defaultAnkomst
+                    oppmøte.save()
 
     def getStemmeFordeling(self):
         '''
@@ -1227,7 +1237,7 @@ class Hendelse(DbCacheModel):
         if self.kategori in [Hendelse.OBLIG, Hendelse.UNDERGRUPPE]:
             return Oppmøte.KOMMER
         return Oppmøte.KOMMER_KANSKJE
-    
+
     def get_absolute_url(self):
         return reverse('hendelse', args=[self.pk])
 
@@ -1294,38 +1304,23 @@ class Hendelse(DbCacheModel):
 
         oldSelf = Hendelse.objects.filter(pk=self.pk).first()
 
-        oldMedlemmer = []
-        if oldSelf:
-            # Om det e nytt finnes det ikkje i google calendar
-            oldMedlemmer = list(self.getKalenderMedlemmer())
+        oldMedlemmer = [] if not oldSelf else list(oldSelf.getKalenderMedlemmer())
 
         super().save(*args, **kwargs)
 
-        # Legg til oppmøter som skal være der
-        for medlem in self.oppmøteMedlemmer.filter(~Q(oppmøter__hendelse=self)):
-            self.oppmøter.create(medlem=medlem, hendelse=self, ankomst=self.defaultAnkomst)
-        
-        if oldSelf:
-            # Slett oppmøter som ikke skal være der (og ikke har noen informasjon assosiert med seg)
-            self.oppmøter.filter(
-                ~Q(medlem__in=self.oppmøteMedlemmer),
-                fravær__isnull=True,
-                ankomst=oldSelf.defaultAnkomst,
-                melding=''
-            ).delete()
-
-            # Bytt resten av oppmøtene sin ankomst til default ankomsten, dersom de ikke har en medling. 
-            if self.defaultAnkomst != oldSelf.defaultAnkomst:
-                for oppmøte in self.oppmøter.filter(melding=''):
-                    oppmøte.ankomst = self.defaultAnkomst
-                    oppmøte.save()
+        self.genererOppmøter(oldSelf=oldSelf)
 
         newMedlemmer = list(self.getKalenderMedlemmer())
 
-        updateGoogleCalendar(self, oldMedlemmer=oldMedlemmer, newMedlemmer=newMedlemmer)
+        changed = not oldSelf or any([getattr(self, f) != getattr(oldSelf, f) for f in self.__dict__.keys() if not f.startswith('_')])
+
+        if os.environ.get('GOOGLE_CALENDAR_TOKEN_PATH') and (changed or oldMedlemmer != newMedlemmer):
+            # Bare oppdater Google Calendar om noko har endra seg, for å unngå API spam
+            updateGoogleCalendar(self, changed=changed, oldMedlemmer=oldMedlemmer, newMedlemmer=newMedlemmer)
 
     def delete(self, *args, **kwargs):
-        updateGoogleCalendar(self, oldMedlemmer=list(self.getKalenderMedlemmer()))
+        # Hendelsen sin pk blir None når den slettes, så vi må pass den videre separat her
+        updateGoogleCalendar(self, oldMedlemmer=list(self.getKalenderMedlemmer()), hendelsePK=self.pk)
 
         super().delete(*args, **kwargs)
 
@@ -1413,12 +1408,6 @@ class Oppmøte(DbCacheModel):
             raise ValidationError(
                 _('Kan ikke ha mere fravær enn varigheten av hendelsen.'),
                 code='merFraværEnnHendelse'
-            )
-        
-        if self.hendelse.kategori == Hendelse.OBLIG and self.hendelse.defaultAnkomst != self.ankomst and self.melding == '':
-            raise ValidationError(
-                _('Kan ikke ha en spesiell ankomst på en oblig hendelse uten å skrive en melding'),
-                code='ankomstUtenMelding'
             )
 
     def save(self, *args, **kwargs):

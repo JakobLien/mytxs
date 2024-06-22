@@ -1,6 +1,4 @@
 import datetime
-import sys
-import traceback
 
 from django.core import mail
 from django.core.management.base import BaseCommand
@@ -9,22 +7,11 @@ from django.db.models.functions import Cast
 
 from mytxs.management.commands.fixGoogleCalendar import fixGoogleCalendar
 from mytxs.models import Hendelse, Medlem, Oppmøte
+from mytxs.utils.googleCalendar import GoogleCalendarManager
 from mytxs.utils.modelUtils import vervInnehavelseAktiv
 
-
-def mailException(func):
-    def _decorator(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except Exception as exception:
-            exception_traceback = ''.join(traceback.format_exception(type(exception), exception, exception.__traceback__))
-            mail.mail_admins(
-                subject='Exception in cron function!', 
-                message=f'Cron function {func.__name__} hadd følgende exception {exception_traceback}'
-            )
-            sys.exit(1)
-    return _decorator
-
+# Til info har ITK satt det opp slik at om cron jobben printe nå som helst, 
+# eller om den raise et exception, så vil den send epost med output te meg:)
 
 class Command(BaseCommand):
     help = 'Dette kjøre en gong hvert minutt på serveren, slik får vi cron jobs'
@@ -37,10 +24,9 @@ class Command(BaseCommand):
         if now.minute == 0:
             # Dette medføre refresh av tokenet, slik at vi aldri går 7 dager uten bruk
             # https://developers.google.com/identity/protocols/oauth2#expiration
-            mailException(fixGoogleCalendar)()
+            fixGoogleCalendar(gCalManager=GoogleCalendarManager(requestCountDown=100))
 
 
-@mailException
 def fraværEpost(now):
     start = now + datetime.timedelta(hours=2)
     hendelser = Hendelse.objects.filter(
