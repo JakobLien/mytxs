@@ -1,3 +1,4 @@
+import datetime
 from io import BytesIO
 from PIL import Image
 
@@ -37,3 +38,8 @@ def cropImage(imageFile, name, width, height):
     bildeBytes = BytesIO()
     bilde.save(bildeBytes, 'JPEG')
     return File(bildeBytes, name=name)
+
+
+def getHalvårStart():
+    halvårStart = datetime.date.today()
+    return halvårStart.replace(month=(halvårStart.month // 7) * 6 + 1, day=1)

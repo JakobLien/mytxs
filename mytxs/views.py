@@ -13,7 +13,7 @@ from django.db.models.functions import Cast
 from django.forms import inlineformset_factory, modelform_factory, modelformset_factory
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from django.http import Http404 
+from django.http import FileResponse, Http404 
 
 from mytxs import consts
 from mytxs.fields import intToBitList
@@ -27,13 +27,23 @@ from mytxs.utils.lazyDropdown import lazyDropdown
 from mytxs.utils.formUtils import filesIfPost, postIfPost, inlineFormsetArgs
 from mytxs.utils.hashUtils import addHash, testHash
 from mytxs.utils.logAuthorUtils import logAuthorAndSave, logAuthorInstance
-from mytxs.utils.modelUtils import inneværendeSemester, korLookup, qBool, randomDistinct, stemmegruppeOrdering, vervInnehavelseAktiv, stemmegruppeVerv
+from mytxs.utils.modelUtils import inneværendeSemester, korLookup, qBool, randomDistinct, stemmegruppeOrdering, vervInnehavelseAktiv, stemmegruppeVerv, annotateInstance
 from mytxs.utils.pagination import getPaginatedInlineFormSet, addPaginatorPage
 from mytxs.utils.downloadUtils import downloadCSV, downloadICal, downloadVCard
-from mytxs.utils.viewUtils import harTilgang, redirectToInstance
-from mytxs.utils.modelUtils import annotateInstance
+from mytxs.utils.utils import getHalvårStart
+from mytxs.utils.viewUtils import HttpResponseUnauthorized, harFilTilgang, harTilgang, redirectToInstance
 
 # Create your views here.
+
+def serve(request, path):
+    if not request.user.is_authenticated:
+        return HttpResponseUnauthorized()
+    
+    if not harFilTilgang(request.user.medlem, path):
+        raise Http404()
+
+    return FileResponse(open('uploads/'+path, 'rb'))
+
 
 def login(request):
     if request.user.is_authenticated:
@@ -350,6 +360,42 @@ def semesterplan(request, kor):
         messages.error(request, f'Du har ikke tilgang til andre kors kalender')
         return redirect(request.user.medlem)
     
+    if request.GET.get('jobbvakter'):
+        HendelseFormset = modelformset_factory(
+            Hendelse,
+            form=addHendelseMedlemmer(
+                modelform_factory(Hendelse, fields=[]),
+                queryset=Medlem.objects.filter(pk=request.user.medlem.pk),
+                enableQueryset=Medlem.objects.filter(pk=request.user.medlem.pk),
+            ),
+            extra=0,
+            fields=['medlemmer']
+        )
+
+        hendelseFormset = HendelseFormset(
+            postIfPost(request, prefix='hendelseFormset'), 
+            prefix='hendelseFormset',
+            queryset=Hendelse.objects.filter(
+                kategori=Hendelse.UNDERGRUPPE,
+                kor__navn__in=['Sangern', kor] if kor in consts.bareStorkorNavn else [kor],
+                startDate__gte=getHalvårStart(),
+                navn__regex=r'\[(.* )?#[0-9]+( .*)?\]' # Regex for firkantparentes med hashtag tall ledd separert med mellomrom
+            )
+        )
+
+        for form in hendelseFormset.forms:
+            if form.instance.undergruppeAntall <= form.instance.oppmøter.exclude(medlem=request.user.medlem).count():
+                form.fields['medlemmer'].disabled = True
+
+        if request.method == 'POST':
+            if hendelseFormset.is_valid():
+                logAuthorAndSave(hendelseFormset, request.user.medlem)
+                return redirect(request.get_full_path())
+
+        return render(request, 'mytxs/jobbvakter.html', { 
+            'hendelseFormset': hendelseFormset
+        })
+
     shareCalendarForm = ShareCalendarForm(postIfPost(request, 'shareCalendar'), prefix='shareCalendar')
 
     if request.method == 'POST':
@@ -1039,7 +1085,7 @@ For disse medlemmene hentet de ut: %s\n
             kategori=Hendelse.OBLIG,
             kor__navn=kor,
             sluttTime__isnull=False # Dette betyr at hendelsen har en varighet
-        )
+        ).annotateDirigentTilstede()
 
         medlemmer = Medlem.objects.filter(
             oppmøter__hendelse__in=hendelser
@@ -1053,11 +1099,16 @@ For disse medlemmene hentet de ut: %s\n
         csv.append([*'date,,,,,,,,,Dato'.split(','), *[h.start.strftime('%d.%m.%Y') for h in hendelser]])
         csv.append([*'time,,,,,,,,,Starttid'.split(','), *[h.start.strftime('%H:%M') for h in hendelser]])
         csv.append([*'type,,,,,,,,,Hvordan er samlingen gjennomført?'.split(','), *['F' for h in hendelser]])
-        csv.append([*'hoursWithoutTeacher,,,,,,,,,Timer uten lærer'.split(','), *[0 for h in hendelser]])
-        csv.append([*'hours,Navn,Adresse,Postnummer,Poststed,Epostadresse,Telefon,Kjønn,Fødselsår,Timer med lærer'.split(','), *[str(round(h.varighet/60, 2)).replace('.', ',') for h in hendelser]])
+        csv.append([*'hoursWithoutTeacher,,,,,,,,,Timer uten lærer'.split(','), *[(str(round(h.varighet/60, 2)).replace('.', ',') if not h.dirigentTilstede else 0) for h in hendelser]])
+        csv.append([*'hours,Navn,Adresse,Postnummer,Poststed,Epostadresse,Telefon,Kjønn,Fødselsår,Timer med lærer'.split(','), *[(str(round(h.varighet/60, 2)).replace('.', ',') if h.dirigentTilstede else 0) for h in hendelser]])
         
         for i, medlem in enumerate(medlemmer):
-            line = [i, medlem.navn, medlem.boAdresse, '', '', medlem.epost, medlem.tlf, 'K' if medlem.storkorNavn() == 'TKS' else 'M', medlem.fødselsdato.year if medlem.fødselsdato else '', '']
+            postNummer, postSted = '', ''
+            if medlem.boAdresse.split(',')[1:] and len(medlem.boAdresse.split(',')[1].split()) > 1:
+                postNummer = medlem.boAdresse.split(',')[1].split()[0]
+                postSted = medlem.boAdresse.split(',')[1].split()[1]
+
+            line = [i, medlem.navn, medlem.boAdresse.split(',')[0], postNummer, postSted, medlem.epost, medlem.tlf, 'K' if medlem.storkorNavn() == 'TKS' else 'M', medlem.fødselsdato.year if medlem.fødselsdato else '', '']
 
             # Må ta høyde for at permisjon kan medføre færre oppmøter enn hendelser
             oppmøteIndex=0

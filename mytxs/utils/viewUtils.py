@@ -1,7 +1,13 @@
+from http import HTTPStatus
+
+from django.apps import apps
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db.models import FileField
+from django.http import HttpResponse
 from django.shortcuts import redirect
-from django.shortcuts import redirect
+
+from mytxs.models import Medlem
 
 # Utils til bruk i og rundt views
 
@@ -93,3 +99,37 @@ def harTilgang(viewFunc=None, querysetModel=None, instanceModel=None, lookupToAr
         return viewFunc(request, *args, **kwargs)
     
     return _decorator
+
+
+def filePathToInstance(filePath):
+    'Returne instance og fieldName tilsvarende den pathen'
+    for model in apps.get_models():
+        # Iterate over all fields of the model
+        for field in model._meta.get_fields():
+            if isinstance(field, FileField):
+                # If it's a FileField, filter instances where the field's value matches the file path
+                instance = model.objects.filter(**{field.name: filePath}).first()
+                if instance:
+                    return instance, field.name
+    return None, None
+
+
+class HttpResponseUnauthorized(HttpResponse):
+    status_code = HTTPStatus.UNAUTHORIZED
+
+
+def harFilTilgang(medlem, filePath):
+    instance, fieldName = filePathToInstance(filePath)
+
+    if not instance:
+        return False
+    
+    if type(instance) == Medlem and fieldName == 'bilde':
+        # Sjekkhefte bildet
+        if instance.aktiveKor.exists():
+            return True
+        
+        if medlem.tilganger.filter(navn='medlemsdata', kor__navn=instance.storkorNavn()):
+            return True
+
+    return False

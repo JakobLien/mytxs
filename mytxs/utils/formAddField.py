@@ -68,18 +68,21 @@ def addDeleteUserCheckbox(MedlemModelForm):
     return NewForm
 
 
-def addHendelseMedlemmer(HendelseForm):
+def addHendelseMedlemmer(HendelseForm, queryset=None, enableQueryset=None):
+    'Legg til medlemmer felt på et Undergruppe Hendelse form'
     class NewForm(HendelseForm):
         medlemmer = MyModelMultipleChoiceField(required=False, queryset=Medlem.objects.none())
 
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
 
-            self.fields['medlemmer'].queryset = Medlem.objects.filter(
-                vervInnehavelseAktiv(), 
-                stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
-                vervInnehavelser__verv__kor__navn__in=consts.bareStorkorNavn if self.instance.kor.navn == 'Sangern' else [self.instance.kor.navn]
-            ).distinct()
+            self.fields['medlemmer'].queryset = self.instance.oppmøteMedlemmer | (
+                queryset.distinct() if queryset else Medlem.objects.filter(
+                    vervInnehavelseAktiv(), 
+                    stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
+                    vervInnehavelser__verv__kor__navn__in=consts.bareStorkorNavn if self.instance.kor.navn == 'Sangern' else [self.instance.kor.navn]
+                ).distinct()
+            )
 
             self.fields['medlemmer'].initial = self.instance.oppmøteMedlemmer
 
@@ -88,7 +91,7 @@ def addHendelseMedlemmer(HendelseForm):
                     vervInnehavelseAktiv(),
                     vervInnehavelser__verv__tilganger__navn__in=self.instance.prefiksArray,
                     vervInnehavelser__verv__tilganger__kor=self.instance.kor
-                ),
+                ).filter(pk__in=enableQueryset.values_list('pk', flat=True) if enableQueryset else Medlem.objects.all().values_list('pk', flat=True)),
                 initialValue=self.fields['medlemmer'].initial
             )
 

@@ -25,6 +25,8 @@ urlpatterns = [
 
     path("__debug__/", include("debug_toolbar.urls")),
 
+    path('uploads/<path:path>', views.serve, name='serve'),
+
     path('', views.login, name='login'),
     path('logout', views.logout, name='logout'),
     path('endreLogin', views.endreLogin, name='endreLogin'),

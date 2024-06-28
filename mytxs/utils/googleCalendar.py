@@ -57,8 +57,8 @@ class GoogleCalendarManager:
             # creds = flow.run_local_server(port=0)
 
             with open(tokenPath, "w") as token:
-                print('Wrote new google calendar token!')
                 token.write(creds.to_json())
+                # print('Wrote new google calendar token!')
         self.service = build("calendar", "v3", credentials=creds)
 
     @exponentialBackoff

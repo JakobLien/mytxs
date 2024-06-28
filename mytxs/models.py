@@ -23,7 +23,7 @@ from mytxs.utils.googleCalendar import updateGoogleCalendar
 from mytxs.utils.modelCacheUtils import DbCacheModel, cacheQS, dbCache
 from mytxs.utils.modelUtils import NoReuseMin, annotateInstance, bareAktiveDecorator, qBool, groupBy, getInstancesForKor, isStemmegruppeVervNavn, korLookup, stemmegruppeOrdering, strToModels, validateBruktIKode, validateM2MFieldEmpty, validateStartSlutt, vervInnehavelseAktiv, stemmegruppeVerv
 from mytxs.utils.navBar import navBarNode
-from mytxs.utils.utils import cropImage
+from mytxs.utils.utils import cropImage, getHalvårStart
 
 
 class LoggQuerySet(models.QuerySet):
@@ -1077,6 +1077,17 @@ class HendelseQuerySet(models.QuerySet):
         ):
             hendelse.genererOppmøter()
 
+    def annotateDirigentTilstede(self):
+        return self.annotate(
+            dirigentTilstede=Exists(Oppmøte.objects.filter(
+                vervInnehavelseAktiv('medlem__vervInnehavelser'),
+                medlem__vervInnehavelser__verv__navn='Dirigent',
+                fravær__isnull=False,
+                medlem__vervInnehavelser__verv__kor=OuterRef('kor'),
+                hendelse=OuterRef('pk')
+            ))
+        )
+
 
 class Hendelse(DbCacheModel):
     objects = HendelseQuerySet.as_manager()
@@ -1086,6 +1097,12 @@ class Hendelse(DbCacheModel):
     @property
     def prefiksArray(self):
         return self.navn[1:].split(']')[0].split() if self.navn.startswith('[') else []
+    
+    @property
+    def undergruppeAntall(self):
+        antall = next(iter([p for p in self.prefiksArray if p.startswith('#')]), None)
+        if antall and antall[1:] and antall[1:].isnumeric():
+            return int(antall[1:])
     
     @property
     def navnMedPrefiks(self):
@@ -1193,6 +1210,10 @@ class Hendelse(DbCacheModel):
         Legg til og fjerner så hendelsen har oppmøtene den skal ha. 
         Sletter ikke oppmøter som har informasjon assosiert med seg, om ikke softDelete er False.
         '''
+        if self.startDate < getHalvårStart():
+            # Ikkje legg til eller slett oppmøter fra tidligere semestre
+            return
+
         if not oldSelf:
             oldSelf = Hendelse.objects.filter(pk=self.pk).first()
 
@@ -1266,7 +1287,7 @@ class Hendelse(DbCacheModel):
                 code='startAndEndTime'
             )
         
-        if self.sluttTime:
+        if self.slutt:
             validateStartSlutt(self, canEqual=False)
 
         if self.kor.navn == 'Sangern' and self.kategori in [Hendelse.OBLIG, Hendelse.PÅMELDING]:

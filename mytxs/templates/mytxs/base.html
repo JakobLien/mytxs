@@ -117,6 +117,7 @@
                 {% block topbar %}
                 <div class="flex justify-between">
                     <b>Hei {{ user.medlem.navn }}!</b>
+                    <span class="ml-10">Det synges for lite!</span>
                     <span class="ml-10">Siste login: {{ user.last_login|date:"G:i d.m.Y" }}</span>
                 </div>
                 {% endblock %}
