@@ -88,7 +88,11 @@
         {% if medlem.dekorasjonInnehavelser.all %}
         <li>Dekorasjoner: 
             {% for dekorasjonInnehavelse in medlem.dekorasjonInnehavelser.all %}
+            {% if dekorasjonInnehavelse.dekorasjon.ikon %}
+            <img src="{{ dekorasjonInnehavelse.dekorasjon.ikon.url }}" alt="{{ dekorasjonInnehavelse.dekorasjon }}" title="{{ dekorasjonInnehavelse.dekorasjon }}" width=40 height=40 style="display:inline-block">
+            {% else %}
             <span> {{ dekorasjonInnehavelse.dekorasjon }}</span>
+            {% endif %}
             {% endfor %}
         </li>
         {% endif %}
