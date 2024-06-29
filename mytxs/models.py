@@ -992,6 +992,7 @@ class Dekorasjon(DbCacheModel):
         null=True,
         blank=True,
     )
+    ikon = models.ImageField(null=True, blank=True)
 
     def get_absolute_url(self):
         return reverse('dekorasjon', args=[self.kor.navn, self.navn])
