@@ -979,6 +979,12 @@ class Dekorasjon(DbCacheModel):
         on_delete=models.DO_NOTHING,
         null=True
     )
+    underordnet = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
 
     def get_absolute_url(self):
         return reverse('dekorasjon', args=[self.kor.navn, self.navn])
