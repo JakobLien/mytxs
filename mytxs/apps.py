@@ -8,3 +8,4 @@ class MytxsConfig(AppConfig):
         # Implicitly connect signal handlers decorated with @receiver.
         import mytxs.signals.fileSignals
         import mytxs.signals.logSignals
+        import mytxs.signals.loginSignals
