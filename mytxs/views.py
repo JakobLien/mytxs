@@ -57,6 +57,8 @@ def login(request):
             if user is not None:
                 auth_login(request, user)
                 messages.info(request, 'Login successful')
+                user.medlem.innlogginger += 1
+                user.medlem.save()
                 if request.GET.get('next'):
                     return redirect(request.GET.get('next'))
                 if request.user.medlem.storkorNavn():
