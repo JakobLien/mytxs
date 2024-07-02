@@ -197,10 +197,10 @@ def getOrCreateAndShareCalendar(korNavn, medlem, gmail):
     
     calendarId = gCalManager.getCalendarIDs(korNavn, [medlem]).get(medlem)
 
-    gCalManager.shareCalendar(calendarId, gmail)
-
     if not calendarId:
         calendarId = gCalManager.createCalendar(f'{korNavn} semesterplan', f'{korNavn}-{medlem.pk}')
+
+        gCalManager.shareCalendar(calendarId, gmail)
 
         for hendelse in medlem.getHendelser(korNavn):
             gCalManager.createEvent(
