@@ -254,12 +254,22 @@ def harUnderordnet(instance):
 
 
 def validateDekorasjonInnehavelse(instance):
-    'Sjekke om et medlem har en underordnet dekorasjon hvis den finnes.'
-    if kanHaUnderordnet(instance) and not harUnderordnet(instance):
-        raise ValidationError(
-            _(f'Dekorasjonen {instance.dekorasjon} krever {instance.dekorasjon.erOverordnet}'),
-            code='underordnetDekorasjonMangler'
-        )
+    '''
+    Sjekke om et medlem har en underordnet dekorasjon hvis den finnes.
+    Hvis ja, sjekke om instance har gyldig startdato i forhold til den underordnede innehavelsen.
+    '''
+    if kanHaUnderordnet(instance):
+        if not harUnderordnet(instance):
+            raise ValidationError(
+                _(f'Dekorasjonen {instance.dekorasjon} krever {instance.dekorasjon.erOverordnet}'),
+                code='underordnetDekorasjonMangler'
+            )
+        underordnet = instance.dekorasjon.erOverordnet.dekorasjonInnehavelser.get(medlem__id=instance.medlem_id)
+        if instance.start < underordnet.start:
+            raise ValidationError(
+                _(f'Dekorasjonsinnehavelsen {instance} kan ikke ha startdato før {underordnet} ({underordnet.start})'),
+                code='overordnetDekorasjonUgyldigDato'
+            )
 
 
 qTrue = ~Q(pk__in=[])
