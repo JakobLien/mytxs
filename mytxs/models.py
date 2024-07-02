@@ -320,7 +320,7 @@ class MedlemQuerySet(models.QuerySet):
         )
         overordnede_dekorasjonsinnehavelser = dekorasjoninnehavelser.filter(
             medlem_id=OuterRef('medlem__id'),
-            dekorasjon_id=OuterRef('dekorasjon__underordnet')
+            dekorasjon_id=OuterRef('dekorasjon__erUnderordnet')
         )
         return self.prefetch_related(
             Prefetch('vervInnehavelser', queryset=VervInnehavelse.objects.none() if kor == None else VervInnehavelse.objects.filter(
@@ -986,8 +986,9 @@ class Dekorasjon(DbCacheModel):
         on_delete=models.DO_NOTHING,
         null=True
     )
-    underordnet = models.ForeignKey(
+    erUnderordnet = models.OneToOneField(
         "self",
+        related_name='erOverordnet',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
