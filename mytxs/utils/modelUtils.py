@@ -245,13 +245,17 @@ def validateBruktIKode(instance):
         )
 
 
-def manglerUnderordnet(instance):
-    return hasattr(instance.dekorasjon, 'erOverordnet') and not instance.dekorasjon.erOverordnet.dekorasjonInnehavelser.filter(medlem__id=instance.medlem.id).exists()
+def kanHaUnderordnet(instance):
+    return hasattr(instance.dekorasjon, 'erOverordnet')
 
 
-def validateHarUnderordnet(instance):
+def harUnderordnet(instance):
+    return instance.dekorasjon.erOverordnet.dekorasjonInnehavelser.filter(medlem__id=instance.medlem.id).exists()
+
+
+def validateDekorasjonInnehavelse(instance):
     'Sjekke om et medlem har en underordnet dekorasjon hvis den finnes.'
-    if manglerUnderordnet(instance):
+    if kanHaUnderordnet(instance) and not harUnderordnet(instance):
         raise ValidationError(
             _(f'Dekorasjonen {instance.dekorasjon} krever {instance.dekorasjon.erOverordnet}'),
             code='underordnetDekorasjonMangler'

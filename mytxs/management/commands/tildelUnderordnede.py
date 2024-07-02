@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 
 from mytxs.management.commands.updateField import objectsGenerator
 from mytxs.models import DekorasjonInnehavelse
-from mytxs.utils.modelUtils import manglerUnderordnet
+from mytxs.utils.modelUtils import kanHaUnderordnet, harUnderordnet
 
 
 def tildelAlleUnderordnede(dekorasjonInnehavelse):
@@ -13,7 +13,7 @@ def tildelAlleUnderordnede(dekorasjonInnehavelse):
     '''
     nyeInnehavelser = []
     nåværende = dekorasjonInnehavelse
-    while manglerUnderordnet(nåværende):
+    while kanHaUnderordnet(nåværende) and not harUnderordnet(nåværende):
         ny = DekorasjonInnehavelse(
             medlem=nåværende.medlem,
             dekorasjon=nåværende.dekorasjon.erOverordnet,
