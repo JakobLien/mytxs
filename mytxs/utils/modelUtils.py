@@ -245,6 +245,14 @@ def validateBruktIKode(instance):
         )
 
 
+def validateDekorasjon(instance):
+    if instance.erUnderordnet is not None and instance.erUnderordnet.id == instance.id:
+        raise ValidationError(
+            _(f'{instance} kan ikke være underordnet seg selv'),
+            code='underordnetDekorasjonUgyldig',
+        )
+
+
 def kanHaUnderordnet(instance):
     return hasattr(instance.dekorasjon, 'erOverordnet')
 

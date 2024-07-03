@@ -21,7 +21,7 @@ from mytxs.fields import BitmapMultipleChoiceField, MyDateField, MyManyToManyFie
 from mytxs.utils.formUtils import toolTip
 from mytxs.utils.googleCalendar import updateGoogleCalendar
 from mytxs.utils.modelCacheUtils import DbCacheModel, cacheQS, dbCache
-from mytxs.utils.modelUtils import NoReuseMin, annotateInstance, bareAktiveDecorator, qBool, groupBy, getInstancesForKor, isStemmegruppeVervNavn, korLookup, stemmegruppeOrdering, strToModels, validateBruktIKode, validateM2MFieldEmpty, validateStartSlutt, vervInnehavelseAktiv, stemmegruppeVerv, validateDekorasjonInnehavelse
+from mytxs.utils.modelUtils import NoReuseMin, annotateInstance, bareAktiveDecorator, qBool, groupBy, getInstancesForKor, isStemmegruppeVervNavn, korLookup, stemmegruppeOrdering, strToModels, validateBruktIKode, validateM2MFieldEmpty, validateStartSlutt, vervInnehavelseAktiv, stemmegruppeVerv, validateDekorasjonInnehavelse, validateDekorasjon
 from mytxs.utils.navBar import navBarNode
 from mytxs.utils.utils import cropImage
 
@@ -1001,6 +1001,13 @@ class Dekorasjon(DbCacheModel):
         unique_together = ('navn', 'kor')
         ordering = ['kor', 'navn']
         verbose_name_plural = 'dekorasjoner'
+
+    def clean(self, *args, **kwargs):
+        validateDekorasjon(self)
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
 
 
 class DekorasjonInnehavelse(DbCacheModel):
