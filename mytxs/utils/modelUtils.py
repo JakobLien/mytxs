@@ -256,30 +256,41 @@ def validateDekorasjon(instance):
             validateDekorasjonInnehavelse(overordnet)
 
 
-def kanHaUnderordnet(instance):
-    return hasattr(instance.dekorasjon, 'erOverordnet')
+def kanHaUnderordnet(innehavelse):
+    return hasattr(innehavelse.dekorasjon, 'erOverordnet')
 
 
-def harUnderordnet(instance):
-    return instance.dekorasjon.erOverordnet.dekorasjonInnehavelser.filter(medlem__id=instance.medlem.id).exists()
+def harUnderordnet(innehavelse):
+    return innehavelse.dekorasjon.erOverordnet.dekorasjonInnehavelser.filter(medlem__id=innehavelse.medlem.id).exists()
+
+
+def kanHaOverordnet(innehavelse):
+    return innehavelse.dekorasjon.erUnderordnet is not None
 
 
 def validateDekorasjonInnehavelse(instance):
     '''
-    Sjekke om et medlem har en underordnet dekorasjon hvis den finnes.
-    Hvis ja, sjekke om instance har gyldig startdato i forhold til den underordnede innehavelsen.
+    Sjekke om medlemmet innehar eventuell underordnet dekorasjon, og sjekke om startdato
+    er kompatibel med eventuell underordnet og overordnet dekorasjon.
     '''
     if kanHaUnderordnet(instance):
-        if not harUnderordnet(instance):
+        underordnet = instance.dekorasjon.erOverordnet.dekorasjonInnehavelser.filter(medlem__id=instance.medlem.id).first()
+        if underordnet is None:
             raise ValidationError(
                 _(f'Dekorasjonen {instance.dekorasjon} krever {instance.dekorasjon.erOverordnet}'),
                 code='underordnetDekorasjonMangler'
             )
-        underordnet = instance.dekorasjon.erOverordnet.dekorasjonInnehavelser.get(medlem__id=instance.medlem_id)
-        if instance.start < underordnet.start:
+        elif instance.start < underordnet.start:
             raise ValidationError(
                 _(f'Dekorasjonsinnehavelsen {instance} kan ikke ha startdato før {underordnet} ({underordnet.start})'),
-                code='overordnetDekorasjonUgyldigDato'
+                code='dekorasjonInnehavelseUgyldigDato'
+            )
+    if kanHaOverordnet(instance):
+        overordnet = instance.dekorasjon.erUnderordnet.dekorasjonInnehavelser.filter(medlem__id=instance.medlem.id).first()
+        if overordnet is not None and instance.start > overordnet.start:
+            raise ValidationError(
+                _(f'Dekorasjonsinnehavelsen {instance} kan ikke ha startdato etter {overordnet} ({overordnet.start})'),
+                code='dekorasjonInnehavelseUgyldigDato'
             )
 
 
