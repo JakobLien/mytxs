@@ -1,18 +1,29 @@
-from django.test import TestCase
+from django.test import TestCase, Client
 from django.forms import ValidationError
+from django.urls import reverse
 from django.db.utils import IntegrityError
+from django.core.management import call_command
+from django.contrib.auth.models import User
 from mytxs.models import Kor, Medlem, Dekorasjon, DekorasjonInnehavelse
 from datetime import date
 
 
 class DekorasjonErUnderordnetTestCase(TestCase):
-    def setUp(self):
-        self.kor = Kor.objects.create(navn='kor', tittel='kor')
-        self.medlem = Medlem.objects.create()
-        self.dekorasjon1 = Dekorasjon.objects.create(navn='dekorasjon1', kor=self.kor)
-        self.dekorasjon2 = Dekorasjon.objects.create(navn='dekorasjon2', kor=self.kor)
-        self.lavStart = date.min
-        self.høyStart = date.max
+    @classmethod
+    def setUpTestData(cls):
+        call_command('seed', '--adminAdmin')
+
+        cls.user = User.objects.get(username='admin')
+
+        cls.medlem = Medlem.objects.get(user=cls.user)
+
+        cls.kor = Kor.objects.get(navn='TSS')
+
+        cls.dekorasjon1 = Dekorasjon.objects.create(navn='dekorasjon1', kor=cls.kor)
+        cls.dekorasjon2 = Dekorasjon.objects.create(navn='dekorasjon2', kor=cls.kor)
+
+        cls.lavStart = date.min
+        cls.høyStart = date.max
 
     def test_opprette_dekorasjoninnehavelse_mislykket_når_start_ikke_oppgitt(self):
         self.assertRaises(IntegrityError, DekorasjonInnehavelse.objects.create, medlem=self.medlem, dekorasjon=self.dekorasjon1)
@@ -41,3 +52,15 @@ class DekorasjonErUnderordnetTestCase(TestCase):
         DekorasjonInnehavelse.objects.create(medlem=self.medlem, dekorasjon=self.dekorasjon2, start=self.lavStart)
         self.dekorasjon1.erUnderordnet = self.dekorasjon2
         self.assertRaises(ValidationError, self.dekorasjon1.save)
+
+    def test_underordnet_dekorasjon_skjules_i_sjekkheftet(self):
+        self.dekorasjon1.erUnderordnet = self.dekorasjon2
+        self.dekorasjon1.save()
+        DekorasjonInnehavelse.objects.create(medlem=self.medlem, dekorasjon=self.dekorasjon1, start=self.lavStart)
+        DekorasjonInnehavelse.objects.create(medlem=self.medlem, dekorasjon=self.dekorasjon2, start=self.høyStart)
+        client = Client()
+        logged_in = client.login(username='admin', password='admin')
+        response = client.get(reverse('sjekkheftet', args=[self.kor.navn]), follow=True)
+        content = str(response.content)
+        self.assertFalse(self.dekorasjon1.navn in content)
+        self.assertTrue(self.dekorasjon2.navn in content)
