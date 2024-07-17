@@ -1,5 +1,3 @@
-import datetime
-
 from django.core.management.base import BaseCommand
 from django.db.models import Exists, OuterRef
 
@@ -27,7 +25,7 @@ class Command(BaseCommand):
         sluttedeKoristerOppmøter.delete()
 
         # Skaff oppmøter fra tidligere semestre
-        tidligereSemestreOppmøter = Oppmøte.objects.filter(medlem__pk=13642).filter(
+        tidligereSemestreOppmøter = Oppmøte.objects.filter(
             hendelse__startDate__lt=getHalvårStart()
         )
 
