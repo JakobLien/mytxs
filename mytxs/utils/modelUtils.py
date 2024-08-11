@@ -256,24 +256,13 @@ def validateDekorasjon(instance):
             validateDekorasjonInnehavelse(overordnet)
 
 
-def kanHaUnderordnet(innehavelse):
-    return hasattr(innehavelse.dekorasjon, 'erOverordnet')
-
-
-def harUnderordnet(innehavelse):
-    return innehavelse.dekorasjon.erOverordnet.dekorasjonInnehavelser.filter(medlem__id=innehavelse.medlem.id).exists()
-
-
-def kanHaOverordnet(innehavelse):
-    return innehavelse.dekorasjon.erUnderordnet is not None
-
-
 def validateDekorasjonInnehavelse(instance):
     '''
     Sjekke om medlemmet innehar eventuell underordnet dekorasjon, og sjekke om startdato
     er kompatibel med eventuell underordnet og overordnet dekorasjon.
     '''
-    if kanHaUnderordnet(instance):
+    kanHaUnderordnet = hasattr(instance.dekorasjon, 'erOverordnet')
+    if kanHaUnderordnet:
         underordnet = instance.dekorasjon.erOverordnet.dekorasjonInnehavelser.filter(medlem__id=instance.medlem.id).first()
         if underordnet is None:
             raise ValidationError(
@@ -285,7 +274,8 @@ def validateDekorasjonInnehavelse(instance):
                 _(f'Dekorasjonsinnehavelsen {instance} kan ikke ha startdato før {underordnet} ({underordnet.start})'),
                 code='dekorasjonInnehavelseUgyldigDato'
             )
-    if kanHaOverordnet(instance):
+    kanHaOverordnet = instance.dekorasjon.erUnderordnet is not None
+    if kanHaOverordnet:
         overordnet = instance.dekorasjon.erUnderordnet.dekorasjonInnehavelser.filter(medlem__id=instance.medlem.id).first()
         if overordnet is not None and instance.start > overordnet.start:
             raise ValidationError(
