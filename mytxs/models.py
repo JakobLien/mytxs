@@ -21,7 +21,7 @@ from mytxs.fields import BitmapMultipleChoiceField, MyDateField, MyManyToManyFie
 from mytxs.utils.formUtils import toolTip
 from mytxs.utils.googleCalendar import updateGoogleCalendar
 from mytxs.utils.modelCacheUtils import DbCacheModel, cacheQS, dbCache
-from mytxs.utils.modelUtils import NoReuseMin, annotateInstance, bareAktiveDecorator, qBool, groupBy, getInstancesForKor, isStemmegruppeVervNavn, korLookup, stemmegruppeOrdering, strToModels, validateBruktIKode, validateM2MFieldEmpty, validateStartSlutt, vervInnehavelseAktiv, stemmegruppeVerv, validateDekorasjonInnehavelse, validateDekorasjon
+from mytxs.utils.modelUtils import NoReuseMin, annotateInstance, bareAktiveDecorator, qBool, groupBy, getInstancesForKor, isStemmegruppeVervNavn, korLookup, stemmegruppeOrdering, strToModels, validateBruktIKode, validateM2MFieldEmpty, validateStartSlutt, vervInnehavelseAktiv, stemmegruppeVerv
 from mytxs.utils.navBar import navBarNode
 from mytxs.utils.utils import cropImage
 
@@ -1010,6 +1010,17 @@ class Dekorasjon(DbCacheModel):
         super().save(*args, **kwargs)
 
 
+def validateDekorasjon(instance):
+    if instance.overvalør is not None:
+        if instance.overvalør.id == instance.id:
+            raise ValidationError(
+                _(f'{instance} kan ikke være undervalør av seg selv'),
+                code='overvalørUgyldig',
+            )
+        for overvalørInnehavelse in instance.overvalør.dekorasjonInnehavelser.all():
+            validateDekorasjonInnehavelse(overvalørInnehavelse)
+
+
 class DekorasjonInnehavelse(DbCacheModel):
     medlem = models.ForeignKey(
         Medlem,
@@ -1044,6 +1055,34 @@ class DekorasjonInnehavelse(DbCacheModel):
     def save(self, *args, **kwargs):
         self.clean()
         super().save(*args, **kwargs)
+
+
+def validateDekorasjonInnehavelse(instance):
+    '''
+    Sjekke om medlemmet innehar eventuell undervalør, og sjekke om startdato
+    er kompatibel med eventuell undervalør og overvalør.
+    '''
+    kanHaUndervalør = hasattr(instance.dekorasjon, 'undervalør')
+    if kanHaUndervalør:
+        undervalør = instance.dekorasjon.undervalør.dekorasjonInnehavelser.filter(medlem__id=instance.medlem.id).first()
+        if undervalør is None:
+            raise ValidationError(
+                _(f'Dekorasjonen {instance.dekorasjon} krever {instance.dekorasjon.undervalør}'),
+                code='undervalørMangler'
+            )
+        elif instance.start < undervalør.start:
+            raise ValidationError(
+                _(f'Dekorasjonsinnehavelsen {instance} kan ikke ha startdato før {undervalør} ({undervalør.start})'),
+                code='dekorasjonInnehavelseUgyldigDato'
+            )
+    kanHaOvervalør = instance.dekorasjon.overvalør is not None
+    if kanHaOvervalør:
+        overvalør = instance.dekorasjon.overvalør.dekorasjonInnehavelser.filter(medlem__id=instance.medlem.id).first()
+        if overvalør is not None and instance.start > overvalør.start:
+            raise ValidationError(
+                _(f'Dekorasjonsinnehavelsen {instance} kan ikke ha startdato etter {overvalør} ({overvalør.start})'),
+                code='dekorasjonInnehavelseUgyldigDato'
+            )
 
 
 class Turne(DbCacheModel):

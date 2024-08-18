@@ -245,45 +245,6 @@ def validateBruktIKode(instance):
         )
 
 
-def validateDekorasjon(instance):
-    if instance.overvalør is not None:
-        if instance.overvalør.id == instance.id:
-            raise ValidationError(
-                _(f'{instance} kan ikke være undervalør av seg selv'),
-                code='overvalørUgyldig',
-            )
-        for overvalørInnehavelse in instance.overvalør.dekorasjonInnehavelser.all():
-            validateDekorasjonInnehavelse(overvalørInnehavelse)
-
-
-def validateDekorasjonInnehavelse(instance):
-    '''
-    Sjekke om medlemmet innehar eventuell undervalør, og sjekke om startdato
-    er kompatibel med eventuell undervalør og overvalør.
-    '''
-    kanHaUndervalør = hasattr(instance.dekorasjon, 'undervalør')
-    if kanHaUndervalør:
-        undervalør = instance.dekorasjon.undervalør.dekorasjonInnehavelser.filter(medlem__id=instance.medlem.id).first()
-        if undervalør is None:
-            raise ValidationError(
-                _(f'Dekorasjonen {instance.dekorasjon} krever {instance.dekorasjon.undervalør}'),
-                code='undervalørMangler'
-            )
-        elif instance.start < undervalør.start:
-            raise ValidationError(
-                _(f'Dekorasjonsinnehavelsen {instance} kan ikke ha startdato før {undervalør} ({undervalør.start})'),
-                code='dekorasjonInnehavelseUgyldigDato'
-            )
-    kanHaOvervalør = instance.dekorasjon.overvalør is not None
-    if kanHaOvervalør:
-        overvalør = instance.dekorasjon.overvalør.dekorasjonInnehavelser.filter(medlem__id=instance.medlem.id).first()
-        if overvalør is not None and instance.start > overvalør.start:
-            raise ValidationError(
-                _(f'Dekorasjonsinnehavelsen {instance} kan ikke ha startdato etter {overvalør} ({overvalør.start})'),
-                code='dekorasjonInnehavelseUgyldigDato'
-            )
-
-
 qTrue = ~Q(pk__in=[])
 qFalse = Q(pk__in=[])
 
