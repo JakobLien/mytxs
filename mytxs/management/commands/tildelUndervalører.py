@@ -4,11 +4,11 @@ from mytxs.management.commands.updateField import objectsGenerator
 from mytxs.models import DekorasjonInnehavelse
 
 
-def manglerUnderordnet(innehavelse):
-    return hasattr(innehavelse.dekorasjon, 'erOverordnet') and not innehavelse.innehavelse.dekorasjon.erOverordnet.dekorasjonInnehavelser.filter(medlem__id=innehavelse.medlem.id).exists()
+def manglerUndervalør(innehavelse):
+    return hasattr(innehavelse.dekorasjon, 'undervalør') and not innehavelse.innehavelse.dekorasjon.undervalør.dekorasjonInnehavelser.filter(medlem__id=innehavelse.medlem.id).exists()
 
 
-def tildelAlleUnderordnede(dekorasjonInnehavelse):
+def tildelUndervalører(dekorasjonInnehavelse):
     '''
     Tildeler alle manglende underordnede dekorasjoner.
     Lagring av nye innehavelser gjøres i omvendt topologisk sortert 
@@ -16,10 +16,10 @@ def tildelAlleUnderordnede(dekorasjonInnehavelse):
     '''
     nyeInnehavelser = []
     nåværende = dekorasjonInnehavelse
-    while manglerUnderordnet(nåværende):
+    while manglerUndervalør(nåværende):
         ny = DekorasjonInnehavelse(
             medlem=nåværende.medlem,
-            dekorasjon=nåværende.dekorasjon.erOverordnet,
+            dekorasjon=nåværende.dekorasjon.undervalør,
             start=nåværende.start
         )
         nyeInnehavelser.append(ny)
@@ -29,8 +29,8 @@ def tildelAlleUnderordnede(dekorasjonInnehavelse):
 
 
 class Command(BaseCommand):
-    help = 'tildel underordnede dekorasjoner til alle medlemmer som mangler det'
+    help = 'tildel undervalør til alle medlemmer som mangler det'
 
     def handle(self, *args, **options):
         for instance in objectsGenerator(DekorasjonInnehavelse.objects.all()):
-            tildelAlleUnderordnede(instance)
+            tildelUndervalører(instance)

@@ -8,7 +8,7 @@ from mytxs.models import Kor, Medlem, Dekorasjon, DekorasjonInnehavelse
 from datetime import date
 
 
-class DekorasjonErUnderordnetTestCase(TestCase):
+class DekorasjonOvervalørTestCase(TestCase):
     @classmethod
     def setUpTestData(cls):
         call_command('seed', '--adminAdmin')
@@ -31,30 +31,30 @@ class DekorasjonErUnderordnetTestCase(TestCase):
     def test_opprette_dekorasjoninnehavelse_vellykket_når_start_oppgitt(self):
         DekorasjonInnehavelse.objects.create(medlem=self.medlem, dekorasjon=self.dekorasjon1, start=self.lavStart)
 
-    def test_opprette_dekorasjoninnehavelse_mislykket_når_underordnet_mangler(self):
-        self.dekorasjon1.erUnderordnet = self.dekorasjon2
+    def test_opprette_dekorasjoninnehavelse_mislykket_når_undervalør_mangler(self):
+        self.dekorasjon1.overvalør = self.dekorasjon2
         self.dekorasjon1.save()
         self.assertRaises(ValidationError, DekorasjonInnehavelse.objects.create, medlem=self.medlem, dekorasjon=self.dekorasjon2, start=self.lavStart)
 
-    def test_opprette_dekorasjoninnehavelse_mislykket_når_underordnet_etter_overordnet(self):
-        self.dekorasjon1.erUnderordnet = self.dekorasjon2
+    def test_opprette_dekorasjoninnehavelse_mislykket_når_undervalør_etter_overvalør(self):
+        self.dekorasjon1.overvalør = self.dekorasjon2
         self.dekorasjon1.save()
         DekorasjonInnehavelse.objects.create(medlem=self.medlem, dekorasjon=self.dekorasjon1, start=self.høyStart)
         self.assertRaises(ValidationError, DekorasjonInnehavelse.objects.create, medlem=self.medlem, dekorasjon=self.dekorasjon2, start=self.lavStart)
 
-    def test_opprette_underordning_mislykket_når_medlem_mangler_underordnet(self):
+    def test_opprette_overvalør_mislykket_når_medlem_mangler_undervalør(self):
         DekorasjonInnehavelse.objects.create(medlem=self.medlem, dekorasjon=self.dekorasjon2, start=self.lavStart)
-        self.dekorasjon1.erUnderordnet = self.dekorasjon2
+        self.dekorasjon1.overvalør = self.dekorasjon2
         self.assertRaises(ValidationError, self.dekorasjon1.save)
 
-    def test_opprette_underordning_mislykket_når_medlem_fikk_underordnet_sist(self):
+    def test_opprette_overvalør_mislykket_når_medlem_fikk_undervalør_sist(self):
         DekorasjonInnehavelse.objects.create(medlem=self.medlem, dekorasjon=self.dekorasjon1, start=self.høyStart)
         DekorasjonInnehavelse.objects.create(medlem=self.medlem, dekorasjon=self.dekorasjon2, start=self.lavStart)
-        self.dekorasjon1.erUnderordnet = self.dekorasjon2
+        self.dekorasjon1.overvalør = self.dekorasjon2
         self.assertRaises(ValidationError, self.dekorasjon1.save)
 
-    def test_underordnet_dekorasjon_skjules_i_sjekkheftet(self):
-        self.dekorasjon1.erUnderordnet = self.dekorasjon2
+    def test_undervalør_skjules_i_sjekkheftet(self):
+        self.dekorasjon1.overvalør = self.dekorasjon2
         self.dekorasjon1.save()
         DekorasjonInnehavelse.objects.create(medlem=self.medlem, dekorasjon=self.dekorasjon1, start=self.lavStart)
         DekorasjonInnehavelse.objects.create(medlem=self.medlem, dekorasjon=self.dekorasjon2, start=self.høyStart)

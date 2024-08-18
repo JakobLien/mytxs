@@ -324,7 +324,7 @@ class MedlemQuerySet(models.QuerySet):
             Prefetch('dekorasjonInnehavelser', queryset=DekorasjonInnehavelse.objects.none() if kor == None else DekorasjonInnehavelse.objects.filter(
                 dekorasjon__kor__navn__in=[kor.navn, 'Sanger'] if kor.navn in consts.bareStorkorNavn else [kor.navn]
             ).exclude(
-                dekorasjon__erUnderordnet__dekorasjonInnehavelser__medlem__id=F('medlem__id')
+                dekorasjon__overvalør__dekorasjonInnehavelser__medlem__id=F('medlem__id')
             ).prefetch_related('dekorasjon__kor')),
         )
 
@@ -981,9 +981,9 @@ class Dekorasjon(DbCacheModel):
         on_delete=models.DO_NOTHING,
         null=True
     )
-    erUnderordnet = models.OneToOneField(
+    overvalør = models.OneToOneField(
         "self",
-        related_name='erOverordnet',
+        related_name='undervalør',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
