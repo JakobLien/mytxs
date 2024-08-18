@@ -25,35 +25,35 @@ class DekorasjonOvervalørTestCase(TestCase):
         cls.lavStart = date.min
         cls.høyStart = date.max
 
-    def test_opprette_dekorasjoninnehavelse_mislykket_når_start_ikke_oppgitt(self):
+    def testOppretteDekorasjoninnehavelseMislykketNårStartIkkeOppgitt(self):
         self.assertRaises(IntegrityError, DekorasjonInnehavelse.objects.create, medlem=self.medlem, dekorasjon=self.dekorasjon1)
 
-    def test_opprette_dekorasjoninnehavelse_vellykket_når_start_oppgitt(self):
+    def testOppretteDekorasjoninnehavelseVellykketNårStartOppgitt(self):
         DekorasjonInnehavelse.objects.create(medlem=self.medlem, dekorasjon=self.dekorasjon1, start=self.lavStart)
 
-    def test_opprette_dekorasjoninnehavelse_mislykket_når_undervalør_mangler(self):
+    def testOppretteDekorasjoninnehavelseMislykketNårUndervalørMangler(self):
         self.dekorasjon1.overvalør = self.dekorasjon2
         self.dekorasjon1.save()
         self.assertRaises(ValidationError, DekorasjonInnehavelse.objects.create, medlem=self.medlem, dekorasjon=self.dekorasjon2, start=self.lavStart)
 
-    def test_opprette_dekorasjoninnehavelse_mislykket_når_undervalør_etter_overvalør(self):
+    def testOppretteDekorasjoninnehavelseMislykketNårMedlemFikkUndervalørEtterOvervalør(self):
         self.dekorasjon1.overvalør = self.dekorasjon2
         self.dekorasjon1.save()
         DekorasjonInnehavelse.objects.create(medlem=self.medlem, dekorasjon=self.dekorasjon1, start=self.høyStart)
         self.assertRaises(ValidationError, DekorasjonInnehavelse.objects.create, medlem=self.medlem, dekorasjon=self.dekorasjon2, start=self.lavStart)
 
-    def test_opprette_overvalør_mislykket_når_medlem_mangler_undervalør(self):
+    def testOppretteOvervalørMislykketNårMedlemManglerUndervalør(self):
         DekorasjonInnehavelse.objects.create(medlem=self.medlem, dekorasjon=self.dekorasjon2, start=self.lavStart)
         self.dekorasjon1.overvalør = self.dekorasjon2
         self.assertRaises(ValidationError, self.dekorasjon1.save)
 
-    def test_opprette_overvalør_mislykket_når_medlem_fikk_undervalør_sist(self):
+    def testOppretteOvervalørMislykketNårMedlemFikkUndervalørEtterOvervalør(self):
         DekorasjonInnehavelse.objects.create(medlem=self.medlem, dekorasjon=self.dekorasjon1, start=self.høyStart)
         DekorasjonInnehavelse.objects.create(medlem=self.medlem, dekorasjon=self.dekorasjon2, start=self.lavStart)
         self.dekorasjon1.overvalør = self.dekorasjon2
         self.assertRaises(ValidationError, self.dekorasjon1.save)
 
-    def test_undervalør_skjules_i_sjekkheftet(self):
+    def testUndervalørSkjulesISjekkheftet(self):
         self.dekorasjon1.overvalør = self.dekorasjon2
         self.dekorasjon1.save()
         DekorasjonInnehavelse.objects.create(medlem=self.medlem, dekorasjon=self.dekorasjon1, start=self.lavStart)
