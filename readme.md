@@ -5,7 +5,7 @@ Hei, dette er repoet til MyTXS 2.0, den neste versjonen av [MyTSS](https://mytss
 ## Oppsett
 Her er hvordan man setter opp nettsiden enkelt lokalt
 1. Når du er der du vil ha repoet, clone repoet med `git clone https://github.com/JakobLien/mytxs.git`. 
-1. Installer [PostgreSQL](https://www.postgresql.org/download/), for Mac anbefales sterkt [Postgres.app](https://postgresapp.com/). For Ubuntu ser det ut som at libpq-dev også er nødvendig.
+1. Installer [PostgreSQL](https://www.postgresql.org/download/), for Mac anbefales sterkt [Postgres.app](https://postgresapp.com/). For Ubuntu ser det ut som at libpq-dev også er nødvendig. Husk passordet du satte opp! Hvis det ikke er default, som er `postgrespassword`, så må du legge det til senere i .env-fila beskrevet noen punkter lenger nede. 
 1. Opprett et [venv](https://docs.python.org/3/library/venv.html) med navn `venv` gjennom `python -m venv venv`. Venv betyr Virtual Environment, og er at alle pakkene installeres sammen med koden din. Dette gjør det enklere å sikre at man har rett versjon av alle pakker, uavhengig av hva andre ting på maskinen din vil ha. Husk å aktivere venvet før du kjører applikasjonen eller installerer ting, slik som i neste steg. På Mac er dette `source venv/bin/activate`. 
 1. Kjør `python3 -m pip install -r requirements.txt` for å installer alle packages med rett versjon. 
 1. Generer en Django-nøkkel, for eksempel [her](https://djecrety.ir/).
@@ -14,6 +14,16 @@ Her er hvordan man setter opp nettsiden enkelt lokalt
         DJANGO_SECRET=<nøkkelen du genererte> 
         DJANGO_DEBUG=True
 
+Dersom du *ikke* brukte defaultpassordet, eller andre postgres-defaults, er du nødt til å legge dem til her. Dette gjør du ved hjelp av
+
+        DATABASE_ENGINE    =  django.db.backends.postgresql
+        DATABASE_NAME      =  postgres
+        DATABASE_USER      =  postgres
+        DATABASE_PASSWORD  =  postgrespassword
+        DATABASE_HOST      =  localhost
+        DATABASE_PORT      =  5432
+
+der du bytter ut det du ikke lot være default i postgres-setupet. 
 1. Utfør db-migrasjon med `python3 manage.py migrate`. Dette oppretter alle tables du treng i den lokale databasen din. 
 1. Kjør seed på den lokale databasen med `python3 manage.py seed --adminAdmin`. Dette oppretter en bruker med brukernavn og passord `admin`. 
     - For å ha litt mere data å jobbe med, kan du gi argumentet `--testData`. Dette vil opprette medlemmer fra 2010 og utover, i både storkor og småkor, verv, dekorasjoner, hendelser, korledere og dirigenter. 
