@@ -5,7 +5,7 @@ from mytxs.models import DekorasjonInnehavelse
 
 
 def manglerUndervalør(innehavelse):
-    return hasattr(innehavelse.dekorasjon, 'undervalør') and not innehavelse.innehavelse.dekorasjon.undervalør.dekorasjonInnehavelser.filter(medlem__id=innehavelse.medlem.id).exists()
+    return hasattr(innehavelse.dekorasjon, 'undervalør') and not innehavelse.dekorasjon.undervalør.dekorasjonInnehavelser.filter(medlem__id=innehavelse.medlem.id).exists()
 
 
 def tildelUndervalører(dekorasjonInnehavelse):
