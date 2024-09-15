@@ -1017,8 +1017,12 @@ def validateDekorasjon(instance):
                 _(f'{instance} kan ikke være undervalør av seg selv'),
                 code='overvalørUgyldig',
             )
-        for overvalørInnehavelse in instance.overvalør.dekorasjonInnehavelser.all():
-            validateDekorasjonInnehavelse(overvalørInnehavelse)
+        ugyldigInnehavelse = instance.dekorasjonInnehavelser.annotate(overvalørStart=F('dekorasjon__overvalør__dekorasjonInnehavelser__start')).filter(overvalørStart__lt=F('start')).first()
+        if ugyldigInnehavelse is not None:
+            raise ValidationError(
+                _(f'{ugyldigInnehavelse.medlem} kan ikke ha fått dekorasjonen {ugyldigInnehavelse.dekorasjon} ({ugyldigInnehavelse.start}) etter {ugyldigInnehavelse.dekorasjon.overvalør} ({ugyldigInnehavelse.overvalørStart})'),
+                code='dekorasjonInnehavelseUgyldigDato'
+            )
 
 
 class DekorasjonInnehavelse(DbCacheModel):
