@@ -1011,18 +1011,44 @@ class Dekorasjon(DbCacheModel):
 
 
 def validateDekorasjon(instance):
-    if instance.overvalør is not None:
-        if instance.overvalør.id == instance.id:
+
+    def validateUlikOvervalør(dekorasjon):
+        if dekorasjon.overvalør.id == dekorasjon.id:
             raise ValidationError(
-                _(f'{instance} kan ikke være undervalør av seg selv'),
+                _(f'{dekorasjon} kan ikke ha seg selv som overvalør'),
                 code='overvalørUgyldig',
             )
-        ugyldigInnehavelse = instance.dekorasjonInnehavelser.annotate(overvalørStart=F('dekorasjon__overvalør__dekorasjonInnehavelser__start')).filter(overvalørStart__lt=F('start')).first()
+
+    def validateOvervalørStart(dekorasjon):
+        ugyldigInnehavelse = dekorasjon.dekorasjonInnehavelser \
+            .filter(medlem__dekorasjonInnehavelser__dekorasjon=dekorasjon.overvalør) \
+            .annotate(overvalørStart=F('medlem__dekorasjonInnehavelser__start')) \
+            .filter(overvalørStart__lt=F('start')).first()
         if ugyldigInnehavelse is not None:
             raise ValidationError(
                 _(f'{ugyldigInnehavelse.medlem} kan ikke ha fått dekorasjonen {ugyldigInnehavelse.dekorasjon} ({ugyldigInnehavelse.start}) etter {ugyldigInnehavelse.dekorasjon.overvalør} ({ugyldigInnehavelse.overvalørStart})'),
                 code='dekorasjonInnehavelseUgyldigDato'
             )
+
+    def validateUndervalørInnehas(dekorasjon):
+        ugyldigMedlem = Medlem.objects \
+            .filter(dekorasjonInnehavelser__dekorasjon=dekorasjon) \
+            .exclude(dekorasjonInnehavelser__dekorasjon=dekorasjon.undervalør) \
+            .first()
+        if ugyldigMedlem is not None:
+            raise ValidationError(
+                _(f'{ugyldigMedlem} mangler undervaløren {dekorasjon.undervalør}, som kreves for å få {dekorasjon}'),
+                code='undervalørMangler'
+            )
+
+    if hasattr(instance, 'undervalør'):
+        validateUlikOvervalør(instance.undervalør)
+        validateUndervalørInnehas(instance)
+        validateOvervalørStart(instance.undervalør)
+    elif instance.overvalør is not None:
+        validateUlikOvervalør(instance)
+        validateUndervalørInnehas(instance.overvalør)
+        validateOvervalørStart(instance)
 
 
 class DekorasjonInnehavelse(DbCacheModel):
