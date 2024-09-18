@@ -6,7 +6,7 @@ Her er hvordan man setter opp nettsiden enkelt lokalt
 1. Når du er der du vil ha repoet, clone repoet med `git clone https://github.com/JakobLien/mytxs.git`
 1. Installer [PostgreSQL](https://www.postgresql.org/download/)
 1. Utfør db-migrasjon med `python3 manage.py migrate`
-1. Kjør seed på den lokale databasen med `python3 mange.py seed --adminAdmin`. Dette oppretter en bruker med brukernavn og passord `admin`. 
+1. Kjør seed på den lokale databasen med `python3 manage.py seed --adminAdmin`. Dette oppretter en bruker med brukernavn og passord `admin`. 
     - For å ha litt mere data å jobbe med, kan du gi argumentet `--testData`. Dette vil opprette medlemmer fra 2010 og utover, med medlemmer i storkor og småkor, verv, dekorasjoner, hendelser, korledere og dirigenter. 
 1. Kjør server med `python3 manage.py runserver`
 
