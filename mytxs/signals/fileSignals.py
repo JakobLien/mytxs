@@ -2,7 +2,7 @@ import os
 from django.dispatch import receiver
 from django.db.models.signals import post_delete, pre_save
 
-from mytxs.models import Medlem
+from mytxs.models import Medlem, Dekorasjon
 
 # Håndtering av opplastning og overskriving av bilder
 # Gjør at ImageField lagres som nr i rett mappe
@@ -30,3 +30,29 @@ def auto_delete_file_on_change(sender, instance, **kwargs):
     if gammeltBilde and not gammeltBilde == new_file:
         if os.path.isfile(gammeltBilde.path):
             os.remove(gammeltBilde.path)
+
+
+# Dekorasjonsikoner håndteres tilsvarende medlemsbilder
+@receiver(post_delete, sender=Dekorasjon)
+def auto_delete_dekorasjonsikon_on_delete(sender, instance, **kwargs):
+    'Slette dekorasjonsikon når dekorasjonen slettes'
+    if instance.ikon:
+        os.remove(instance.ikon.path)
+
+
+@receiver(pre_save, sender=Dekorasjon)
+def auto_delete_dekorasjonsikon_on_change(sender, instance, **kwargs):
+    '''
+    Slette dekorasjonsikon fra filsystemet når de laste opp et nytt ikon.
+    Om ikke dette gjøres får filnavnet (dekorasjon.pk) ekstra characters på slutten,
+    som ikke endre koss det funke for resten av appen, men ser stygt ut.
+    '''
+    try:
+        gammeltIkon = Dekorasjon.objects.get(pk=instance.pk).ikon
+    except Dekorasjon.DoesNotExist:
+        return
+
+    nyttIkon = instance.ikon
+    if gammeltIkon and not gammeltIkon == nyttIkon:
+        if os.path.isfile(gammeltIkon.path):
+            os.remove(gammeltIkon.path)

@@ -831,7 +831,7 @@ def dekorasjon(request, kor, dekorasjonNavn):
 
     DekorasjonForm = addDeleteCheckbox(DekorasjonForm)
 
-    dekorasjonForm = DekorasjonForm(postIfPost(request, 'dekorasjonForm'), instance=request.instance, prefix='dekorasjonForm')
+    dekorasjonForm = DekorasjonForm(postIfPost(request, 'dekorasjonForm'), filesIfPost(request, 'dekorasjonForm'), instance=request.instance, prefix='dekorasjonForm')
     dekorasjonInnehavelseFormset = DekorasjonInnehavelseFormset(postIfPost(request, 'dekorasjonInnehavelser'), instance=request.instance, prefix='dekorasjonInnehavelser')
 
     disableFormMedlem(request.user.medlem, dekorasjonForm)
