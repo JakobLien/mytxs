@@ -246,6 +246,16 @@ def sjekkheftet(request, side, underside=None):
 
         grupperinger = {'': request.queryset}
 
+    elif side == 'fellesEmner':
+        emnekoder = request.user.medlem.emnekoder.split()
+        for emne in emnekoder:
+            emne = emne.strip(',.\\+\\-_')
+            medlem = Medlem.objects.filter(
+                emnekoder__icontains=emne
+            ).sjekkheftePrefetch(kor=None)
+
+            grupperinger[emne.upper()] = medlem
+
     if request.GET.get('vcard'):
         return downloadVCard(request.queryset)
 
