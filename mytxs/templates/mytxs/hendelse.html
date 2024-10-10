@@ -1,0 +1,47 @@
+{% extends "mytxs/instance.html" %}
+{% load mytxsTags %}
+
+{% block beforeForms %}
+{% if request.egenFøringLink %}
+{% toggleURLparam 'fraværModus' 'Fravær modus' %}
+{% endif %}
+{% endblock %}
+
+
+{% block betweenForms %}
+
+{% if request.egenFøringLink %}
+    <a href="{{ request.egenFøringLink }}" target="_blank"><img src="{{ request.egenFøringLink }}"></img></a>
+{% endif %}
+
+{% endblock %}
+
+
+{% block afterForms %}
+{% if request.instance.getStemmeFordeling.items %}
+<br>
+<table>
+    <tr class="border-b border-black">
+        <th class="pr-2">Stemmefordeling</th>
+        <th class="pr-2">Kommer</th>
+        <th class="pr-2">Kanskje</th>
+        <th class="pr-2">Ikke</th>
+    </tr>
+    {% for stemmegruppe, antall in request.instance.getStemmeFordeling.items %}
+    <tr class="border-b border-black">
+        <td>{{ stemmegruppe }}</td>
+        <td>{{ antall.0 }}</td>
+        <td>{{ antall.1 }}</td>
+        <td>{{ antall.2 }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% endif %}
+
+{% if request.eksportLenke %}
+<a href="{{ request.eksportLenke }}">Eksporter data for de som kommer</a><br>
+{% endif %}
+
+<a href="?dupliser=True" onclick="return confirm('Dupliser hendelsen?')">Dupliser hendelsen</a>
+
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "mytxs/base.html" %}
+{% load mytxsTags %}
+
+{% block content %}
+
+{% if filterForm %}
+<form action="{{ request.path }}" method="get">
+    {{ filterForm.as_p }}
+
+    <input type="button" value="Clear" onclick="window.location='?';"/>
+    <input type="submit" value="Søk">
+</form>
+{% endif %}
+
+
+{% if request.paginatorPage %}
+
+{% getPaginatorNavigation request.paginatorPage %}
+{% for instance in request.paginatorPage %}
+<p><a href="{{ instance.get_absolute_url }}">{{ instance }}</a></p>
+{% endfor %}
+
+{% else %}
+
+{% for instance in request.queryset %}
+<p><a href="{{ instance.get_absolute_url }}">{{ instance }}</a></p>
+{% endfor %}
+
+{% endif %}
+
+
+{% if newForm and newForm|formIsEnabled %}
+
+{% if newForm.prefix %}
+<h2 class="text-xl mt-4">{{ newForm.prefix|capfirst }}</h2>
+{% endif %}
+
+<form action="{{ request.get_full_path }}" method="post" class="creationForm">
+    {% csrf_token %}
+    {{ newForm.as_p }}
+    <input type="submit" value="Opprett">
+</form>
+
+{% endif %}
+
+{% endblock %}

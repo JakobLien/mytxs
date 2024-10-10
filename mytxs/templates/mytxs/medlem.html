@@ -1,34 +1,11 @@
-{% extends "mytxs/base.html" %}
+{% extends "mytxs/instance.html" %}
 
 {% block content %}
-    <form action="{{ request.path }}" method="post" enctype='multipart/form-data'>
-        {% csrf_token %}
-        {{ medlemsDataForm.as_p }}
+{{ block.super }}
 
-        <input type="submit" value="Lagre">
-    </form>
+{% if request.registreringLink %}
+<p class="max-w-2xl mt-4">Dette medlemmet har ingen registrert bruker på seg. Send denne lenken til den aktuelle koristen, for å la de registrere seg på medlemmet: 
+<br><a class="" href="//{{ request.registreringLink }}">{{ request.registreringLink }}</a></p>
+{% endif %}
 
-    <br>
-
-    <form action="{{ request.path }}" method="post">
-        {% csrf_token %}
-        {{ vervInnehavelseFormset.management_form }}
-
-        {% for vervInnehavelseForm in vervInnehavelseFormset %}
-            {{ vervInnehavelseForm }} <br>
-        {% endfor %}
-        <input type="submit" value="Lagre">
-    </form>
-
-    <br>
-
-    <form action="{{ request.path }}" method="post">
-        {% csrf_token %}
-        {{ dekorasjonInnehavelseFormset.management_form }}
-
-        {% for dekorasjonInnehavelseForm in dekorasjonInnehavelseFormset %}
-            {{ dekorasjonInnehavelseForm }} <br>
-        {% endfor %}
-        <input type="submit" value="Lagre">
-    </form>
 {% endblock %}

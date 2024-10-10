@@ -1,0 +1,51 @@
+{% extends "mytxs/base.html" %}
+{% load mytxsTags %}
+
+{% block content %}
+
+{% block beforeForms %}{% endblock %}
+
+{% if forms or formsets %}
+<form action="{{ request.get_full_path }}" method="post" class="managedForm" {% fixFileField forms formsets %}>
+    {% csrf_token %}
+    {% endif %}
+
+    {% for form in forms %}
+    {% if form|formIsVisible %}
+    {{ form.as_p }}
+    {% endif %}
+    {% endfor %}
+
+    {% block betweenForms %}{% endblock %}
+
+    {% for formset in formsets %}
+    
+    {% if formset|formIsVisible %}
+    <h2 class="text-xl mt-4">{{ formset.prefix|capfirst }}</h2>
+    {% getPaginatorNavigation formset.queryset formset.prefix %}
+    {% endif %} {% comment %} endif her heller enn under slik at management formet sendes, og følgelig blir gyldig. {% endcomment %}
+    
+    {{ formset.management_form }}
+    {% for form in formset %}
+
+    {% comment %} Dette er for at help_text ikkje skal hive på en <br> tag {% endcomment %}
+    {{ form.non_field_errors }}
+    {% for field in form.visible_fields %}
+    {{ field.errors }} {{ field.label_tag }} {{ field }} {{ field.help_text|safe }}
+    {% endfor %} {% addLoggLink form.instance %}
+    {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+
+    {% block inFormset %}{% endblock %}<br>
+    {% endfor %}
+
+    {% endfor %}
+
+    {% if forms or formsets %}
+    <input type="button" value="Angre" onclick="resetForm(this.form)">
+    <input type="submit" value="Lagre">
+</form>
+{% endif %}
+
+{% block afterForms %}{% endblock %}
+
+{% endblock %}

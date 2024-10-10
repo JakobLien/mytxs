@@ -1,0 +1,42 @@
+{% extends "mytxs/instance.html" %}
+{% load mytxsTags %}
+
+{% block beforeForms %}
+
+{% toggleURLparam 'fraværModus' 'Fravær modus' medMøtt=None medKommerIkke=None medlem=None %}
+{% toggleURLparam 'medMøtt' 'med de førte' %}
+{% toggleURLparam 'medKommerIkke' 'med kommer ikke' %}
+
+<div id="fraværModusHX" hx-select="#fraværModusHX" hx-target="this" hx-swap="outerHTML">
+    {% if endreFraværForm %}
+    <h2 class="text-2xl">Fravær for {{ endreFraværForm.instance.medlem.navn }}</h2>
+    <form hx-post="{{ request.get_full_path }}">
+        {% csrf_token %}
+        {{ endreFraværForm }}
+        <input type="submit" value="Lagre">
+    </form>
+    {% endif %}
+
+    {% for oppmøte in request.queryset %}
+
+    {% if request.GET.medKommerIkke or oppmøte.ankomst != False or oppmøte.fravær != None %}
+    {% if request.GET.medMøtt or oppmøte.fravær == None %}
+
+    {% ifchanged oppmøte.stemmegruppe %}
+    <h2 class="text-2xl max-w-sm target:backdrop-brightness-100" id="{{ oppmøte.stemmegruppe }}">{{ oppmøte.stemmegruppe }}</h2>
+    {% endifchanged %}
+
+    {% if oppmøte.fravær == None %}
+    <a class="block" hx-get="{% setURLParams førFraværFor=oppmøte.medlem.pk %}">
+    {% else %}
+    <a class="block" hx-get="{% setURLParams medlem=oppmøte.medlem.pk %}">
+    {% endif %}
+        {{ oppmøte.medlem }}{% if oppmøte.fravær != None  %}, {{ oppmøte.fravær }} minutter fravær{% endif %}
+    </a>
+
+    {% endif %}{% endif %}
+
+    {% endfor %}
+</div>
+
+{% endblock %}

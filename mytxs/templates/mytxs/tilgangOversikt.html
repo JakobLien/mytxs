@@ -1,0 +1,24 @@
+{% extends "mytxs/base.html" %}
+{% load mytxsTags %}
+
+{% block content %}
+
+<p>Her vises alle verv som har tilganger, og hvem som nå har disse vervene.</p>
+{% toggleURLparam 'ikkeBruktIKode' 'vis tilganger som ikke er brukt i kode' %}
+
+<table class="text-left">
+    <tr class="border-b border-black">
+        <th>Hvem</th>
+        <th>Verv</th>
+        <th>Tilgang</th>
+    </tr>
+    {% for verv in tilgangVerv %}
+    <tr class="border-b border-black [&>*]:pr-4">
+        <td>{% for vervInnehavelse in verv.vervInnehavelser.all %}{{ vervInnehavelse.medlem|linkTo }}{% if not vervInnehavelse.aktiv %} (påtroppende) {% endif %}<br>{% endfor %}</td>
+        <td>{{ verv|linkTo }}</td>
+        <td>{% for tilgang in verv.tilganger.all %}{{ tilgang|linkTo }}<br>{% endfor %}</td>
+    </tr>
+    {% endfor %}
+</table>
+
+{% endblock %}

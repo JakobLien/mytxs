@@ -1,0 +1,1 @@
+# Denne må tydligvis vær her for at makemigrations skal funk!

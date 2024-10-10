@@ -1,57 +1,112 @@
 {% extends "mytxs/base.html" %}
-
+{% load mytxsTags %}
 
 {% block content %}
 
-{% for gruppe in grupper %}
+{% block beforeSjekkheftetContent %}{% endblock %}
 
-    <a href="{% url 'sjekkheftet' gruppe %}">{{gruppe}}</a> 
+{% block sjekkheftetContent %}
 
-{% endfor %}
+{% if grupperinger|length > 1%}
+<div id="sjekkheftetNavigator" class="my-2 flex flex-row flex-wrap justify-between w-[56rem]">
+    {% for gruppenavn, gruppe in grupperinger.items %}
+    {% if gruppenavn|lower != 'dirigent' %}
+    <div class="w-[14rem]">
+        <h2 class="text-3xl">{{ gruppenavn|capfirst }}</h2>
+
+        {% for medlem in gruppe %}
+        <a class="text-sm" href="#m_{{ medlem.pk }}">{{ medlem.navn }}</a><br>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endfor %}
+</div>
+{% endif %}
+
+<br>
 
 {% for gruppenavn, gruppe in grupperinger.items %}
 
-    {% if gruppenavn %}
-        <h2>{{gruppenavn}}: </h2>
+{% if gruppenavn %}
+<h2 class="text-3xl">{{ gruppenavn|capfirst }}: </h2>
+{% endif %}
+
+{% for medlem in gruppe %}
+<div id="m_{{ medlem.pk }}" class="flex flex-row space-x-2 w-[56rem] p-2 backdrop-brightness-110 rounded-xl">
+    {% if medlem.bilde %}
+    <img src="{{ medlem.bilde.url }}" class="h-44 aspect-[139/169] object-cover align-top border-2 border-black">
+    {% else %}
+    <div class="h-44 aspect-[139/169] object-cover align-top border-2 border-black"></div>
     {% endif %}
 
-    {% for medlem in gruppe %}
-        <br>
-        <div style="display: inline-block; border-bottom: black 2px solid; padding: 5px;">
-            {% if medlem.bilde %}
-                <img src="{{medlem.bilde.url}}" alt="BILDE!!!" style="display: inline-block; width: 139px; height: 169px; object-fit: cover; vertical-align: top;">
+    <ul>
+        <li class="text-2xl">
+            {% if request.resolver_match.kwargs.side not in consts.bareStorkorNavn and medlem.storkorNavn %}
+            <a href="{% url 'sjekkheftet' medlem.storkorNavn %}#m_{{medlem.pk}}">{{ medlem.navn }}</a>
+            {% else %}
+            {{ medlem.navn }}
             {% endif %}
-        <ul style="display: inline-block; margin: 0;">
-            <li>Navn: {{medlem.navn}}
-                {% if 'medlem' in user.medlem.tilgangTilSider %} <a href="{% url 'medlem' medlem.pk %}">Rediger</a> {% endif %}
-            </li>
-            <li>Fødselsdato: {{medlem.fødselsdato|date:"d.m.Y"}}</li>
-            <li>Epost: {{medlem.epost}}</li>
-            <li>Telefon: {{medlem.tlf}}</li>
-            {% if medlem.vervInnehavelse.all|length > 0 %}
-            <li>Verv: 
-                <ul>
-                {% for vervInnehavelse in medlem.vervInnehavelse.all %}
-                    {% if vervInnehavelse.aktiv %}
-                        <li> {{ vervInnehavelse.verv.navn }}({{vervInnehavelse.verv.kor.kortTittel}}): {{ vervInnehavelse.start }} - {{ vervInnehavelse.slutt }} </li>
-                    {% endif %}
-                {% endfor %}
-                </ul>
-            </li>
-            {% endif %}
-            {% if medlem.dekorasjonInnehavelse.all|length > 0 %}
-            <li>Dekorasjoner: 
-                <ul>
-                {% for dekorasjonInnehavelse in medlem.dekorasjonInnehavelse.all %}
-                    <li> {{ dekorasjonInnehavelse.dekorasjon.navn }}({{dekorasjonInnehavelse.dekorasjon.kor.kortTittel}}): {{ dekorasjonInnehavelse.start }} </li>
-                {% endfor %}
-                </ul>
-            </li>
-            {% endif %}
-        </ul>
-        </div>
-    {% endfor %}
+
+            {% if user.medlem|tilgangExists:'medlemsdata' %} <a class="text-sm" href="{% url 'medlem' medlem.pk %}">Rediger</a> {% endif %}
+        </li>
+
+        {% if medlem.karantenekor %}
+        {% if request.resolver_match.kwargs.side in consts.bareSmåkorNavn %}
+        <li>Tatt opp: {{ medlem.karantenekor }}</li>
+        {% else %}
+        <li>Karantenekor: {{ medlem.karantenekor }}</li>
+        {% endif %}
+        {% endif%}
+        
+        {% if medlem.public__fødselsdato %}
+        <li>Fødselsdato: {{ medlem.public__fødselsdato }}</li>
+        {% endif %}
+        {% if medlem.public__epost %}
+        <li>Epost: <a href="mailto:{{ medlem.public__epost }}">{{ medlem.public__epost }}</a></li>
+        {% endif %}
+        {% if medlem.public__tlf %}
+        <li>Telefon: <a href="tel:{{ medlem.public__tlf|cut:' ' }}">{{ medlem.public__tlf }}</a></li>
+        {% endif %}
+        {% if medlem.public__studieEllerJobb %}
+        <li>Studie eller jobb: {{ medlem.public__studieEllerJobb }}</li>
+        {% endif %}
+        {% if medlem.public__boAdresse %}
+        <li>Bostedsadresse: <a href="https://maps.google.com/?q={{ medlem.public__boAdresse }}">{{ medlem.public__boAdresse }}</a></li>
+        {% endif %}
+        {% if medlem.public__foreldreAdresse %}
+        <li>Foreldreadresse: <a href="https://maps.google.com/?q={{ medlem.public__foreldreAdresse }}">{{ medlem.public__foreldreAdresse }}</a></li>
+        {% endif %}
+
+        {% if medlem.vervInnehavelser.all %}
+        <li>Verv: 
+            {% for vervInnehavelse in medlem.vervInnehavelser.all %}
+            <span>{{ vervInnehavelse.verv }}</span>
+            {% endfor %}
+        </li>
+        {% endif %}
+
+        {% if medlem.dekorasjonInnehavelser.all %}
+        <li>Dekorasjoner: 
+            {% for dekorasjonInnehavelse in medlem.dekorasjonInnehavelser.all %}
+            <span> {{ dekorasjonInnehavelse.dekorasjon }}</span>
+            {% endfor %}
+        </li>
+        {% endif %}
+
+        {% if medlem.småkor %}
+        <li>Småkor: <span>{{medlem.småkor}}</span></li>
+        {% endif %}
+    </ul>
+</div>
+<br>
+{% endfor %}
 
 {% endfor %}
+
+<br><a href="{% setURLParams vcard='true' %}">Last ned vCard for alle på siden</a>
+<span title="For å laste ned alle på iphone, trykk del knappen på popupen, og åpne i kontakter. 
+Da får du opp en liste av vcards der du kan importere alle.">(?)</span>
+
+{% endblock%}
 
 {% endblock %}

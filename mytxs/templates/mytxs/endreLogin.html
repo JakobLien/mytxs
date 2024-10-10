@@ -1,0 +1,18 @@
+{% extends "mytxs/base.html" %}
+
+{% block content %}
+
+<form action="{{ request.get_full_path }}" method="post" class="managedForm">
+    {% csrf_token %}
+    {{ endreBrukernavnForm.as_p }}
+    <input type="button" value="Angre" onclick="resetForm(this.form)" class='hidden'>
+    <input type="submit" value="Endre brukernavn">
+</form>
+
+<form action="{{ request.get_full_path }}" method="post" class="creationForm">
+    {% csrf_token %}
+    {{ endrePassordForm.as_p }}
+    <input type="submit" value="Endre passord">
+</form>
+        
+{% endblock %}
