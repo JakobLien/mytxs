@@ -726,16 +726,11 @@ class Medlem(DbCacheModel):
         verbose_name_plural = 'medlemmer'
 
     def clean(self, *args, **kwargs): 
-        emnekodeliste = self.emnekoder.split()
-
-        for emne in emnekodeliste:
-            emne = emne.strip(',.\\+\\-_')
-            if emne == '' or (emne.isalnum() == True and len(emne) <= 10):
-                continue
-            
-            else:
+        for emne in self.emnekoder.split():
+            emne = emne.strip(',-')
+            if (emne != '' and not emne.isalnum()) or len(emne) > 10:
                 raise ValidationError(
-                    _('Ugyldig emnekode! Husk at emnekoder kun inneholder opptil 10 bokstaver og tall, og separer emnekodene kun med mellomrom.'),
+                    _('Ugyldig emnekode! Husk at emnekoder kun inneholder opptil 10 bokstaver og tall, og separer emnekodene med mellomrom.'),
                     code='ugyldigEmnekode'
                 )
     

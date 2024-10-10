@@ -247,9 +247,8 @@ def sjekkheftet(request, side, underside=None):
         grupperinger = {'': request.queryset}
 
     elif side == 'fellesEmner':
-        emnekoder = request.user.medlem.emnekoder.split()
-        for emne in emnekoder:
-            emne = emne.strip(',.\\+\\-_')
+        for emne in request.user.medlem.emnekoder.split():
+            emne = emne.strip(',')
             medlem = Medlem.objects.filter(
                 emnekoder__icontains=emne
             ).sjekkheftePrefetch(kor=None)
