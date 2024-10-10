@@ -727,7 +727,7 @@ class Medlem(DbCacheModel):
 
     def clean(self, *args, **kwargs): 
         for emne in self.emnekoder.split():
-            emne = emne.strip(',-')
+            emne = emne.strip(',').replace('-', '')
             if (emne != '' and not emne.isalnum()) or len(emne) > 10:
                 raise ValidationError(
                     _('Ugyldig emnekode! Husk at emnekoder kun inneholder opptil 10 bokstaver og tall, og separer emnekodene med mellomrom.'),
