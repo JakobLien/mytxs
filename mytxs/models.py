@@ -382,6 +382,7 @@ class Medlem(DbCacheModel):
         related_name='medlem',
         blank=True
     )
+    innlogginger = models.PositiveIntegerField(null=False, default=0, editable=False)
 
     fornavn = models.CharField(max_length = 50, default='Autogenerert')
     mellomnavn = models.CharField(max_length = 50, default='', blank=True)
