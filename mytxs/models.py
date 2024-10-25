@@ -382,6 +382,7 @@ class Medlem(DbCacheModel):
         related_name='medlem',
         blank=True
     )
+    innlogginger = models.PositiveIntegerField(null=False, default=0, editable=False)
 
     fornavn = models.CharField(max_length = 50, default='Autogenerert')
     mellomnavn = models.CharField(max_length = 50, default='', blank=True)
@@ -403,6 +404,7 @@ class Medlem(DbCacheModel):
     epost = models.EmailField(max_length=100, blank=True)
     tlf = models.CharField(max_length=20, default='', blank=True)
     studieEllerJobb = models.CharField(max_length=100, blank=True, verbose_name='Studie eller jobb')
+    emnekoder = models.CharField(blank=True)
     boAdresse = models.CharField(max_length=100, blank=True, verbose_name='Bo adresse')
     foreldreAdresse = models.CharField(max_length=100, blank=True, verbose_name='Foreldre adresse')
 
@@ -517,7 +519,7 @@ class Medlem(DbCacheModel):
             kor__navn__in=sjekkheftet.children.keys()
         ).values('navn', 'kor__navn'):
             navBarNode(sider['sjekkheftet', sjekkhefteSide['kor__navn']], sjekkhefteSide['navn'])
-        sjekkheftet.addChildren('søk', 'kart', 'jubileum', 'sjekkhefTest')
+        sjekkheftet.addChildren('søk', 'kart', 'jubileum', 'sjekkhefTest', 'fellesEmner')
 
         # Semesterplan
         navBarNode(sider, 'semesterplan', isPage=False)
@@ -724,7 +726,18 @@ class Medlem(DbCacheModel):
         ordering = ['fornavn', 'mellomnavn', 'etternavn', '-pk']
         verbose_name_plural = 'medlemmer'
 
+    def clean(self, *args, **kwargs): 
+        for emne in self.emnekoder.split():
+            emne = emne.strip(',').replace('-', '')
+            if (emne != '' and not emne.isalnum()) or len(emne) > 10:
+                raise ValidationError(
+                    _('Ugyldig emnekode! Husk at emnekoder kun inneholder opptil 10 bokstaver og tall, og separer emnekodene med mellomrom.'),
+                    code='ugyldigEmnekode'
+                )
+    
     def save(self, *args, **kwargs):
+        self.clean()
+
         # Crop bildet om det har endret seg
         if self.pk and self.bilde and self.bilde != Medlem.objects.get(pk=self.pk).bilde:
             self.bilde = cropImage(self.bilde, self.bilde.name, 270, 330)

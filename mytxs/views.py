@@ -57,6 +57,8 @@ def login(request):
             if user is not None:
                 auth_login(request, user)
                 messages.info(request, 'Login successful')
+                user.medlem.innlogginger += 1
+                user.medlem.save()
                 if request.GET.get('next'):
                     return redirect(request.GET.get('next'))
                 if request.user.medlem.storkorNavn():
@@ -245,6 +247,15 @@ def sjekkheftet(request, side, underside=None):
             .sjekkheftePrefetch(kor=None)
 
         grupperinger = {'': request.queryset}
+
+    elif side == 'fellesEmner':
+        for emne in request.user.medlem.emnekoder.split():
+            emne = emne.strip(',')
+            medlem = Medlem.objects.filter(
+                emnekoder__icontains=emne
+            ).sjekkheftePrefetch(kor=None)
+
+            grupperinger[emne.upper()] = medlem
 
     if request.GET.get('vcard'):
         return downloadVCard(request.queryset)

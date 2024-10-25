@@ -118,7 +118,8 @@
                 <div class="flex justify-between">
                     <b>Hei {{ user.medlem.navn }}!</b>
                     <span class="ml-10">Det synges for lite!</span>
-                    <span class="ml-10">Siste login: {{ user.last_login|date:"G:i d.m.Y" }}</span>
+                    <span class="ml-10">Dette er din {{ user.medlem.innlogginger }}. innlogging</span>
+                    <span class="ml-10">Du logget inn {{ user.last_login|date:"G:i d.m.Y" }}</span>
                 </div>
                 {% endblock %}
             </div>
