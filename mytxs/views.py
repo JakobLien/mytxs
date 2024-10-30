@@ -1138,3 +1138,9 @@ def om(request):
     return render(request, 'mytxs/om.html', {
         'heading': 'Feedback og om prosjektet'
     })
+
+@login_required
+def midi(request):
+    return render(request, 'mytxs/midi.html', {
+        'heading': 'Spill midifil'
+    })

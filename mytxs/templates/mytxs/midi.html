@@ -1,0 +1,11 @@
+{% extends "mytxs/base.html" %}
+{% load static %}
+
+{% block content %}
+
+<script src="https://colxi.info/midi-parser-js/src/main.js"></script>
+<script type="module" src="{% static 'mytxs/midi/midi_player.js' %}" defer></script>
+<p>Fremtidens øvingsplattform</p>
+<input type="file" id="filereader"/>
+
+{% endblock %}

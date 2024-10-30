@@ -35,6 +35,8 @@ urlpatterns = [
     
     path('om', views.om, name='om'),
 
+    path('midi', views.midi, name='midi'),
+
     path('medlem', views.medlemListe, name='medlem'),
     path('medlem/<int:medlemPK>', views.medlem, name='medlem'),
 
