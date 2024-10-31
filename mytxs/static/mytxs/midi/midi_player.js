@@ -201,7 +201,6 @@ window.navigator.requestMIDIAccess().then(
             console.log(event.port.name, event.port.manufacturer, event.port.state);
         };
         const iter = outputs.values();
-        iter.next();
         const output = iter.next().value;
 
         const source = document.getElementById('filereader');
