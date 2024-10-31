@@ -28,6 +28,26 @@ function silenceAll(output) {
     }
 }
 
+function eventSendable(trackMuted, event) {
+    switch (event.type) {
+        case MIDI.MESSAGE_TYPE_META:
+            return false;
+        case MIDI.MESSAGE_TYPE_NOTEON:
+            return !trackMuted.get(event.trackId);
+        case MIDI.MESSAGE_TYPE_CHANNEL_MODE:
+            switch (event.data[0]) { 
+                // Return false for all events meant to be controlled by user
+                case MIDI.MODE_PAN:
+                case MIDI.MODE_VOLUME:
+                    return false;
+                default:
+                    return true;
+            }
+        default:
+            return true;
+    }
+}
+
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -176,7 +196,7 @@ async function playRealtime(obj, output) {
                     await sleep(dt/1000/tempo);
                 }
                 // Consider whether to actually send message
-                if ((e.type == MIDI.MESSAGE_TYPE_NOTEON && !trackMuted.get(e.trackId)) || (e.type != MIDI.MESSAGE_TYPE_NOTEON && e.type != MIDI.MESSAGE_TYPE_META)) {
+                if (eventSendable(trackMuted, e)) {
                     const message = [(e.type << MIDI.STATUS_MSB_OFFSET) | e.trackId];
                     const data = Array.isArray(e.data) ? e.data : [e.data];
                     message.push(...data);
