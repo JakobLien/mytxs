@@ -163,6 +163,7 @@ def sjekkheftet(request, side, underside=None):
             'filterForm': medlemFilterForm
         })
     
+    #Du skulle endre noe her?
     if side == 'kart':
         request.medlemMapData = json.dumps([{
             'navn': medlem.navn,
@@ -254,6 +255,10 @@ def sjekkheftet(request, side, underside=None):
             ).sjekkheftePrefetch(kor=None)
 
             grupperinger[emne.upper()] = medlem
+
+        return render(request, 'mytxs/fellesEmner.html', {
+        'heading': 'Sjekkheftet', 'grupperinger': grupperinger
+    })
 
     if request.GET.get('vcard'):
         return downloadVCard(request.queryset)
