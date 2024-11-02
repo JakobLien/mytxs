@@ -83,7 +83,18 @@ function startingIndexFromBar(allEvents, bar) {
     return low;
 }
 
+function resetMidiControl(output) {
+    for (let channel = 0; channel < MIDI.NUM_CHANNELS; channel++) {
+        volumeChannel(output, channel, PLAYER.VOLUME.DEFAULT);
+        panChannel(output, channel, PLAYER.PAN.DEFAULT);
+    }
+}
+
 async function playRealtime(obj, uiDiv, output) {
+    // Reset
+    uiDiv.innerHTML = "";
+    resetMidiControl(output);
+
     if (obj.formatType != MIDI.FORMAT_TYPE_MULTITRACK) {
         alert("".concat(source, " har et ugyldig format: ", obj.formatType));
     }
