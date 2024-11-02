@@ -1,6 +1,6 @@
 import {PLAYER} from './player_constants.js';
 
-export function createMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback) {
+export function createMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback, loopStartCallback, loopEndCallback, loopActiveCallback) {
     const uiDiv = document.createElement("div");
 
     const progressSpan = document.createElement("span");
@@ -63,6 +63,31 @@ export function createMasterUi(songDuration, songBars, progressCallback, barNumb
     pauseButton.innerText = "Play";
     pauseButton.onclick = pauseCallback;
     uiDiv.appendChild(pauseButton);
+
+    const loopLabel = document.createElement("label");
+    loopLabel.innerText = "Looping";
+    uiDiv.appendChild(loopLabel);
+
+    const loopStartNumber = document.createElement("input");
+    loopStartNumber.type = "number";
+    loopStartNumber.min = 0;
+    loopStartNumber.max = songBars;
+    loopStartNumber.value = 0;
+    loopStartNumber.oninput = loopStartCallback;
+    uiDiv.appendChild(loopStartNumber);
+
+    const loopEndNumber = document.createElement("input");
+    loopEndNumber.type = "number";
+    loopEndNumber.min = 0;
+    loopEndNumber.max = songBars;
+    loopEndNumber.value = songBars;
+    loopEndNumber.oninput = loopEndCallback;
+    uiDiv.appendChild(loopEndNumber);
+
+    const loopActive = document.createElement("input");
+    loopActive.type = "checkbox";
+    loopActive.oninput = loopActiveCallback;
+    uiDiv.appendChild(loopActive);
 
     return uiDiv;
 }

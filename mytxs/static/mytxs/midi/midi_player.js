@@ -11,6 +11,9 @@ let paused = true;
 let tempo = PLAYER.TEMPO.DEFAULT;
 const trackMuted = new Map();
 let soloTrack = null;
+let loopActive = false;
+let loopStart = null;
+let loopEnd = null;
 const mutex = new Mutex();
 
 function volumeChannel(output, channel, value) {
@@ -174,7 +177,13 @@ async function playRealtime(obj, uiDiv, output) {
         }
     };
 
-    const masterUi = createMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback);
+    loopStart = 0;
+    const loopStartCallback = (e) => loopStart = e.target.value;
+    loopEnd = songBars;
+    const loopEndCallback = (e) => loopEnd = e.target.value;
+    const loopActiveCallback = () => loopActive = !loopActive;
+
+    const masterUi = createMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback, loopStartCallback, loopEndCallback, loopActiveCallback);
     uiDiv.appendChild(masterUi);
 
     // Create UI for tracks which have noteon events
@@ -228,24 +237,34 @@ async function playRealtime(obj, uiDiv, output) {
             } else {
                 const unlock = await mutex.lock();
                 const e = allEvents[playerIndex];
-                const dt = e.timestamp - playerTime;
-                if (dt > 0) {
-                    await sleep(dt/1000/tempo);
-                }
-                // Consider whether to actually send message
-                if (eventSendable(trackMuted, soloTrack, e)) {
-                    const message = [(e.type << MIDI.STATUS_MSB_OFFSET) | e.trackId];
-                    const data = Array.isArray(e.data) ? e.data : [e.data];
-                    message.push(...data);
-                    try {
-                        output.send(message);
-                    } catch (err) {
-                        console.error(err, e);
+                if (loopActive && e.bar >= loopEnd) {
+                    // Jump to start of loop
+                    silenceAll(output);
+                    playerIndex = startingIndexFromBar(allEvents, loopStart);
+                    playerTime = allEvents[playerIndex].timestamp;
+                    uiSetProgress(playerTime, allEvents[playerIndex].bar);
+                } else {
+                    // Wait until event
+                    const dt = e.timestamp - playerTime;
+                    if (dt > 0) {
+                        await sleep(dt/1000/tempo);
                     }
+                    // Consider whether to actually send message
+                    if (eventSendable(trackMuted, soloTrack, e)) {
+                        const message = [(e.type << MIDI.STATUS_MSB_OFFSET) | e.trackId];
+                        const data = Array.isArray(e.data) ? e.data : [e.data];
+                        message.push(...data);
+                        try {
+                            output.send(message);
+                        } catch (err) {
+                            console.error(err, e);
+                        }
+                    }
+                    // Update player state
+                    playerTime = e.timestamp;
+                    playerIndex += 1;
+                    uiSetProgress(playerTime, e.bar);
                 }
-                uiSetProgress(e.timestamp, e.bar);
-                playerTime = e.timestamp;
-                playerIndex += 1;
                 unlock();
             }
         }
