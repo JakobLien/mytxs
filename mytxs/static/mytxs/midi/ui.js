@@ -79,7 +79,7 @@ export function createTrackUi(label, volumeCallback, panningCallback, muteCallba
     volumeSlider.type = "range";
     volumeSlider.min = PLAYER.VOLUME.MIN;
     volumeSlider.max = PLAYER.VOLUME.MAX;
-    volumeSlider.value = PLAYER.VOLUME.MAX;
+    volumeSlider.value = PLAYER.VOLUME.DEFAULT;
     volumeSlider.oninput = volumeCallback;
     uiDiv.appendChild(volumeSlider);
 
@@ -91,7 +91,7 @@ export function createTrackUi(label, volumeCallback, panningCallback, muteCallba
     panningSlider.type = "range";
     panningSlider.min = PLAYER.PAN.MIN;
     panningSlider.max = PLAYER.PAN.MAX;
-    panningSlider.value = (PLAYER.PAN.MIN + PLAYER.PAN.MAX) / 2;
+    panningSlider.value = PLAYER.PAN.DEFAULT;
     panningSlider.oninput = panningCallback;
     uiDiv.appendChild(panningSlider);
 

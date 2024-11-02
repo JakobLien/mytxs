@@ -12,15 +12,15 @@ const trackMuted = new Map();
 let soloTrack = null;
 
 function volumeChannel(output, channel, value) {
-    output.send([(MIDI.MESSAGE_TYPE_CHANNEL_MODE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.MODE_VOLUME, value])
+    output.send([(MIDI.MESSAGE_TYPE_CONTROL_CHANGE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.VOLUME, value])
 }
 
 function panChannel(output, channel, value) {
-    output.send([(MIDI.MESSAGE_TYPE_CHANNEL_MODE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.MODE_PAN, value])
+    output.send([(MIDI.MESSAGE_TYPE_CONTROL_CHANGE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.PAN, value])
 }
 
 function silenceChannel(output, channel) {
-    output.send([(MIDI.MESSAGE_TYPE_CHANNEL_MODE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.MODE_ALL_SOUND_OFF, 0])
+    output.send([(MIDI.MESSAGE_TYPE_CONTROL_CHANGE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.ALL_SOUND_OFF, 0])
 }
 
 function silenceAll(output) {
@@ -35,11 +35,11 @@ function eventSendable(trackMuted, soloTrack, event) {
             return false;
         case MIDI.MESSAGE_TYPE_NOTEON:
             return !trackMuted.get(event.trackId) && (soloTrack == null || soloTrack == event.trackId);
-        case MIDI.MESSAGE_TYPE_CHANNEL_MODE:
+        case MIDI.MESSAGE_TYPE_CONTROL_CHANGE:
             switch (event.data[0]) { 
                 // Return false for all events meant to be controlled by user
-                case MIDI.MODE_PAN:
-                case MIDI.MODE_VOLUME:
+                case MIDI.PAN:
+                case MIDI.VOLUME:
                     return false;
                 default:
                     return true;

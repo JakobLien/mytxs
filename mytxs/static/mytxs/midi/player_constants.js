@@ -2,10 +2,12 @@ export const PLAYER = {
     VOLUME: {
         MIN: 0,
         MAX: 127,
+        DEFAULT: 127,
     },
     PAN: {
         MIN: 0,
         MAX: 127,
+        DEFAULT: 63,
     },
     TEMPO: {
         MIN: 0.1,
