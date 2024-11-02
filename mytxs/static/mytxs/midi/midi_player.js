@@ -81,7 +81,7 @@ function startingIndexFromBar(allEvents, bar) {
     return low;
 }
 
-async function playRealtime(obj, output) {
+async function playRealtime(obj, uiDiv, output) {
     if (obj.formatType != MIDI.FORMAT_TYPE_MULTITRACK) {
         alert("".concat(source, " har et ugyldig format: ", obj.formatType));
     }
@@ -115,7 +115,7 @@ async function playRealtime(obj, output) {
             break;
         }
     }
-    document.getElementById("content").appendChild(songNameHeader);
+    uiDiv.appendChild(songNameHeader);
 
     // Create master UI
     const songDuration = allEvents[allEvents.length - 1].timestamp;
@@ -131,7 +131,7 @@ async function playRealtime(obj, output) {
         paused = !paused;
     };
     const masterUi = createMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback);
-    document.getElementById("content").appendChild(masterUi);
+    uiDiv.appendChild(masterUi);
 
     // Create UI for tracks which have noteon events
     for (let i = 0; i < obj.track.length; i++) {
@@ -170,7 +170,7 @@ async function playRealtime(obj, output) {
             }
         };
         const trackUi = createTrackUi(track.label, volumeCallback, panningCallback, muteCallback, soloCallback);
-        document.getElementById("content").appendChild(trackUi);
+        uiDiv.appendChild(trackUi);
     }
 
     // Play
@@ -233,6 +233,7 @@ window.navigator.requestMIDIAccess().then(
         const output = iter.next().value;
 
         const source = document.getElementById('filereader');
-        MidiParser.parse(source, async (obj) => await playRealtime(obj, output));
+        const uiDiv = document.getElementById('uiDiv');
+        MidiParser.parse(source, async (obj) => await playRealtime(obj, uiDiv, output));
     }
 );
