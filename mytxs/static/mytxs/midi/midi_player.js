@@ -9,6 +9,7 @@ let jumpBar = null;
 let paused = true;
 let tempo = PLAYER.TEMPO.DEFAULT;
 const trackMuted = new Map();
+let soloTrack = null;
 
 function volumeChannel(output, channel, value) {
     output.send([(MIDI.MESSAGE_TYPE_CHANNEL_MODE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.MODE_VOLUME, value])
@@ -28,12 +29,12 @@ function silenceAll(output) {
     }
 }
 
-function eventSendable(trackMuted, event) {
+function eventSendable(trackMuted, soloTrack, event) {
     switch (event.type) {
         case MIDI.MESSAGE_TYPE_META:
             return false;
         case MIDI.MESSAGE_TYPE_NOTEON:
-            return !trackMuted.get(event.trackId);
+            return !trackMuted.get(event.trackId) && (soloTrack == null || soloTrack == event.trackId);
         case MIDI.MESSAGE_TYPE_CHANNEL_MODE:
             switch (event.data[0]) { 
                 // Return false for all events meant to be controlled by user
@@ -160,7 +161,15 @@ async function playRealtime(obj, output) {
             e.target.innerText = wasMuted ? "Mute" : "Unmute";
             trackMuted.set(trackId, !wasMuted);
         };
-        const trackUi = createTrackUi(track.label, volumeCallback, panningCallback, muteCallback);
+        const soloCallback = (e) => {
+            if (soloTrack == trackId) {
+                e.target.checked = false;
+                soloTrack = null;
+            } else {
+                soloTrack = trackId;
+            }
+        };
+        const trackUi = createTrackUi(track.label, volumeCallback, panningCallback, muteCallback, soloCallback);
         document.getElementById("content").appendChild(trackUi);
     }
 
@@ -196,7 +205,7 @@ async function playRealtime(obj, output) {
                     await sleep(dt/1000/tempo);
                 }
                 // Consider whether to actually send message
-                if (eventSendable(trackMuted, e)) {
+                if (eventSendable(trackMuted, soloTrack, e)) {
                     const message = [(e.type << MIDI.STATUS_MSB_OFFSET) | e.trackId];
                     const data = Array.isArray(e.data) ? e.data : [e.data];
                     message.push(...data);

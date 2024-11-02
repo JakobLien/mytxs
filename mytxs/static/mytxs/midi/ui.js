@@ -67,7 +67,7 @@ export function createMasterUi(songDuration, songBars, progressCallback, barNumb
     return uiDiv;
 }
 
-export function createTrackUi(label, volumeCallback, panningCallback, muteCallback) {
+export function createTrackUi(label, volumeCallback, panningCallback, muteCallback, soloCallback) {
     const uiDiv = document.createElement("div");
     uiDiv.innerText = label;
 
@@ -99,6 +99,12 @@ export function createTrackUi(label, volumeCallback, panningCallback, muteCallba
     muteButton.innerText = "Mute";
     muteButton.onclick = muteCallback;
     uiDiv.appendChild(muteButton);
+
+    const soloButton = document.createElement("input");
+    soloButton.type = "radio";
+    soloButton.name = "soloButton";
+    soloButton.onclick = soloCallback;
+    uiDiv.appendChild(soloButton);
 
     return uiDiv;
 }
