@@ -185,14 +185,12 @@ async function playRealtime(obj, uiDiv, output) {
                 time = jumpTime; // Better than allEvents[i].time, because this allows jumps to the middle of long notes
                 uiSetProgress(time, allEvents[i].bar);
                 jumpTime = null;
-                await sleep(1000); // TODO
             } else if (jumpBar !== null) {
                 silenceAll(output);
                 i = startingIndexFromBar(allEvents, jumpBar);
                 time = allEvents[i].time;
                 uiSetProgress(time, allEvents[i].bar);
                 jumpBar = null;
-                await sleep(1000); // TODO
             }
             // Play if not paused
             if (paused) {
