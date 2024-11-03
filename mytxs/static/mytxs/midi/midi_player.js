@@ -133,7 +133,7 @@ async function playRealtime(obj, uiDiv, output) {
         silenceAll(output);
         const jumpBar = e.target.value;
         playerIndex = startingIndexFromBar(allEvents, jumpBar);
-        playerTime = allEvents[playerIndex].time;
+        playerTime = allEvents[playerIndex].timestamp;
         uiSetProgress(playerTime, allEvents[playerIndex].bar);
     };
 
