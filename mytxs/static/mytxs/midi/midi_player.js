@@ -123,13 +123,25 @@ async function playRealtime(obj, uiDiv, output) {
     const progressCallback = (e) => jumpTime = e.target.value;
     const barNumberCallback = (e) => jumpBar = e.target.value;
     const tempoBarCallback = (e) => tempo = e.target.value;
+
+    let resume;
+    function createPausePromise() {
+        return new Promise((resolve) => {
+            resume = resolve;
+        });
+    }
+    let pausePromise = createPausePromise();
     const pauseCallback = (e) => {
-        if (!paused) {
-            silenceAll(output);
-        }
-        e.target.innerText = paused ? "Pause" : "Play";
         paused = !paused;
+        e.target.innerText = paused ? "Play" : "Pause";
+        if (paused) {
+            silenceAll(output);
+            pausePromise = createPausePromise();
+        } else {
+            resume();
+        }
     };
+
     const masterUi = createMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback);
     uiDiv.appendChild(masterUi);
 
@@ -194,7 +206,7 @@ async function playRealtime(obj, uiDiv, output) {
             }
             // Play if not paused
             if (paused) {
-                await sleep(1000); // TODO
+                await pausePromise;
             } else {
                 const e = allEvents[i];
                 uiSetProgress(e.timestamp, e.bar);
