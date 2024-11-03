@@ -1,6 +1,7 @@
 import {MIDI} from './midi_constants.js';
 import {PLAYER} from './player_constants.js';
 import {MidiParser} from './midi-parser.js'; 
+import Mutex from './mutex.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
 import {createMasterUi, createTrackUi, uiSetProgress} from './ui.js';
 
@@ -10,6 +11,7 @@ let paused = true;
 let tempo = PLAYER.TEMPO.DEFAULT;
 const trackMuted = new Map();
 let soloTrack = null;
+const mutex = new Mutex();
 
 function volumeChannel(output, channel, value) {
     output.send([(MIDI.MESSAGE_TYPE_CONTROL_CHANGE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.VOLUME, value])
@@ -121,20 +123,24 @@ async function playRealtime(obj, uiDiv, output) {
     const songDuration = allEvents[allEvents.length - 1].timestamp;
     const songBars = Math.floor(allEvents[allEvents.length - 1].bar);
 
-    const progressCallback = e => {
+    const progressCallback = async e => {
         silenceAll(output);
         const jumpTime = e.target.value;
+        const unlock = await mutex.lock();
         playerIndex = startingIndexFromTime(allEvents, jumpTime);
         playerTime = jumpTime; // Better than allEvents[playerIndex].timestamp, because this allows jumps to the middle of long notes
         uiSetProgress(playerTime, allEvents[playerIndex].bar);
+        unlock();
     };
 
-    const barNumberCallback = e => {
+    const barNumberCallback = async e => {
         silenceAll(output);
         const jumpBar = e.target.value;
+        const unlock = await mutex.lock();
         playerIndex = startingIndexFromBar(allEvents, jumpBar);
         playerTime = allEvents[playerIndex].timestamp;
         uiSetProgress(playerTime, allEvents[playerIndex].bar);
+        unlock();
     };
 
     const tempoBarCallback = e => tempo = e.target.value;
@@ -209,6 +215,7 @@ async function playRealtime(obj, uiDiv, output) {
             if (paused) {
                 await pausePromise;
             } else {
+                const unlock = await mutex.lock();
                 const e = allEvents[playerIndex];
                 uiSetProgress(e.timestamp, e.bar);
                 const dt = e.timestamp - playerTime;
@@ -228,6 +235,7 @@ async function playRealtime(obj, uiDiv, output) {
                 }
                 playerTime = e.timestamp;
                 playerIndex += 1;
+                unlock();
             }
         }
     }
