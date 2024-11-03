@@ -121,15 +121,15 @@ async function playRealtime(obj, uiDiv, output) {
     const songDuration = allEvents[allEvents.length - 1].timestamp;
     const songBars = Math.floor(allEvents[allEvents.length - 1].bar);
 
-    const progressCallback = (e) => {
+    const progressCallback = e => {
         silenceAll(output);
         const jumpTime = e.target.value;
         playerIndex = startingIndexFromTime(allEvents, jumpTime);
-        playerTime = jumpTime; // Better than allEvents[playerIndex].time, because this allows jumps to the middle of long notes
+        playerTime = jumpTime; // Better than allEvents[playerIndex].timestamp, because this allows jumps to the middle of long notes
         uiSetProgress(playerTime, allEvents[playerIndex].bar);
     };
 
-    const barNumberCallback = (e) => {
+    const barNumberCallback = e => {
         silenceAll(output);
         const jumpBar = e.target.value;
         playerIndex = startingIndexFromBar(allEvents, jumpBar);
@@ -137,7 +137,7 @@ async function playRealtime(obj, uiDiv, output) {
         uiSetProgress(playerTime, allEvents[playerIndex].bar);
     };
 
-    const tempoBarCallback = (e) => tempo = e.target.value;
+    const tempoBarCallback = e => tempo = e.target.value;
 
     let resume;
     function createPausePromise() {
@@ -146,7 +146,7 @@ async function playRealtime(obj, uiDiv, output) {
         });
     }
     let pausePromise = createPausePromise();
-    const pauseCallback = (e) => {
+    const pauseCallback = e => {
         paused = !paused;
         e.target.innerText = paused ? "Play" : "Pause";
         if (paused) {
@@ -164,7 +164,7 @@ async function playRealtime(obj, uiDiv, output) {
     for (let i = 0; i < obj.track.length; i++) {
         const track = obj.track[i];
 
-        if (track.event.every((e) => e.type != MIDI.MESSAGE_TYPE_NOTEON)) {
+        if (track.event.every(e => e.type != MIDI.MESSAGE_TYPE_NOTEON)) {
             continue;
         }
 
@@ -177,10 +177,10 @@ async function playRealtime(obj, uiDiv, output) {
         }
 
         const trackId = track.event[0].trackId;
-        const volumeCallback = (e) => volumeChannel(output, trackId, e.target.value);
-        const panningCallback = (e) => panChannel(output, trackId, e.target.value);
+        const volumeCallback = e => volumeChannel(output, trackId, e.target.value);
+        const panningCallback = e => panChannel(output, trackId, e.target.value);
         trackMuted.set(trackId, false);
-        const muteCallback = (e) => {
+        const muteCallback = e => {
             const wasMuted = trackMuted.get(trackId);
             if (!wasMuted) {
                 silenceChannel(output, trackId);
@@ -188,7 +188,7 @@ async function playRealtime(obj, uiDiv, output) {
             e.target.innerText = wasMuted ? "Mute" : "Unmute";
             trackMuted.set(trackId, !wasMuted);
         };
-        const soloCallback = (e) => {
+        const soloCallback = e => {
             if (soloTrack == trackId) {
                 e.target.checked = false;
                 soloTrack = null;
@@ -212,7 +212,7 @@ async function playRealtime(obj, uiDiv, output) {
                 const e = allEvents[playerIndex];
                 uiSetProgress(e.timestamp, e.bar);
                 const dt = e.timestamp - playerTime;
-                if (dt != 0) {
+                if (dt > 0) {
                     await sleep(dt/1000/tempo);
                 }
                 // Consider whether to actually send message
@@ -245,6 +245,6 @@ window.navigator.requestMIDIAccess().then(
 
         const source = document.getElementById('filereader');
         const uiDiv = document.getElementById('uiDiv');
-        MidiParser.parse(source, async (obj) => await playRealtime(obj, uiDiv, output));
+        MidiParser.parse(source, obj => playRealtime(obj, uiDiv, output));
     }
 );
