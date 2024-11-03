@@ -4,8 +4,8 @@ import {MidiParser} from './midi-parser.js';
 import {tickstampEvents, timestampEvents} from './event_timing.js';
 import {createMasterUi, createTrackUi, uiSetProgress} from './ui.js';
 
-let jumpTime = null;
-let jumpBar = null;
+let playerIndex = 0;
+let playerTime = 0;
 let paused = true;
 let tempo = PLAYER.TEMPO.DEFAULT;
 const trackMuted = new Map();
@@ -120,8 +120,23 @@ async function playRealtime(obj, uiDiv, output) {
     // Create master UI
     const songDuration = allEvents[allEvents.length - 1].timestamp;
     const songBars = Math.floor(allEvents[allEvents.length - 1].bar);
-    const progressCallback = (e) => jumpTime = e.target.value;
-    const barNumberCallback = (e) => jumpBar = e.target.value;
+
+    const progressCallback = (e) => {
+        silenceAll(output);
+        const jumpTime = e.target.value;
+        playerIndex = startingIndexFromTime(allEvents, jumpTime);
+        playerTime = jumpTime; // Better than allEvents[playerIndex].time, because this allows jumps to the middle of long notes
+        uiSetProgress(playerTime, allEvents[playerIndex].bar);
+    };
+
+    const barNumberCallback = (e) => {
+        silenceAll(output);
+        const jumpBar = e.target.value;
+        playerIndex = startingIndexFromBar(allEvents, jumpBar);
+        playerTime = allEvents[playerIndex].time;
+        uiSetProgress(playerTime, allEvents[playerIndex].bar);
+    };
+
     const tempoBarCallback = (e) => tempo = e.target.value;
 
     let resume;
@@ -187,30 +202,16 @@ async function playRealtime(obj, uiDiv, output) {
 
     // Play
     while (true) {
-        let time = 0;
-        let i = 0;
-        while (i < allEvents.length) {
-            // Check for player jumps
-            if (jumpTime !== null) {
-                silenceAll(output);
-                i = startingIndexFromTime(allEvents, jumpTime);
-                time = jumpTime; // Better than allEvents[i].time, because this allows jumps to the middle of long notes
-                uiSetProgress(time, allEvents[i].bar);
-                jumpTime = null;
-            } else if (jumpBar !== null) {
-                silenceAll(output);
-                i = startingIndexFromBar(allEvents, jumpBar);
-                time = allEvents[i].time;
-                uiSetProgress(time, allEvents[i].bar);
-                jumpBar = null;
-            }
+        playerTime = 0;
+        playerIndex = 0;
+        while (playerIndex < allEvents.length) {
             // Play if not paused
             if (paused) {
                 await pausePromise;
             } else {
-                const e = allEvents[i];
+                const e = allEvents[playerIndex];
                 uiSetProgress(e.timestamp, e.bar);
-                const dt = e.timestamp - time;
+                const dt = e.timestamp - playerTime;
                 if (dt != 0) {
                     await sleep(dt/1000/tempo);
                 }
@@ -225,8 +226,8 @@ async function playRealtime(obj, uiDiv, output) {
                         console.error(err, e);
                     }
                 }
-                time = e.timestamp;
-                i += 1;
+                playerTime = e.timestamp;
+                playerIndex += 1;
             }
         }
     }
