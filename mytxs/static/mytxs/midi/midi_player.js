@@ -20,8 +20,8 @@ function volumeChannel(output, channel, value) {
     output.send([(MIDI.MESSAGE_TYPE_CONTROL_CHANGE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.VOLUME, value])
 }
 
-function panChannel(output, channel, value) {
-    output.send([(MIDI.MESSAGE_TYPE_CONTROL_CHANGE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.PAN, value])
+function balanceChannel(output, channel, value) {
+    output.send([(MIDI.MESSAGE_TYPE_CONTROL_CHANGE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.BALANCE, value])
 }
 
 function silenceChannel(output, channel) {
@@ -43,8 +43,8 @@ function eventSendable(trackMuted, soloTrack, event) {
         case MIDI.MESSAGE_TYPE_CONTROL_CHANGE:
             switch (event.data[0]) { 
                 // Return false for all events meant to be controlled by user
-                case MIDI.PAN:
                 case MIDI.VOLUME:
+                case MIDI.BALANCE:
                     return false;
                 default:
                     return true;
@@ -89,7 +89,7 @@ function startingIndexFromBar(allEvents, bar) {
 function resetMidiControl(output) {
     for (let channel = 0; channel < MIDI.NUM_CHANNELS; channel++) {
         volumeChannel(output, channel, PLAYER.VOLUME.DEFAULT);
-        panChannel(output, channel, PLAYER.PAN.DEFAULT);
+        balanceChannel(output, channel, PLAYER.BALANCE.DEFAULT);
     }
 }
 
@@ -204,7 +204,7 @@ async function playRealtime(obj, uiDiv, output) {
 
         const trackId = track.event[0].trackId;
         const volumeCallback = e => volumeChannel(output, trackId, e.target.value);
-        const panningCallback = e => panChannel(output, trackId, e.target.value);
+        const balanceCallback = e => balanceChannel(output, trackId, e.target.value);
         trackMuted.set(trackId, false);
         const muteCallback = e => {
             const wasMuted = trackMuted.get(trackId);
@@ -222,7 +222,7 @@ async function playRealtime(obj, uiDiv, output) {
                 soloTrack = trackId;
             }
         };
-        const trackUi = createTrackUi(track.label, volumeCallback, panningCallback, muteCallback, soloCallback);
+        const trackUi = createTrackUi(track.label, volumeCallback, balanceCallback, muteCallback, soloCallback);
         uiDiv.appendChild(trackUi);
     }
 

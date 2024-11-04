@@ -4,7 +4,7 @@ export const PLAYER = {
         MAX: 127,
         DEFAULT: 127,
     },
-    PAN: {
+    BALANCE: {
         MIN: 0,
         MAX: 127,
         DEFAULT: 64,

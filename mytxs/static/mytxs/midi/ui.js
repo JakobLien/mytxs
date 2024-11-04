@@ -92,7 +92,7 @@ export function createMasterUi(songDuration, songBars, progressCallback, barNumb
     return uiDiv;
 }
 
-export function createTrackUi(label, volumeCallback, panningCallback, muteCallback, soloCallback) {
+export function createTrackUi(label, volumeCallback, balanceCallback, muteCallback, soloCallback) {
     const uiDiv = document.createElement("div");
     uiDiv.innerText = label;
 
@@ -108,17 +108,17 @@ export function createTrackUi(label, volumeCallback, panningCallback, muteCallba
     volumeSlider.oninput = volumeCallback;
     uiDiv.appendChild(volumeSlider);
 
-    const panningLabel = document.createElement("label");
-    panningLabel.innerText = "Panning";
-    uiDiv.appendChild(panningLabel);
+    const balanceLabel = document.createElement("label");
+    balanceLabel.innerText = "Balance";
+    uiDiv.appendChild(balanceLabel);
 
-    const panningSlider = document.createElement("input");
-    panningSlider.type = "range";
-    panningSlider.min = PLAYER.PAN.MIN;
-    panningSlider.max = PLAYER.PAN.MAX;
-    panningSlider.value = PLAYER.PAN.DEFAULT;
-    panningSlider.oninput = panningCallback;
-    uiDiv.appendChild(panningSlider);
+    const balanceSlider = document.createElement("input");
+    balanceSlider.type = "range";
+    balanceSlider.min = PLAYER.BALANCE.MIN;
+    balanceSlider.max = PLAYER.BALANCE.MAX;
+    balanceSlider.value = PLAYER.BALANCE.DEFAULT;
+    balanceSlider.oninput = balanceCallback;
+    uiDiv.appendChild(balanceSlider);
 
     const muteButton = document.createElement("button");
     muteButton.innerText = "Mute";
