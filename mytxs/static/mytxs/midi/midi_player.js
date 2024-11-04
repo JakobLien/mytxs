@@ -66,7 +66,7 @@ function startingIndexFromTime(allEvents, time) {
             low = mid;
         }
     }
-    return low;
+    return high < allEvents.length ? high : low;
 }
 
 function startingIndexFromBar(allEvents, bar) {
@@ -80,7 +80,7 @@ function startingIndexFromBar(allEvents, bar) {
             low = mid;
         }
     }
-    return low;
+    return high < allEvents.length ? high : low;
 }
 
 function resetMidiControl(output) {
