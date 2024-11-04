@@ -228,7 +228,6 @@ async function playRealtime(obj, uiDiv, output) {
             } else {
                 const unlock = await mutex.lock();
                 const e = allEvents[playerIndex];
-                uiSetProgress(e.timestamp, e.bar);
                 const dt = e.timestamp - playerTime;
                 if (dt > 0) {
                     await sleep(dt/1000/tempo);
@@ -244,6 +243,7 @@ async function playRealtime(obj, uiDiv, output) {
                         console.error(err, e);
                     }
                 }
+                uiSetProgress(e.timestamp, e.bar);
                 playerTime = e.timestamp;
                 playerIndex += 1;
                 unlock();
