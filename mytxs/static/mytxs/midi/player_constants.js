@@ -7,7 +7,7 @@ export const PLAYER = {
     PAN: {
         MIN: 0,
         MAX: 127,
-        DEFAULT: 63,
+        DEFAULT: 64,
     },
     TEMPO: {
         MIN: 0.1,
