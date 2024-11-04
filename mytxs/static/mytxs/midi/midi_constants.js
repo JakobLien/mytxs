@@ -18,5 +18,6 @@ export const MIDI = {
 
     VOLUME: 7,
     BALANCE: 8,
+    PAN: 10,
     ALL_SOUND_OFF: 120,
 };

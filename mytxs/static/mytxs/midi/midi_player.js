@@ -24,6 +24,10 @@ function balanceChannel(output, channel, value) {
     output.send([(MIDI.MESSAGE_TYPE_CONTROL_CHANGE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.BALANCE, value])
 }
 
+function panChannel(output, channel, value) {
+    output.send([(MIDI.MESSAGE_TYPE_CONTROL_CHANGE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.PAN, value])
+}
+
 function silenceChannel(output, channel) {
     output.send([(MIDI.MESSAGE_TYPE_CONTROL_CHANGE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.ALL_SOUND_OFF, 0])
 }
@@ -45,6 +49,7 @@ function eventSendable(trackMuted, soloTrack, event) {
                 // Return false for all events meant to be controlled by user
                 case MIDI.VOLUME:
                 case MIDI.BALANCE:
+                case MIDI.PAN:
                     return false;
                 default:
                     return true;
@@ -90,6 +95,7 @@ function resetMidiControl(output) {
     for (let channel = 0; channel < MIDI.NUM_CHANNELS; channel++) {
         volumeChannel(output, channel, PLAYER.VOLUME.DEFAULT);
         balanceChannel(output, channel, PLAYER.BALANCE.DEFAULT);
+        panChannel(output, channel, PLAYER.PAN);
     }
 }
 
