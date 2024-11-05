@@ -2,8 +2,8 @@ if(document.currentScript.dataset.json){
     const medlemMapData = JSON.parse(document.currentScript.dataset.json);
 
     const map = L.map('map').setView([63.42256257910649, 10.395544839649341], 13);
-    L.tileLayer('https://opencache.statkart.no/gatekeeper/gk/gk.open_gmaps?layers=norges_grunnkart&zoom={z}&x={x}&y={y}', {
-        attribution: '<a href="http://www.kartverket.no/">Kartverket</a>'
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '<a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(map);
 
     async function getCord(adresse){
