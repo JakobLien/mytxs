@@ -13,6 +13,7 @@ export const MIDI = {
     METATYPE_TIME_SIGNATURE: 88,
 
     MESSAGE_TYPE_META: 255,
+    MESSAGE_TYPE_NOTEOFF: 8,
     MESSAGE_TYPE_NOTEON: 9,
     MESSAGE_TYPE_CONTROL_CHANGE: 11, // Also used for channel mode messages
 

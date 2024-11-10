@@ -1,0 +1,12 @@
+{% extends "mytxs/base.html" %}
+{% load static %}
+
+{% block content %}
+
+<script type="module" src="{% static 'mytxs/midi/singstar.js' %}" defer></script>
+<p>Stemmefil-singstar</p>
+<input type="file" id="filereader"/>
+<div id="uiDiv"></div>
+<canvas id="spectrumCanvas" width="800" height="300"></canvas>
+
+{% endblock %}
