@@ -4,6 +4,7 @@ import {MidiParser} from './midi-parser.js';
 import Mutex from './mutex.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
 import {createMasterUi, createTrackUi, uiSetProgress} from './ui.js';
+import { volumeChannel, balanceChannel, silenceChannel, silenceAll, sleep, resetMidiControl } from './player_utils.js';
 
 let playerIndex = 0;
 let playerTime = 0;
@@ -15,28 +16,6 @@ let loopActive = false;
 let loopStart = null;
 let loopEnd = null;
 const mutex = new Mutex();
-
-function volumeChannel(output, channel, value) {
-    output.send([(MIDI.MESSAGE_TYPE_CONTROL_CHANGE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.VOLUME, value])
-}
-
-function balanceChannel(output, channel, value) {
-    output.send([(MIDI.MESSAGE_TYPE_CONTROL_CHANGE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.BALANCE, value])
-}
-
-function panChannel(output, channel, value) {
-    output.send([(MIDI.MESSAGE_TYPE_CONTROL_CHANGE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.PAN, value])
-}
-
-function silenceChannel(output, channel) {
-    output.send([(MIDI.MESSAGE_TYPE_CONTROL_CHANGE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.ALL_SOUND_OFF, 0])
-}
-
-function silenceAll(output) {
-    for (let channel = 0; channel < MIDI.NUM_CHANNELS; channel++) {
-        silenceChannel(output, channel);
-    }
-}
 
 function eventSendable(trackMuted, soloTrack, event) {
     switch (event.type) {
@@ -57,10 +36,6 @@ function eventSendable(trackMuted, soloTrack, event) {
         default:
             return true;
     }
-}
-
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function startingIndexFromTime(allEvents, time) {
@@ -89,14 +64,6 @@ function startingIndexFromBar(allEvents, bar) {
         }
     }
     return high < allEvents.length ? high : low;
-}
-
-function resetMidiControl(output) {
-    for (let channel = 0; channel < MIDI.NUM_CHANNELS; channel++) {
-        volumeChannel(output, channel, PLAYER.VOLUME.DEFAULT);
-        balanceChannel(output, channel, PLAYER.BALANCE.DEFAULT);
-        panChannel(output, channel, PLAYER.PAN);
-    }
 }
 
 async function playRealtime(obj, uiDiv, output) {

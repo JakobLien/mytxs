@@ -1,12 +1,12 @@
 import {MIDI} from './midi_constants.js';
 import {PLAYER} from './player_constants.js';
 import {MidiParser} from './midi-parser.js'; 
-import Mutex from './mutex.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
-import {createMasterUi, createSingstarUi, createTrackUi, uiSetProgress} from './ui.js';
+import {createSingstarUi, uiSetProgress} from './ui.js';
 import { getNumBins, getSpectrum, startRecording } from './record.js';
 import { singstarScore } from './singstar_score.js';
 import { clearCanvas, drawSpectrum, initCanvas } from './spectrum_canvas.js';
+import { silenceAll, sleep, resetMidiControl } from './player_utils.js';
 
 let playerIndex = 0;
 let playerTime = 0;
@@ -14,28 +14,6 @@ let paused = true;
 const tempo = PLAYER.TEMPO.DEFAULT;
 const activeTones = new Map(); // Map of sets
 let singstarIndex;
-
-function volumeChannel(output, channel, value) {
-    output.send([(MIDI.MESSAGE_TYPE_CONTROL_CHANGE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.VOLUME, value])
-}
-
-function balanceChannel(output, channel, value) {
-    output.send([(MIDI.MESSAGE_TYPE_CONTROL_CHANGE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.BALANCE, value])
-}
-
-function panChannel(output, channel, value) {
-    output.send([(MIDI.MESSAGE_TYPE_CONTROL_CHANGE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.PAN, value])
-}
-
-function silenceChannel(output, channel) {
-    output.send([(MIDI.MESSAGE_TYPE_CONTROL_CHANGE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.ALL_SOUND_OFF, 0])
-}
-
-function silenceAll(output) {
-    for (let channel = 0; channel < MIDI.NUM_CHANNELS; channel++) {
-        silenceChannel(output, channel);
-    }
-}
 
 function eventSendable(event) {
     switch (event.type) {
@@ -55,46 +33,6 @@ function eventSendable(event) {
             }
         default:
             return true;
-    }
-}
-
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function startingIndexFromTime(allEvents, time) {
-    let low = 0;
-    let high = allEvents.length;
-    while (high > low + 1) {
-        const mid = Math.trunc((low + high)/2); // Fast integer division
-        if (allEvents[mid].timestamp >= time) {
-            high = mid;
-        } else {
-            low = mid;
-        }
-    }
-    return high < allEvents.length ? high : low;
-}
-
-function startingIndexFromBar(allEvents, bar) {
-    let low = 0;
-    let high = allEvents.length;
-    while (high > low + 1) {
-        const mid = Math.trunc((low + high)/2); // Fast integer division
-        if (allEvents[mid].bar >= bar) {
-            high = mid;
-        } else {
-            low = mid;
-        }
-    }
-    return high < allEvents.length ? high : low;
-}
-
-function resetMidiControl(output) {
-    for (let channel = 0; channel < MIDI.NUM_CHANNELS; channel++) {
-        volumeChannel(output, channel, PLAYER.VOLUME.DEFAULT);
-        balanceChannel(output, channel, PLAYER.BALANCE.DEFAULT);
-        panChannel(output, channel, PLAYER.PAN);
     }
 }
 
