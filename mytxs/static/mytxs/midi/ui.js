@@ -110,6 +110,7 @@ export function createSingstarUi(songDuration, songBars, tracks, pauseCallback) 
     progressBar.min = 0;
     progressBar.max = songDuration;
     progressBar.value = 0;
+    progressBar.readOnly = true; // Has no effect for range input, unfortunately
     uiDiv.appendChild(progressBar);
 
     const barLabel = document.createElement("label");
@@ -122,6 +123,7 @@ export function createSingstarUi(songDuration, songBars, tracks, pauseCallback) 
     barNumber.min = 0; // 1?
     barNumber.max = songBars;
     barNumber.value = 0;
+    barNumber.readOnly = true;
     uiDiv.appendChild(barNumber);
 
     const trackSelect = document.createElement("select");
