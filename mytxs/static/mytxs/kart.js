@@ -6,17 +6,7 @@ if(document.currentScript.dataset.json){
         attribution: '<a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(map);
 
-    async function getCord(adresse){
-        const cord = await fetch('https://ws.geonorge.no/adresser/v1/sok?sok='+adresse).then(
-            response => response.json(),
-        );
-        if(cord.adresser.length == 0){return false};
-        return cord.adresser[0].representasjonspunkt;
-    }
-
-    async function addAdressToMap(medlem, adresse){
-        const cord = await getCord(adresse);
-        if(!cord){return};
+    function addAdressToMap(medlem, cord){
         const marker = L.marker([cord.lat, cord.lon]).addTo(map);
         marker.bindPopup(`<a href="/sjekkheftet/${medlem.storkorNavn}#m_${medlem.pk}">${medlem.navn}</a>`);
     }

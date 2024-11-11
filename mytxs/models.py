@@ -23,7 +23,7 @@ from mytxs.utils.googleCalendar import updateGoogleCalendar
 from mytxs.utils.modelCacheUtils import DbCacheModel, cacheQS, dbCache
 from mytxs.utils.modelUtils import NoReuseMin, annotateInstance, bareAktiveDecorator, qBool, groupBy, getInstancesForKor, isStemmegruppeVervNavn, korLookup, stemmegruppeOrdering, strToModels, validateBruktIKode, validateM2MFieldEmpty, validateStartSlutt, vervInnehavelseAktiv, stemmegruppeVerv
 from mytxs.utils.navBar import navBarNode
-from mytxs.utils.utils import cropImage, getHalvårStart
+from mytxs.utils.utils import cropImage, getCord, getHalvårStart
 
 
 class LoggQuerySet(models.QuerySet):
@@ -406,6 +406,14 @@ class Medlem(DbCacheModel):
     emnekoder = models.CharField(blank=True)
     boAdresse = models.CharField(max_length=100, blank=True, verbose_name='Bo adresse')
     foreldreAdresse = models.CharField(max_length=100, blank=True, verbose_name='Foreldre adresse')
+
+    @dbCache
+    def boAdresseCord(self):
+        return getCord(self.boAdresse)
+    
+    @dbCache
+    def foreldreAdresseCord(self):
+        return getCord(self.foreldreAdresse)
 
     sjekkhefteSynlig = BitmapMultipleChoiceField(choicesList=consts.sjekkhefteSynligOptions, verbose_name='Synlig i sjekkheftet', editable=False)
     matpreferanse = BitmapMultipleChoiceField(choicesList=consts.matpreferanseOptions)

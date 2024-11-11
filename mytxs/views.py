@@ -163,12 +163,11 @@ def sjekkheftet(request, side, underside=None):
             'filterForm': medlemFilterForm
         })
     
-    #Du skulle endre noe her?
     if side == 'kart':
         request.medlemMapData = json.dumps([{
             'navn': medlem.navn,
-            'boAdresse': medlem.public__boAdresse,
-            'foreldreAdresse': medlem.public__foreldreAdresse,
+            'boAdresse': medlem.boAdresseCord() if medlem.public__boAdresse else None,
+            'foreldreAdresse': medlem.foreldreAdresseCord() if medlem.public__foreldreAdresse else None,
             'storkorNavn': medlem.storkorNavn(),
             'pk': medlem.pk
         } for medlem in Medlem.objects.distinct().filter(
