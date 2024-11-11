@@ -29,6 +29,14 @@ export function getMagnitude(freq) {
     return closestBin < numBins ? spectrum[closestBin] : 0;
 }
 
+export function getNumBins() {
+    return numBins;
+}
+
+export function getSpectrum() {
+    return spectrum;
+}
+
 export function startRecording(triggerElement, triggerEventType) {
     // Check for browser support
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {

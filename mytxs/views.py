@@ -1144,3 +1144,9 @@ def midi(request):
     return render(request, 'mytxs/midi.html', {
         'heading': 'Spill midifil'
     })
+
+@login_required
+def singstar(request):
+    return render(request, 'mytxs/singstar.html', {
+        'heading': 'Singstar'
+    })

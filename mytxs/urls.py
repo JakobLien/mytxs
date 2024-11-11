@@ -40,6 +40,8 @@ urlpatterns = [
     path('medlem', views.medlemListe, name='medlem'),
     path('medlem/<int:medlemPK>', views.medlem, name='medlem'),
 
+    path('singstar', views.singstar, name='singstar'),
+
     path('sjekkheftet/<str:side>', views.sjekkheftet, name='sjekkheftet'),
     path('sjekkheftet/<str:side>/<str:underside>', views.sjekkheftet, name='sjekkheftet'),
 

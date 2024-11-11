@@ -3,22 +3,17 @@ import {PLAYER} from './player_constants.js';
 import {MidiParser} from './midi-parser.js'; 
 import Mutex from './mutex.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
-import {createMasterUi, createTrackUi, uiSetProgress} from './ui.js';
-import { startRecording } from './record.js';
+import {createMasterUi, createSingstarUi, createTrackUi, uiSetProgress} from './ui.js';
+import { getNumBins, getSpectrum, startRecording } from './record.js';
 import { singstarScore } from './singstar_score.js';
+import { clearCanvas, drawSpectrum, initCanvas } from './spectrum_canvas.js';
 
 let playerIndex = 0;
 let playerTime = 0;
 let paused = true;
-let tempo = PLAYER.TEMPO.DEFAULT;
-const trackMuted = new Map();
+const tempo = PLAYER.TEMPO.DEFAULT;
 const activeTones = new Map(); // Map of sets
-let soloTrack = null;
-let loopActive = false;
-let loopStart = null;
-let loopEnd = null;
-const mutex = new Mutex();
-let singstarIndex = 3;
+let singstarIndex;
 
 function volumeChannel(output, channel, value) {
     output.send([(MIDI.MESSAGE_TYPE_CONTROL_CHANGE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.VOLUME, value])
@@ -42,12 +37,12 @@ function silenceAll(output) {
     }
 }
 
-function eventSendable(trackMuted, soloTrack, event) {
+function eventSendable(event) {
     switch (event.type) {
         case MIDI.MESSAGE_TYPE_META:
             return false;
         case MIDI.MESSAGE_TYPE_NOTEON:
-            return !trackMuted.get(event.trackId) && (soloTrack == null || soloTrack == event.trackId);
+            return true;
         case MIDI.MESSAGE_TYPE_CONTROL_CHANGE:
             switch (event.data[0]) { 
                 // Return false for all events meant to be controlled by user
@@ -103,7 +98,7 @@ function resetMidiControl(output) {
     }
 }
 
-async function playRealtime(obj, uiDiv, output) {
+async function playSingstar(obj, uiDiv, output) {
     // Reset
     uiDiv.innerHTML = "";
     resetMidiControl(output);
@@ -120,8 +115,9 @@ async function playRealtime(obj, uiDiv, output) {
     // Process events into a playable format
     const allEvents = [];
     for (const i in obj.track) {
-        const events = obj.track[i].event;
-
+        const track = obj.track[i];
+        track.trackId = i;
+        const events = track.event;
         for (const e of events) {
             e.trackId = i;
         }
@@ -147,28 +143,6 @@ async function playRealtime(obj, uiDiv, output) {
     const songDuration = allEvents[allEvents.length - 1].timestamp;
     const songBars = Math.floor(allEvents[allEvents.length - 1].bar);
 
-    const progressCallback = async e => {
-        silenceAll(output);
-        const jumpTime = e.target.value;
-        const unlock = await mutex.lock();
-        playerIndex = startingIndexFromTime(allEvents, jumpTime);
-        playerTime = jumpTime; // Better than allEvents[playerIndex].timestamp, because this allows jumps to the middle of long notes
-        uiSetProgress(playerTime, allEvents[playerIndex].bar);
-        unlock();
-    };
-
-    const barNumberCallback = async e => {
-        silenceAll(output);
-        const jumpBar = e.target.value;
-        const unlock = await mutex.lock();
-        playerIndex = startingIndexFromBar(allEvents, jumpBar);
-        playerTime = allEvents[playerIndex].timestamp;
-        uiSetProgress(playerTime, allEvents[playerIndex].bar);
-        unlock();
-    };
-
-    const tempoBarCallback = e => tempo = e.target.value;
-
     let resume;
     function createPausePromise() {
         return new Promise((resolve) => {
@@ -187,15 +161,6 @@ async function playRealtime(obj, uiDiv, output) {
         }
     };
 
-    loopStart = 0;
-    const loopStartCallback = (e) => loopStart = e.target.value;
-    loopEnd = songBars;
-    const loopEndCallback = (e) => loopEnd = e.target.value;
-    const loopActiveCallback = () => loopActive = !loopActive;
-
-    const masterUi = createMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback, loopStartCallback, loopEndCallback, loopActiveCallback);
-    uiDiv.appendChild(masterUi);
-
     // Create UI for tracks which have noteon events
     for (let i = 0; i < obj.track.length; i++) {
         const track = obj.track[i];
@@ -211,31 +176,10 @@ async function playRealtime(obj, uiDiv, output) {
         } else { 
             track.label = "Track " + i;
         }
-
-        const trackId = track.event[0].trackId;
-        activeTones.set(trackId, new Set());
-        const volumeCallback = e => volumeChannel(output, trackId, e.target.value);
-        const balanceCallback = e => balanceChannel(output, trackId, e.target.value);
-        trackMuted.set(trackId, false);
-        const muteCallback = e => {
-            const wasMuted = trackMuted.get(trackId);
-            if (!wasMuted) {
-                silenceChannel(output, trackId);
-            }
-            e.target.innerText = wasMuted ? "Mute" : "Unmute";
-            trackMuted.set(trackId, !wasMuted);
-        };
-        const soloCallback = e => {
-            if (soloTrack == trackId) {
-                e.target.checked = false;
-                soloTrack = null;
-            } else {
-                soloTrack = trackId;
-            }
-        };
-        const trackUi = createTrackUi(track.label, volumeCallback, balanceCallback, muteCallback, soloCallback);
-        uiDiv.appendChild(trackUi);
     }
+
+    const singstarUi = createSingstarUi(songDuration, songBars, obj.track, pauseCallback);
+    uiDiv.appendChild(singstarUi);
 
     // Play
     while (true) {
@@ -246,46 +190,36 @@ async function playRealtime(obj, uiDiv, output) {
             if (paused) {
                 await pausePromise;
             } else {
-                const unlock = await mutex.lock();
                 const e = allEvents[playerIndex];
-                if (loopActive && e.bar >= loopEnd) {
-                    // Jump to start of loop
-                    silenceAll(output);
-                    playerIndex = startingIndexFromBar(allEvents, loopStart);
-                    playerTime = allEvents[playerIndex].timestamp;
-                    uiSetProgress(playerTime, allEvents[playerIndex].bar);
-                } else {
-                    // Wait until event
-                    const dt = e.timestamp - playerTime;
-                    if (dt > 0) {
-                        await sleep(dt/1000/tempo);
-                    }
-                    // Consider whether to actually send message
-                    if (eventSendable(trackMuted, soloTrack, e)) {
-                        const message = [(e.type << MIDI.STATUS_MSB_OFFSET) | e.trackId];
-                        const data = Array.isArray(e.data) ? e.data : [e.data];
-                        message.push(...data);
-                        try {
-                            const trackTones = activeTones.get(e.trackId);
-                            if (e.type == MIDI.MESSAGE_TYPE_NOTEON) {
-                                trackTones.add(e.data[0]);
-                            } else if (e.type == MIDI.MESSAGE_TYPE_NOTEOFF) {
-                                if (e.trackId == singstarIndex) {
-                                    console.log(singstarScore(trackTones));
-                                }
-                                trackTones.delete(e.data[0]);
-                            }
-                            output.send(message);
-                        } catch (err) {
-                            console.error(err, e);
-                        }
-                    }
-                    // Update player state
-                    playerTime = e.timestamp;
-                    playerIndex += 1;
-                    uiSetProgress(playerTime, e.bar);
+                // Wait until event
+                const dt = e.timestamp - playerTime;
+                if (dt > 0) {
+                    await sleep(dt/1000/tempo);
                 }
-                unlock();
+                // Consider whether to actually send message
+                if (eventSendable(e)) {
+                    const message = [(e.type << MIDI.STATUS_MSB_OFFSET) | e.trackId];
+                    const data = Array.isArray(e.data) ? e.data : [e.data];
+                    message.push(...data);
+                    try {
+                        const trackTones = activeTones.get(e.trackId);
+                        if (e.type == MIDI.MESSAGE_TYPE_NOTEON) {
+                            trackTones.add(e.data[0]);
+                        } else if (e.type == MIDI.MESSAGE_TYPE_NOTEOFF) {
+                            if (e.trackId == singstarIndex) {
+                                console.log(singstarScore(trackTones));
+                            }
+                            trackTones.delete(e.data[0]);
+                        }
+                        output.send(message);
+                    } catch (err) {
+                        console.error(err, e);
+                    }
+                }
+                // Update player state
+                playerTime = e.timestamp;
+                playerIndex += 1;
+                uiSetProgress(playerTime, e.bar);
             }
         }
     }
@@ -299,15 +233,22 @@ window.navigator.requestMIDIAccess().then(
             console.log(event.port.name, event.port.manufacturer, event.port.state);
         };
         const iter = outputs.values();
-        iter.next();
         const output = iter.next().value;
 
         const source = document.getElementById('filereader');
         const uiDiv = document.getElementById('uiDiv');
 
-        // testFft();
+        MidiParser.parse(source, obj => playSingstar(obj, uiDiv, output));
+
+        initCanvas();
         startRecording(uiDiv, "click");
 
-        MidiParser.parse(source, obj => playRealtime(obj, uiDiv, output));
+        function displaySpectrumLoop() {
+            requestAnimationFrame(displaySpectrumLoop); // Repeat in next animation frame
+            clearCanvas();
+            drawSpectrum(getSpectrum(), getNumBins());
+        }
+
+        displaySpectrumLoop(); // Start capturing audio data
     }
 );

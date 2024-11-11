@@ -92,6 +92,55 @@ export function createMasterUi(songDuration, songBars, progressCallback, barNumb
     return uiDiv;
 }
 
+export function createSingstarUi(songDuration, songBars, tracks, pauseCallback) {
+    const uiDiv = document.createElement("div");
+
+    const progressSpan = document.createElement("span");
+    progressSpan.innerText = usToMinSec(0);
+    progressSpan.id = "progressSpan";
+    uiDiv.appendChild(progressSpan);
+
+    const durationSpan = document.createElement("span");
+    durationSpan.innerText = "".concat(" / ", usToMinSec(songDuration));
+    uiDiv.appendChild(durationSpan);
+
+    const progressBar = document.createElement("input");
+    progressBar.type = "range";
+    progressBar.id = "progressBar";
+    progressBar.min = 0;
+    progressBar.max = songDuration;
+    progressBar.value = 0;
+    uiDiv.appendChild(progressBar);
+
+    const barLabel = document.createElement("label");
+    barLabel.innerText = "Bar";
+    uiDiv.appendChild(barLabel);
+
+    const barNumber = document.createElement("input");
+    barNumber.type = "number";
+    barNumber.id = "barNumber";
+    barNumber.min = 0; // 1?
+    barNumber.max = songBars;
+    barNumber.value = 0;
+    uiDiv.appendChild(barNumber);
+
+    const trackSelect = document.createElement("select");
+    for (const track of tracks) {
+        const option = document.createElement("option");
+        option.value = track.trackId;
+        option.innerText = track.label;
+        trackSelect.appendChild(option);
+    }
+    uiDiv.appendChild(trackSelect);
+
+    const pauseButton = document.createElement("button");
+    pauseButton.innerText = "Play";
+    pauseButton.onclick = pauseCallback;
+    uiDiv.appendChild(pauseButton);
+
+    return uiDiv;
+}
+
 export function createTrackUi(label, volumeCallback, balanceCallback, muteCallback, soloCallback) {
     const uiDiv = document.createElement("div");
     uiDiv.innerText = label;
