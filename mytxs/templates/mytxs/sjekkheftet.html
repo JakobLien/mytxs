@@ -103,9 +103,11 @@
 
 {% endfor %}
 
+{% block vcard %}
 <br><a href="{% setURLParams vcard='true' %}">Last ned vCard for alle på siden</a>
 <span title="For å laste ned alle på iphone, trykk del knappen på popupen, og åpne i kontakter. 
 Da får du opp en liste av vcards der du kan importere alle.">(?)</span>
+{% endblock %}
 
 {% endblock%}
 

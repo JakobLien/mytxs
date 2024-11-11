@@ -4,6 +4,8 @@
 {% block beforeSjekkheftetContent %}
 
 <p> Her kan du se hvem du har felles emner med dette semesteret. <br>
-Tomt? Gå til medlemsregisterdata og legg til emnekodene dine inn i feltet 'Emnekoder'.</p>
+Tomt? Gå til <a href="{% url 'medlem' user.medlem.pk %}">medlemsregisterdata</a> og legg til emnekodene dine inn i feltet 'Emnekoder'.</p>
 
 {% endblock %}
+
+{% block vcard %}{% endblock %}
