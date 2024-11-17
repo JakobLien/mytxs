@@ -2,18 +2,54 @@ import {MIDI} from './midi_constants.js';
 import {PLAYER} from './player_constants.js';
 import {MidiParser} from './midi-parser.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
-import {createSingstarUi, uiSetProgress} from './ui.js';
+import {createSingstarUi, uiSetProgress, uiSetScore} from './ui.js';
 import { getNumBins, getSpectrum, startRecording } from './record.js';
 import { singstarScore } from './singstar_score.js';
 import { clearCanvas, drawSpectrum, initCanvas } from './spectrum_canvas.js';
 import { silenceAll, sleep, resetMidiControl } from './player_utils.js';
+import Mutex from './mutex.js';
 
 let playerIndex = 0;
 let playerTime = 0;
-let paused = true;
+let score = 0;
 const tempo = PLAYER.TEMPO.DEFAULT;
 const activeTones = new Map(); // Map of sets
 let singstarIndex;
+const mutex = new Mutex();
+
+let stopped = true;
+
+let start;
+function createStartPromise() {
+    return new Promise((resolve) => {
+        start = resolve;
+    });
+}
+let startPromise = createStartPromise();
+
+async function startSession() {
+    // Act only if actually stopped
+    const unlock = await mutex.lock();
+    if (stopped) {
+        const startButton = document.getElementById("startButton");
+        startButton.innerText = "Stop";
+        stopped = false;
+        start();
+    }
+    unlock();
+}
+
+async function stopSession() {
+    // Act only if actually started
+    const unlock = await mutex.lock();
+    if (!stopped) {
+        const startButton = document.getElementById("startButton");
+        startButton.innerText = "Start";
+        stopped = true;
+        startPromise = createStartPromise(); // Prepare promise before telling main thread that session is stopped
+    }
+    unlock();
+}
 
 function eventSendable(event) {
     switch (event.type) {
@@ -77,29 +113,7 @@ async function playSingstar(obj, uiDiv, output) {
     }
     uiDiv.appendChild(songNameHeader);
 
-    // Create master UI
-    const songDuration = allEvents[allEvents.length - 1].timestamp;
-    const songBars = Math.floor(allEvents[allEvents.length - 1].bar);
-
-    let resume;
-    function createPausePromise() {
-        return new Promise((resolve) => {
-            resume = resolve;
-        });
-    }
-    let pausePromise = createPausePromise();
-    const pauseCallback = e => {
-        paused = !paused;
-        e.target.innerText = paused ? "Play" : "Pause";
-        if (paused) {
-            silenceAll(output);
-            pausePromise = createPausePromise();
-        } else {
-            resume();
-        }
-    };
-
-    // Create UI for tracks which have noteon events
+    // Label tracks and initialize activeTones
     for (let i = 0; i < obj.track.length; i++) {
         const track = obj.track[i];
 
@@ -114,19 +128,35 @@ async function playSingstar(obj, uiDiv, output) {
         } else { 
             track.label = "Track " + i;
         }
+
+        activeTones.set("" + i, new Set());
     }
 
-    const singstarUi = createSingstarUi(songDuration, songBars, obj.track, pauseCallback);
+    // Create singstar UI
+    const songDuration = allEvents[allEvents.length - 1].timestamp;
+    const songBars = Math.floor(allEvents[allEvents.length - 1].bar);
+    const trackSelectCallback = e => singstarIndex = e.target.value;
+    const startCallback = async () => {
+        if (stopped) {
+            await startSession();
+        } else {
+            await stopSession();
+            silenceAll(output);
+        }
+    };
+    const singstarUi = createSingstarUi(songDuration, songBars, obj.track, trackSelectCallback, startCallback);
     uiDiv.appendChild(singstarUi);
 
     // Play
-    while (true) {
+    outer: while (true) {
         playerTime = 0;
         playerIndex = 0;
+        score = 0;
         while (playerIndex < allEvents.length) {
             // Play if not paused
-            if (paused) {
-                await pausePromise;
+            if (stopped) {
+                await startPromise;
+                continue outer; // Restart without stopping session, see below
             } else {
                 const e = allEvents[playerIndex];
                 // Wait until event
@@ -145,7 +175,7 @@ async function playSingstar(obj, uiDiv, output) {
                             trackTones.add(e.data[0]);
                         } else if (e.type == MIDI.MESSAGE_TYPE_NOTEOFF) {
                             if (e.trackId == singstarIndex) {
-                                console.log(singstarScore(trackTones));
+                                score += singstarScore(trackTones);
                             }
                             trackTones.delete(e.data[0]);
                         }
@@ -158,8 +188,10 @@ async function playSingstar(obj, uiDiv, output) {
                 playerTime = e.timestamp;
                 playerIndex += 1;
                 uiSetProgress(playerTime, e.bar);
+                uiSetScore(score);
             }
         }
+        await stopSession(); // Must only be called if player reaches end by itself
     }
 }
 

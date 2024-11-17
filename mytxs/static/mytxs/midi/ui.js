@@ -1,3 +1,4 @@
+import { MIDI } from './midi_constants.js';
 import {PLAYER} from './player_constants.js';
 
 export function createMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback, loopStartCallback, loopEndCallback, loopActiveCallback) {
@@ -92,7 +93,7 @@ export function createMasterUi(songDuration, songBars, progressCallback, barNumb
     return uiDiv;
 }
 
-export function createSingstarUi(songDuration, songBars, tracks, pauseCallback) {
+export function createSingstarUi(songDuration, songBars, tracks, trackSelectCallback, startCallback) {
     const uiDiv = document.createElement("div");
 
     const progressSpan = document.createElement("span");
@@ -127,18 +128,33 @@ export function createSingstarUi(songDuration, songBars, tracks, pauseCallback) 
     uiDiv.appendChild(barNumber);
 
     const trackSelect = document.createElement("select");
+    const option = document.createElement("option");
+    option.innerText = "Velg et spor";
+    option.disabled = true;
+    option.selected = true;
+    trackSelect.appendChild(option);
     for (const track of tracks) {
+        if (track.event.every(e => e.type != MIDI.MESSAGE_TYPE_NOTEON)) {
+            continue;
+        }
         const option = document.createElement("option");
         option.value = track.trackId;
         option.innerText = track.label;
         trackSelect.appendChild(option);
     }
+    trackSelect.oninput = trackSelectCallback;
     uiDiv.appendChild(trackSelect);
 
-    const pauseButton = document.createElement("button");
-    pauseButton.innerText = "Play";
-    pauseButton.onclick = pauseCallback;
-    uiDiv.appendChild(pauseButton);
+    const startButton = document.createElement("button");
+    startButton.innerText = "Start";
+    startButton.id = "startButton";
+    startButton.onclick = startCallback;
+    uiDiv.appendChild(startButton);
+
+    const scoreSpan = document.createElement("span");
+    scoreSpan.innerText = "N/A";
+    scoreSpan.id = "scoreSpan";
+    uiDiv.appendChild(scoreSpan);
 
     return uiDiv;
 }
@@ -201,3 +217,7 @@ export function uiSetProgress(time, bar) {
     barNumber.value = Math.floor(bar);
 }
 
+export function uiSetScore(score) {
+    const scoreSpan = document.getElementById("scoreSpan");
+    scoreSpan.innerText = score;
+}
