@@ -3,7 +3,7 @@ import {PLAYER} from './player_constants.js';
 import {MidiParser} from './midi-parser.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
 import {createSingstarUi, uiSetProgress, uiSetScore} from './ui.js';
-import { getNumBins, getSpectrum, startRecording } from './record.js';
+import { getSpectrum, startRecording } from './record.js';
 import { singstarScore } from './singstar_score.js';
 import { clearCanvas, drawSpectrum, drawTargets, initCanvas } from './spectrum_canvas.js';
 import { silenceAll, sleep, resetMidiControl } from './player_utils.js';
@@ -210,19 +210,18 @@ window.navigator.requestMIDIAccess().then(
 
         MidiParser.parse(source, obj => playSingstar(obj, uiDiv, output));
 
-        initCanvas();
         startRecording(uiDiv, "click");
 
+        initCanvas();
         function displaySpectrumLoop() {
             requestAnimationFrame(displaySpectrumLoop); // Repeat in next animation frame
             clearCanvas();
-            drawSpectrum(getSpectrum(), getNumBins());
+            drawSpectrum(getSpectrum());
             if (singstarIndex !== null) {
                 const targetTones = activeTones.get(singstarIndex);
-                drawTargets(targetTones, getNumBins());
+                drawTargets(targetTones);
             }
         }
-
         displaySpectrumLoop();
     }
 );
