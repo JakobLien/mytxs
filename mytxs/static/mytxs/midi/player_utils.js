@@ -1,5 +1,4 @@
-import {MIDI} from './midi_constants.js';
-import { PLAYER } from './player_constants.js';
+import { MIDI, PLAYER } from './constants.js';
 
 export function volumeChannel(output, channel, value) {
     output.send([(MIDI.MESSAGE_TYPE_CONTROL_CHANGE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.VOLUME, value])

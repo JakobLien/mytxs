@@ -1,4 +1,4 @@
-import {MIDI} from './midi_constants.js';
+import { MIDI } from './constants.js';
 
 export function tickstampEvents(trackEvents) {
     let ticks = 0;

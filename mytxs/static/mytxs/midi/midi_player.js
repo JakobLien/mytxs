@@ -1,5 +1,4 @@
-import {MIDI} from './midi_constants.js';
-import {PLAYER} from './player_constants.js';
+import { MIDI, PLAYER } from './constants.js';
 import {MidiParser} from './midi-parser.js'; 
 import Mutex from './mutex.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';

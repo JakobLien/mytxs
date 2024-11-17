@@ -1,5 +1,4 @@
-import { MIDI } from './midi_constants.js';
-import {PLAYER} from './player_constants.js';
+import { MIDI, PLAYER } from './constants.js';
 
 const SCORE_DECIMALS = 2;
 

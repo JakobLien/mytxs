@@ -1,6 +1,6 @@
 // https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode
 
-import { RECORD } from './record_constants.js';
+import { RECORD } from './constants.js';
 
 let spectrum;
 let numBins;
