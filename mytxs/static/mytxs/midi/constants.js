@@ -67,3 +67,12 @@ export const MIDI = {
     PAN: 10,
     ALL_SOUND_OFF: 120,
 };
+
+export const SINGSTAR = {
+    SCORE: {
+        BASE_HZ: 440,
+        BASE_TONE: 69,
+        RELATIVE_MAGNITUDE_LIMIT: 0.9,
+        DISPLAY_DECIMALS: 2,
+    },
+};

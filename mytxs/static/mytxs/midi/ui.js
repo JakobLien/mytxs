@@ -1,6 +1,4 @@
-import { MIDI, PLAYER } from './constants.js';
-
-const SCORE_DECIMALS = 2;
+import { MIDI, PLAYER, SINGSTAR } from './constants.js';
 
 export function createMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback, loopStartCallback, loopEndCallback, loopActiveCallback) {
     const uiDiv = document.createElement("div");
@@ -233,10 +231,10 @@ export function uiSetProgress(time, bar) {
 
 export function uiSetScore(score) {
     const scoreSpan = document.getElementById("scoreSpan");
-    scoreSpan.innerText = score.toFixed(SCORE_DECIMALS);
+    scoreSpan.innerText = score.toFixed(SINGSTAR.SCORE.DISPLAY_DECIMALS);
 }
 
 export function uiSetHighscore(highscore) {
     const highscoreSpan = document.getElementById("highscoreSpan");
-    highscoreSpan.innerText = highscore.toFixed(SCORE_DECIMALS);
+    highscoreSpan.innerText = highscore.toFixed(SINGSTAR.SCORE.DISPLAY_DECIMALS);
 }
