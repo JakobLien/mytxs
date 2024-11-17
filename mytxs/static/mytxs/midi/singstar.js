@@ -2,7 +2,7 @@ import {MIDI} from './midi_constants.js';
 import {PLAYER} from './player_constants.js';
 import {MidiParser} from './midi-parser.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
-import {createSingstarUi, uiSetProgress, uiSetScore} from './ui.js';
+import {createSingstarUi, uiSetHighscore, uiSetProgress, uiSetScore} from './ui.js';
 import { getSpectrum, startRecording } from './record.js';
 import { singstarScore } from './singstar_score.js';
 import { clearCanvas, drawSpectrum, drawTargets, initCanvas } from './spectrum_canvas.js';
@@ -12,6 +12,7 @@ import Mutex from './mutex.js';
 let playerIndex = 0;
 let playerTime = 0;
 let score = 0;
+let highscore = 0;
 const tempo = PLAYER.TEMPO.DEFAULT;
 const activeTones = new Map(); // Map of sets
 let singstarIndex = null;
@@ -147,51 +148,66 @@ async function playSingstar(obj, uiDiv, output) {
     const singstarUi = createSingstarUi(songDuration, songBars, obj.track, trackSelectCallback, startCallback);
     uiDiv.appendChild(singstarUi);
 
-    // Play
-    outer: while (true) {
+    // Session loop
+    while (true) {
+
+        // Prepare session
         playerTime = 0;
         playerIndex = 0;
         score = 0;
-        while (playerIndex < allEvents.length) {
-            // Play if not paused
+
+        // Run session
+        while (true) {
+
+            // End session if any stop conditions are fulfilled
             if (stopped) {
                 await startPromise;
-                continue outer; // Restart without stopping session, see below
-            } else {
-                const e = allEvents[playerIndex];
-                // Wait until event
-                const dt = e.timestamp - playerTime;
-                if (dt > 0) {
-                    await sleep(dt/1000/tempo);
-                }
-                // Consider whether to actually send message
-                if (eventSendable(e)) {
-                    const message = [(e.type << MIDI.STATUS_MSB_OFFSET) | e.trackId];
-                    const data = Array.isArray(e.data) ? e.data : [e.data];
-                    message.push(...data);
-                    try {
-                        const trackTones = activeTones.get(e.trackId);
-                        if (e.type == MIDI.MESSAGE_TYPE_NOTEON) {
-                            trackTones.add(e.data[0]);
-                        } else if (e.type == MIDI.MESSAGE_TYPE_NOTEOFF) {
-                            if (e.trackId == singstarIndex) {
-                                score += singstarScore(trackTones);
-                            }
-                            trackTones.delete(e.data[0]);
-                        }
-                        output.send(message);
-                    } catch (err) {
-                        console.error(err, e);
-                    }
-                }
-                // Update player state
-                playerTime = e.timestamp;
-                playerIndex += 1;
-                uiSetProgress(playerTime, e.bar);
-                uiSetScore(score);
+                break;
+            } else if (playerIndex >= allEvents.length) {
+                stopSession();
+                break;
+            } 
+
+            // Handle MIDI event
+            const e = allEvents[playerIndex];
+            // Wait until event
+            const dt = e.timestamp - playerTime;
+            if (dt > 0) {
+                await sleep(dt/1000/tempo);
             }
+            // Consider whether to actually send message
+            if (eventSendable(e)) {
+                const message = [(e.type << MIDI.STATUS_MSB_OFFSET) | e.trackId];
+                const data = Array.isArray(e.data) ? e.data : [e.data];
+                message.push(...data);
+                try {
+                    const trackTones = activeTones.get(e.trackId);
+                    if (e.type == MIDI.MESSAGE_TYPE_NOTEON) {
+                        trackTones.add(e.data[0]);
+                    } else if (e.type == MIDI.MESSAGE_TYPE_NOTEOFF) {
+                        if (e.trackId == singstarIndex) {
+                            score += singstarScore(trackTones);
+                        }
+                        trackTones.delete(e.data[0]);
+                    }
+                    output.send(message);
+                } catch (err) {
+                    console.error(err, e);
+                }
+            }
+
+            // Update player state
+            playerTime = e.timestamp;
+            playerIndex += 1;
+            uiSetProgress(playerTime, e.bar);
+            uiSetScore(score);
         }
-        await stopSession(); // Must only be called if player reaches end by itself
+
+        // Post-processing of session
+        if (highscore < score) {
+            highscore = score;
+            uiSetHighscore(highscore);
+        }
     }
 }
 

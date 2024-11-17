@@ -156,6 +156,15 @@ export function createSingstarUi(songDuration, songBars, tracks, trackSelectCall
     scoreSpan.id = "scoreSpan";
     uiDiv.appendChild(scoreSpan);
 
+    const highscoreLabel = document.createElement("label");
+    highscoreLabel.innerText = "Highscore: ";
+    uiDiv.appendChild(highscoreLabel);
+
+    const highscoreSpan = document.createElement("span");
+    highscoreSpan.innerText = "N/A";
+    highscoreSpan.id = "highscoreSpan";
+    uiDiv.appendChild(highscoreSpan);
+
     return uiDiv;
 }
 
@@ -220,4 +229,9 @@ export function uiSetProgress(time, bar) {
 export function uiSetScore(score) {
     const scoreSpan = document.getElementById("scoreSpan");
     scoreSpan.innerText = score;
+}
+
+export function uiSetHighscore(highscore) {
+    const highscoreSpan = document.getElementById("highscoreSpan");
+    highscoreSpan.innerText = highscore;
 }
