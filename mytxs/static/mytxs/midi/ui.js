@@ -151,6 +151,10 @@ export function createSingstarUi(songDuration, songBars, tracks, trackSelectCall
     startButton.onclick = startCallback;
     uiDiv.appendChild(startButton);
 
+    const scoreLabel = document.createElement("label");
+    scoreLabel.innerText = "Score: ";
+    uiDiv.appendChild(scoreLabel);
+
     const scoreSpan = document.createElement("span");
     scoreSpan.innerText = "N/A";
     scoreSpan.id = "scoreSpan";
