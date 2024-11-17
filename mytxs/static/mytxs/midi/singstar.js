@@ -5,7 +5,7 @@ import {tickstampEvents, timestampEvents} from './event_timing.js';
 import {createSingstarUi, uiSetProgress, uiSetScore} from './ui.js';
 import { getNumBins, getSpectrum, startRecording } from './record.js';
 import { singstarScore } from './singstar_score.js';
-import { clearCanvas, drawSpectrum, initCanvas } from './spectrum_canvas.js';
+import { clearCanvas, drawSpectrum, drawTargets, initCanvas } from './spectrum_canvas.js';
 import { silenceAll, sleep, resetMidiControl } from './player_utils.js';
 import Mutex from './mutex.js';
 
@@ -14,7 +14,7 @@ let playerTime = 0;
 let score = 0;
 const tempo = PLAYER.TEMPO.DEFAULT;
 const activeTones = new Map(); // Map of sets
-let singstarIndex;
+let singstarIndex = null;
 const mutex = new Mutex();
 
 let stopped = true;
@@ -217,8 +217,12 @@ window.navigator.requestMIDIAccess().then(
             requestAnimationFrame(displaySpectrumLoop); // Repeat in next animation frame
             clearCanvas();
             drawSpectrum(getSpectrum(), getNumBins());
+            if (singstarIndex !== null) {
+                const targetTones = activeTones.get(singstarIndex);
+                drawTargets(targetTones, getNumBins());
+            }
         }
 
-        displaySpectrumLoop(); // Start capturing audio data
+        displaySpectrumLoop();
     }
 );

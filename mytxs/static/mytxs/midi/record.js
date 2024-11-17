@@ -6,12 +6,12 @@ let spectrum;
 let numBins;
 let fs;
 
-function binToFreq(k, fs, n) {
-    return k*fs/n;
+function binToFreq(k) {
+    return k*fs/RECORD.FFT_SIZE;
 }
 
-function freqToClosestBin(f, fs, n) {
-    return Math.round(n*f/fs);
+export function freqToClosestBin(f) {
+    return Math.round(RECORD.FFT_SIZE*f/fs);
 }
 
 export function getLargestMagnitude() {
@@ -25,7 +25,7 @@ export function getLargestMagnitude() {
 }
 
 export function getMagnitude(freq) {
-    const closestBin = freqToClosestBin(freq, fs, RECORD.FFT_SIZE);
+    const closestBin = freqToClosestBin(freq);
     return closestBin < numBins ? spectrum[closestBin] : 0;
 }
 

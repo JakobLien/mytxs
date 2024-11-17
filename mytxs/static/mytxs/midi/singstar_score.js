@@ -6,7 +6,7 @@ const SINGSTAR_SCORE = {
     RELATIVE_MAGNITUDE_LIMIT: 0.9,
 }
 
-function toneToFreq(tone) {
+export function toneToFreq(tone) {
     return SINGSTAR_SCORE.BASE_HZ * 2 ** ((tone - SINGSTAR_SCORE.BASE_TONE) / 12);
 }
 
