@@ -3,7 +3,7 @@ import {MidiParser} from './midi-parser.js';
 import {tickstampEvents, timestampEvents} from './event_timing.js';
 import {uiCreateSingstarUi, uiReset, uiSetHighscore, uiSetProgress, uiSetScore, uiSetStartButtonText} from './ui.js';
 import { getSpectrum, startRecording } from './record.js';
-import { singstarScore } from './singstar_score.js';
+import { scoreGet } from './score.js';
 import { canvasClear, canvasDrawSpectrum, canvasDrawTargets, canvasInit } from './canvas.js';
 import { silenceAll, sleep, resetMidiControl } from './player_utils.js';
 import Mutex from './mutex.js';
@@ -183,7 +183,7 @@ async function playSingstar(obj, uiDiv, output) {
                         trackTones.add(e.data[0]);
                     } else if (e.type == MIDI.MESSAGE_TYPE_NOTEOFF) {
                         if (e.trackId == singstarIndex) {
-                            score += singstarScore(trackTones);
+                            score += scoreGet(trackTones);
                         }
                         trackTones.delete(e.data[0]);
                     }

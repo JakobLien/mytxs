@@ -1,5 +1,5 @@
 import { freqToClosestBin } from "./record.js";
-import { toneToFreq } from "./singstar_score.js";
+import { toneToFreq } from "./score.js";
 import { CANVAS } from "./constants.js";
 
 let canvas;
