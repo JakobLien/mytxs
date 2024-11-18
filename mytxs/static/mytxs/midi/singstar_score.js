@@ -1,3 +1,4 @@
+import { SINGSTAR } from "./constants.js";
 import { getLargestMagnitude, getMagnitude } from "./record.js";
 
 export function toneToFreq(tone) {
