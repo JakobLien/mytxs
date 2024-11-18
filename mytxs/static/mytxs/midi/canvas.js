@@ -6,17 +6,17 @@ let canvas;
 let ctx;
 let displayBins;
 
-export function initCanvas() {
+export function canvasInit() {
     canvas = document.getElementById('spectrumCanvas');
     ctx = canvas.getContext('2d');
     displayBins = freqToClosestBin(CANVAS.MAX_FREQ);
 }
 
-export function clearCanvas() {
+export function canvasClear() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
 
-export function drawSpectrum(spectrum) {
+export function canvasDrawSpectrum(spectrum) {
     const barWidth = canvas.width / displayBins;
     for (let i = 0; i < displayBins; i++) {
         const barHeight = spectrum[i];
@@ -25,7 +25,7 @@ export function drawSpectrum(spectrum) {
     }
 }
 
-export function drawTargets(activeTones) {
+export function canvasDrawTargets(activeTones) {
     const barWidth = canvas.width / displayBins;
     for (const tone of activeTones) {
         const freq = toneToFreq(tone);

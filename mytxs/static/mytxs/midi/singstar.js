@@ -4,7 +4,7 @@ import {tickstampEvents, timestampEvents} from './event_timing.js';
 import {uiCreateSingstarUi, uiReset, uiSetHighscore, uiSetProgress, uiSetScore, uiSetStartButtonText} from './ui.js';
 import { getSpectrum, startRecording } from './record.js';
 import { singstarScore } from './singstar_score.js';
-import { clearCanvas, drawSpectrum, drawTargets, initCanvas } from './spectrum_canvas.js';
+import { canvasClear, canvasDrawSpectrum, canvasDrawTargets, canvasInit } from './canvas.js';
 import { silenceAll, sleep, resetMidiControl } from './player_utils.js';
 import Mutex from './mutex.js';
 
@@ -225,16 +225,16 @@ window.navigator.requestMIDIAccess().then(
 
         startRecording(uiDiv, "click");
 
-        initCanvas();
-        function displaySpectrumLoop() {
-            requestAnimationFrame(displaySpectrumLoop); // Repeat in next animation frame
-            clearCanvas();
-            drawSpectrum(getSpectrum());
+        canvasInit();
+        function drawSpectrumLoop() {
+            requestAnimationFrame(drawSpectrumLoop); // Repeat in next animation frame
+            canvasClear();
+            canvasDrawSpectrum(getSpectrum());
             if (singstarIndex !== null) {
                 const targetTones = activeTones.get(singstarIndex);
-                drawTargets(targetTones);
+                canvasDrawTargets(targetTones);
             }
         }
-        displaySpectrumLoop();
+        drawSpectrumLoop();
     }
 );
