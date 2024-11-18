@@ -1,7 +1,7 @@
 import { MIDI, PLAYER } from './constants.js';
 import {MidiParser} from './midi-parser.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
-import {uiCreateSingstarUi, uiReset, uiSetHighscore, uiSetProgress, uiSetScore, uiSetStartButtonText} from './ui.js';
+import {uiPopulateSingstarUi, uiReset, uiSetHighscore, uiSetProgress, uiSetScore, uiSetStartButtonText} from './ui.js';
 import { freqGetSpectrum, freqStartRecording } from './freq.js';
 import { scoreGet } from './score.js';
 import { canvasClear, canvasDrawSpectrum, canvasDrawTargets, canvasInit } from './canvas.js';
@@ -70,7 +70,7 @@ function eventSendable(event) {
     }
 }
 
-async function playSingstar(obj, uiDiv) {
+async function playSingstar(obj) {
     // Reset
     uiReset();
     playerReset();
@@ -101,7 +101,7 @@ async function playSingstar(obj, uiDiv) {
     timestampEvents(allEvents, ticksPerBeat);
 
     // Create song name header
-    const songNameHeader = document.createElement("h1");
+    const songNameHeader = document.getElementById("songNameHeader");
     songNameHeader.innerText = "Nameless";
     for (const e of obj.track[0].event) {
         if (e.metaType == MIDI.METATYPE_TRACK_NAME) {
@@ -109,7 +109,6 @@ async function playSingstar(obj, uiDiv) {
             break;
         }
     }
-    uiDiv.appendChild(songNameHeader);
 
     // Label tracks and initialize activeTones
     for (let i = 0; i < obj.track.length; i++) {
@@ -142,8 +141,7 @@ async function playSingstar(obj, uiDiv) {
             playerSilenceAll();
         }
     };
-    const singstarUi = uiCreateSingstarUi(songDuration, songBars, obj.track, trackSelectCallback, startCallback);
-    uiDiv.appendChild(singstarUi);
+    uiPopulateSingstarUi(songDuration, songBars, obj.track, trackSelectCallback, startCallback);
 
     // Session loop
     while (true) {
@@ -211,7 +209,7 @@ window.onload = async () => {
     const source = document.getElementById('filereader');
     const uiDiv = document.getElementById('uiDiv');
 
-    MidiParser.parse(source, obj => playSingstar(obj, uiDiv));
+    MidiParser.parse(source, obj => playSingstar(obj));
 
     freqStartRecording(uiDiv, "click");
 

@@ -2,7 +2,7 @@ import { MIDI, PLAYER } from './constants.js';
 import {MidiParser} from './midi-parser.js'; 
 import Mutex from './mutex.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
-import {uiCreateMasterUi, uiCreateTrackUi, uiReset, uiSetProgress} from './ui.js';
+import {uiPopulateMasterUi, uiCreateTrackUi, uiReset, uiSetProgress} from './ui.js';
 import { playerVolume, playerBalance, playerSilence, playerSilenceAll, playerSleep, playerReset, playerInit, playerPlayEvent } from './player.js';
 
 let playerIndex = 0;
@@ -95,7 +95,7 @@ async function playRealtime(obj, uiDiv) {
     timestampEvents(allEvents, ticksPerBeat);
 
     // Create song name header
-    const songNameHeader = document.createElement("h1");
+    const songNameHeader = document.getElementById("songNameHeader");
     songNameHeader.innerText = "Nameless";
     for (const e of obj.track[0].event) {
         if (e.metaType == MIDI.METATYPE_TRACK_NAME) {
@@ -103,7 +103,6 @@ async function playRealtime(obj, uiDiv) {
             break;
         }
     }
-    uiDiv.appendChild(songNameHeader);
 
     // Create master UI
     const songDuration = allEvents[allEvents.length - 1].timestamp;
@@ -155,8 +154,7 @@ async function playRealtime(obj, uiDiv) {
     const loopEndCallback = (e) => loopEnd = e.target.value;
     const loopActiveCallback = () => loopActive = !loopActive;
 
-    const masterUi = uiCreateMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback, loopStartCallback, loopEndCallback, loopActiveCallback);
-    uiDiv.appendChild(masterUi);
+    uiPopulateMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback, loopStartCallback, loopEndCallback, loopActiveCallback);
 
     // Create UI for tracks which have noteon events
     for (let i = 0; i < obj.track.length; i++) {

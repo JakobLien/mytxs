@@ -1,139 +1,69 @@
 import { MIDI, PLAYER, SCORE } from './constants.js';
 
-export function uiCreateMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback, loopStartCallback, loopEndCallback, loopActiveCallback) {
-    const uiDiv = document.createElement("div");
-    uiDiv.id = "uiDiv";
-
-    const progressSpan = document.createElement("span");
+export function uiPopulateMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback, loopStartCallback, loopEndCallback, loopActiveCallback) {
+    const progressSpan = document.getElementById("progressSpan");
     progressSpan.innerText = usToMinSec(0);
-    progressSpan.id = "progressSpan";
-    uiDiv.appendChild(progressSpan);
 
-    const durationSpan = document.createElement("span");
+    const durationSpan = document.getElementById("durationSpan");
     durationSpan.innerText = "".concat(" / ", usToMinSec(songDuration));
-    uiDiv.appendChild(durationSpan);
 
-    const progressBar = document.createElement("input");
-    progressBar.type = "range";
-    progressBar.id = "progressBar";
+    const progressBar = document.getElementById("progressBar");
     progressBar.min = 0;
     progressBar.max = songDuration;
     progressBar.value = 0;
     progressBar.oninput = progressCallback;
-    uiDiv.appendChild(progressBar);
 
-    const barLabel = document.createElement("label");
-    barLabel.innerText = "Bar";
-    uiDiv.appendChild(barLabel);
-
-    const barNumber = document.createElement("input");
-    barNumber.type = "number";
-    barNumber.id = "barNumber";
+    const barNumber = document.getElementById("barNumber");
     barNumber.min = 0; // 1?
     barNumber.max = songBars;
     barNumber.value = 0;
     barNumber.oninput = barNumberCallback;
-    uiDiv.appendChild(barNumber);
 
-    const tempoLabel = document.createElement("label");
-    tempoLabel.innerText = "Tempo";
-    uiDiv.appendChild(tempoLabel);
-
-    const tempoBar = document.createElement("input");
-    tempoBar.type = "range";
+    const tempoBar = document.getElementById("tempoBar");
     tempoBar.min = PLAYER.TEMPO.MIN;
     tempoBar.max = PLAYER.TEMPO.MAX;
     tempoBar.value = PLAYER.TEMPO.DEFAULT;
     tempoBar.step = PLAYER.TEMPO.STEP;
     tempoBar.oninput = tempoBarCallback;
-    uiDiv.appendChild(tempoBar);
 
-    // TODO
-    // let volumeLabel = document.createElement("label");
-    // volumeLabel.innerText = "Master volume";
-    // uiDiv.appendChild(volumeLabel);
-
-    // let volumeSlider = document.createElement("input");
-    // volumeSlider.type = "range";
-    // volumeSlider.min = 0;
-    // volumeSlider.max = 100;
-    // volumeSlider.value = 50;
-    // uiDiv.appendChild(volumeSlider);
-
-    const pauseButton = document.createElement("button");
-    pauseButton.innerText = "Play";
+    const pauseButton = document.getElementById("pauseButton");
     pauseButton.onclick = pauseCallback;
-    uiDiv.appendChild(pauseButton);
 
-    const loopLabel = document.createElement("label");
-    loopLabel.innerText = "Looping";
-    uiDiv.appendChild(loopLabel);
-
-    const loopStartNumber = document.createElement("input");
-    loopStartNumber.type = "number";
+    const loopStartNumber = document.getElementById("loopStartNumber");
     loopStartNumber.min = 0;
     loopStartNumber.max = songBars;
     loopStartNumber.value = 0;
     loopStartNumber.oninput = loopStartCallback;
-    uiDiv.appendChild(loopStartNumber);
 
-    const loopEndNumber = document.createElement("input");
-    loopEndNumber.type = "number";
+    const loopEndNumber = document.getElementById("loopEndNumber");
     loopEndNumber.min = 0;
     loopEndNumber.max = songBars;
     loopEndNumber.value = songBars;
     loopEndNumber.oninput = loopEndCallback;
-    uiDiv.appendChild(loopEndNumber);
 
-    const loopActive = document.createElement("input");
-    loopActive.type = "checkbox";
+    const loopActive = document.getElementById("loopActive");
     loopActive.oninput = loopActiveCallback;
-    uiDiv.appendChild(loopActive);
-
-    return uiDiv;
 }
 
-export function uiCreateSingstarUi(songDuration, songBars, tracks, trackSelectCallback, startCallback) {
-    const uiDiv = document.createElement("div");
-    uiDiv.id = "uiDiv";
-
-    const progressSpan = document.createElement("span");
+export function uiPopulateSingstarUi(songDuration, songBars, tracks, trackSelectCallback, startCallback) {
+    const progressSpan = document.getElementById("progressSpan");
     progressSpan.innerText = usToMinSec(0);
-    progressSpan.id = "progressSpan";
-    uiDiv.appendChild(progressSpan);
 
-    const durationSpan = document.createElement("span");
+    const durationSpan = document.getElementById("durationSpan");
     durationSpan.innerText = "".concat(" / ", usToMinSec(songDuration));
-    uiDiv.appendChild(durationSpan);
 
-    const progressBar = document.createElement("input");
-    progressBar.type = "range";
-    progressBar.id = "progressBar";
+    const progressBar = document.getElementById("progressBar");
     progressBar.min = 0;
     progressBar.max = songDuration;
     progressBar.value = 0;
-    progressBar.readOnly = true; // Has no effect for range input, unfortunately
-    uiDiv.appendChild(progressBar);
 
-    const barLabel = document.createElement("label");
-    barLabel.innerText = "Bar";
-    uiDiv.appendChild(barLabel);
-
-    const barNumber = document.createElement("input");
-    barNumber.type = "number";
-    barNumber.id = "barNumber";
+    const barNumber = document.getElementById("barNumber");
     barNumber.min = 0; // 1?
     barNumber.max = songBars;
     barNumber.value = 0;
-    barNumber.readOnly = true;
-    uiDiv.appendChild(barNumber);
 
-    const trackSelect = document.createElement("select");
-    const option = document.createElement("option");
-    option.innerText = "Velg et spor";
-    option.disabled = true;
-    option.selected = true;
-    trackSelect.appendChild(option);
+    const trackSelect = document.getElementById("trackSelect");
+    trackSelect.oninput = trackSelectCallback;
     for (const track of tracks) {
         if (track.event.every(e => e.type != MIDI.MESSAGE_TYPE_NOTEON)) {
             continue;
@@ -143,34 +73,9 @@ export function uiCreateSingstarUi(songDuration, songBars, tracks, trackSelectCa
         option.innerText = track.label;
         trackSelect.appendChild(option);
     }
-    trackSelect.oninput = trackSelectCallback;
-    uiDiv.appendChild(trackSelect);
 
-    const startButton = document.createElement("button");
-    startButton.innerText = "Start";
-    startButton.id = "startButton";
+    const startButton = document.getElementById("startButton");
     startButton.onclick = startCallback;
-    uiDiv.appendChild(startButton);
-
-    const scoreLabel = document.createElement("label");
-    scoreLabel.innerText = "Score: ";
-    uiDiv.appendChild(scoreLabel);
-
-    const scoreSpan = document.createElement("span");
-    scoreSpan.innerText = "N/A";
-    scoreSpan.id = "scoreSpan";
-    uiDiv.appendChild(scoreSpan);
-
-    const highscoreLabel = document.createElement("label");
-    highscoreLabel.innerText = "Highscore: ";
-    uiDiv.appendChild(highscoreLabel);
-
-    const highscoreSpan = document.createElement("span");
-    highscoreSpan.innerText = "N/A";
-    highscoreSpan.id = "highscoreSpan";
-    uiDiv.appendChild(highscoreSpan);
-
-    return uiDiv;
 }
 
 export function uiSetStartButtonText(text) {
@@ -247,6 +152,5 @@ export function uiSetHighscore(highscore) {
 }
 
 export function uiReset() {
-    const uiDiv = document.getElementById("uiDiv");
-    uiDiv.innerHTML = "";
+    // Intentionally empty
 }
