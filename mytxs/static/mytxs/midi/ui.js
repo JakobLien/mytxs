@@ -1,7 +1,8 @@
 import { MIDI, PLAYER, SINGSTAR } from './constants.js';
 
-export function createMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback, loopStartCallback, loopEndCallback, loopActiveCallback) {
+export function uiCreateMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback, loopStartCallback, loopEndCallback, loopActiveCallback) {
     const uiDiv = document.createElement("div");
+    uiDiv.id = "uiDiv";
 
     const progressSpan = document.createElement("span");
     progressSpan.innerText = usToMinSec(0);
@@ -92,8 +93,9 @@ export function createMasterUi(songDuration, songBars, progressCallback, barNumb
     return uiDiv;
 }
 
-export function createSingstarUi(songDuration, songBars, tracks, trackSelectCallback, startCallback) {
+export function uiCreateSingstarUi(songDuration, songBars, tracks, trackSelectCallback, startCallback) {
     const uiDiv = document.createElement("div");
+    uiDiv.id = "uiDiv";
 
     const progressSpan = document.createElement("span");
     progressSpan.innerText = usToMinSec(0);
@@ -171,13 +173,18 @@ export function createSingstarUi(songDuration, songBars, tracks, trackSelectCall
     return uiDiv;
 }
 
-export function createTrackUi(label, volumeCallback, balanceCallback, muteCallback, soloCallback) {
-    const uiDiv = document.createElement("div");
-    uiDiv.innerText = label;
+export function uiSetStartButtonText(text) {
+    const startButton = document.getElementById("startButton");
+    startButton.innerText = text;
+}
+
+export function uiCreateTrackUi(label, volumeCallback, balanceCallback, muteCallback, soloCallback) {
+    const trackUiDiv = document.createElement("div");
+    trackUiDiv.innerText = label;
 
     const volumeLabel = document.createElement("label");
     volumeLabel.innerText = "Volume";
-    uiDiv.appendChild(volumeLabel);
+    trackUiDiv.appendChild(volumeLabel);
 
     const volumeSlider = document.createElement("input");
     volumeSlider.type = "range";
@@ -185,11 +192,11 @@ export function createTrackUi(label, volumeCallback, balanceCallback, muteCallba
     volumeSlider.max = PLAYER.VOLUME.MAX;
     volumeSlider.value = PLAYER.VOLUME.DEFAULT;
     volumeSlider.oninput = volumeCallback;
-    uiDiv.appendChild(volumeSlider);
+    trackUiDiv.appendChild(volumeSlider);
 
     const balanceLabel = document.createElement("label");
     balanceLabel.innerText = "Balance";
-    uiDiv.appendChild(balanceLabel);
+    trackUiDiv.appendChild(balanceLabel);
 
     const balanceSlider = document.createElement("input");
     balanceSlider.type = "range";
@@ -197,20 +204,20 @@ export function createTrackUi(label, volumeCallback, balanceCallback, muteCallba
     balanceSlider.max = PLAYER.BALANCE.MAX;
     balanceSlider.value = PLAYER.BALANCE.DEFAULT;
     balanceSlider.oninput = balanceCallback;
-    uiDiv.appendChild(balanceSlider);
+    trackUiDiv.appendChild(balanceSlider);
 
     const muteButton = document.createElement("button");
     muteButton.innerText = "Mute";
     muteButton.onclick = muteCallback;
-    uiDiv.appendChild(muteButton);
+    trackUiDiv.appendChild(muteButton);
 
     const soloButton = document.createElement("input");
     soloButton.type = "radio";
     soloButton.name = "soloButton";
     soloButton.onclick = soloCallback;
-    uiDiv.appendChild(soloButton);
+    trackUiDiv.appendChild(soloButton);
 
-    return uiDiv;
+    return trackUiDiv;
 }
 
 function usToMinSec(us) {
@@ -237,4 +244,9 @@ export function uiSetScore(score) {
 export function uiSetHighscore(highscore) {
     const highscoreSpan = document.getElementById("highscoreSpan");
     highscoreSpan.innerText = highscore.toFixed(SINGSTAR.SCORE.DISPLAY_DECIMALS);
+}
+
+export function uiReset() {
+    const uiDiv = document.getElementById("uiDiv");
+    uiDiv.innerHTML = "";
 }

@@ -1,7 +1,7 @@
 import { MIDI, PLAYER } from './constants.js';
 import {MidiParser} from './midi-parser.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
-import {createSingstarUi, uiSetHighscore, uiSetProgress, uiSetScore} from './ui.js';
+import {uiCreateSingstarUi, uiReset, uiSetHighscore, uiSetProgress, uiSetScore, uiSetStartButtonText} from './ui.js';
 import { getSpectrum, startRecording } from './record.js';
 import { singstarScore } from './singstar_score.js';
 import { clearCanvas, drawSpectrum, drawTargets, initCanvas } from './spectrum_canvas.js';
@@ -31,8 +31,7 @@ async function startSession() {
     // Act only if actually stopped
     const unlock = await mutex.lock();
     if (stopped) {
-        const startButton = document.getElementById("startButton");
-        startButton.innerText = "Stop";
+        uiSetStartButtonText("Stop");
         stopped = false;
         start();
     }
@@ -43,8 +42,7 @@ async function stopSession() {
     // Act only if actually started
     const unlock = await mutex.lock();
     if (!stopped) {
-        const startButton = document.getElementById("startButton");
-        startButton.innerText = "Start";
+        uiSetStartButtonText("Stop");
         stopped = true;
         startPromise = createStartPromise(); // Prepare promise before telling main thread that session is stopped
     }
@@ -74,7 +72,7 @@ function eventSendable(event) {
 
 async function playSingstar(obj, uiDiv, output) {
     // Reset
-    uiDiv.innerHTML = "";
+    uiReset();
     resetMidiControl(output);
 
     if (obj.formatType != MIDI.FORMAT_TYPE_MULTITRACK) {
@@ -144,7 +142,7 @@ async function playSingstar(obj, uiDiv, output) {
             silenceAll(output);
         }
     };
-    const singstarUi = createSingstarUi(songDuration, songBars, obj.track, trackSelectCallback, startCallback);
+    const singstarUi = uiCreateSingstarUi(songDuration, songBars, obj.track, trackSelectCallback, startCallback);
     uiDiv.appendChild(singstarUi);
 
     // Session loop

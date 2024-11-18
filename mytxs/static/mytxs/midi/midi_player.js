@@ -2,7 +2,7 @@ import { MIDI, PLAYER } from './constants.js';
 import {MidiParser} from './midi-parser.js'; 
 import Mutex from './mutex.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
-import {createMasterUi, createTrackUi, uiSetProgress} from './ui.js';
+import {uiCreateMasterUi, uiCreateTrackUi, uiReset, uiSetProgress} from './ui.js';
 import { volumeChannel, balanceChannel, silenceChannel, silenceAll, sleep, resetMidiControl } from './player_utils.js';
 
 let playerIndex = 0;
@@ -67,7 +67,7 @@ function startingIndexFromBar(allEvents, bar) {
 
 async function playRealtime(obj, uiDiv, output) {
     // Reset
-    uiDiv.innerHTML = "";
+    uiReset();
     resetMidiControl(output);
 
     if (obj.formatType != MIDI.FORMAT_TYPE_MULTITRACK) {
@@ -155,7 +155,7 @@ async function playRealtime(obj, uiDiv, output) {
     const loopEndCallback = (e) => loopEnd = e.target.value;
     const loopActiveCallback = () => loopActive = !loopActive;
 
-    const masterUi = createMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback, loopStartCallback, loopEndCallback, loopActiveCallback);
+    const masterUi = uiCreateMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback, loopStartCallback, loopEndCallback, loopActiveCallback);
     uiDiv.appendChild(masterUi);
 
     // Create UI for tracks which have noteon events
@@ -194,7 +194,7 @@ async function playRealtime(obj, uiDiv, output) {
                 soloTrack = trackId;
             }
         };
-        const trackUi = createTrackUi(track.label, volumeCallback, balanceCallback, muteCallback, soloCallback);
+        const trackUi = uiCreateTrackUi(track.label, volumeCallback, balanceCallback, muteCallback, soloCallback);
         uiDiv.appendChild(trackUi);
     }
 
