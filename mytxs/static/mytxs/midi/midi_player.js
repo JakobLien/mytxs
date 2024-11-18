@@ -2,7 +2,7 @@ import { MIDI, PLAYER } from './constants.js';
 import {MidiParser} from './midi-parser.js'; 
 import Mutex from './mutex.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
-import {uiPopulateMasterUi, uiCreateTrackUi, uiReset, uiSetProgress} from './ui.js';
+import {uiPopulateMasterUi, uiCreateTrackUi, uiReset, uiSetProgress, uiSetSongName} from './ui.js';
 import { playerVolume, playerBalance, playerSilence, playerSilenceAll, playerSleep, playerReset, playerInit, playerPlayEvent } from './player.js';
 
 let playerIndex = 0;
@@ -94,12 +94,11 @@ async function playRealtime(obj, uiDiv) {
     allEvents.sort((e1, e2) => e1.ticks == e2.ticks ? e1.type - e2.type : e1.ticks - e2.ticks); // Sorted by ticks and event type, so that noteoff happens before noteon
     timestampEvents(allEvents, ticksPerBeat);
 
-    // Create song name header
-    const songNameHeader = document.getElementById("songNameHeader");
-    songNameHeader.innerText = "Nameless";
+    // Set song name
+    uiSetSongName("Nameless");
     for (const e of obj.track[0].event) {
         if (e.metaType == MIDI.METATYPE_TRACK_NAME) {
-            songNameHeader.innerText = e.data;
+            uiSetSongName(e.data);
             break;
         }
     }

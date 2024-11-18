@@ -132,6 +132,11 @@ function usToMinSec(us) {
     return "".concat(mins, overshootingSecs < 10 ? ":0" : ":", overshootingSecs);
 }
 
+export function uiSetSongName(songName) {
+    const songNameHeader = document.getElementById("songNameHeader");
+    songNameHeader.innerText = songName;
+}
+
 export function uiSetProgress(time, bar) {
     const progressBar = document.getElementById("progressBar");
     progressBar.value = time;

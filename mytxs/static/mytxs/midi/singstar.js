@@ -1,7 +1,7 @@
 import { MIDI, PLAYER } from './constants.js';
 import {MidiParser} from './midi-parser.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
-import {uiPopulateSingstarUi, uiReset, uiSetHighscore, uiSetProgress, uiSetScore, uiSetStartButtonText} from './ui.js';
+import {uiPopulateSingstarUi, uiReset, uiSetHighscore, uiSetProgress, uiSetScore, uiSetSongName, uiSetStartButtonText} from './ui.js';
 import { freqGetSpectrum, freqStartRecording } from './freq.js';
 import { scoreGet } from './score.js';
 import { canvasClear, canvasDrawSpectrum, canvasDrawTargets, canvasInit } from './canvas.js';
@@ -100,12 +100,11 @@ async function playSingstar(obj) {
     allEvents.sort((e1, e2) => e1.ticks == e2.ticks ? e1.type - e2.type : e1.ticks - e2.ticks); // Sorted by ticks and event type, so that noteoff happens before noteon
     timestampEvents(allEvents, ticksPerBeat);
 
-    // Create song name header
-    const songNameHeader = document.getElementById("songNameHeader");
-    songNameHeader.innerText = "Nameless";
+    // Set song name
+    uiSetSongName("Nameless");
     for (const e of obj.track[0].event) {
         if (e.metaType == MIDI.METATYPE_TRACK_NAME) {
-            songNameHeader.innerText = e.data;
+            uiSetSongName(e.data);
             break;
         }
     }
