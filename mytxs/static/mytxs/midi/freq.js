@@ -1,10 +1,14 @@
 // https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode
 
-import { RECORD } from './constants.js';
+import { BASE_TONE, RECORD } from './constants.js';
 
 let spectrum;
 let numBins;
 let fs;
+
+export function freqFromTone(tone) {
+    return BASE_TONE.HZ * 2 ** ((tone - BASE_TONE.NUMBER) / 12);
+}
 
 function freqFromBin(k) {
     return k*fs/RECORD.FFT_SIZE;

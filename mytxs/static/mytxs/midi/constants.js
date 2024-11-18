@@ -25,6 +25,11 @@ export const RECORD = {
     MAX_DECIBELS: -20,
 };
 
+export const BASE_TONE = {
+    NUMBER: 69,
+    HZ: 440,
+};
+
 export const CANVAS = {
     // Width and height given in HTML
 
@@ -69,8 +74,6 @@ export const MIDI = {
 };
 
 export const SCORE = {
-    BASE_HZ: 440,
-    BASE_TONE: 69,
     RELATIVE_MAGNITUDE_LIMIT: 0.9,
     DISPLAY_DECIMALS: 2,
 };

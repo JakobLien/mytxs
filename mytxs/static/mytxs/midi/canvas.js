@@ -1,5 +1,4 @@
-import { freqToClosestBin } from "./freq.js";
-import { toneToFreq } from "./score.js";
+import { freqFromTone, freqToClosestBin } from "./freq.js";
 import { CANVAS } from "./constants.js";
 
 let canvas;
@@ -28,7 +27,7 @@ export function canvasDrawSpectrum(spectrum) {
 export function canvasDrawTargets(activeTones) {
     const barWidth = canvas.width / displayBins;
     for (const tone of activeTones) {
-        const freq = toneToFreq(tone);
+        const freq = freqFromTone(tone);
         const closestBin = freqToClosestBin(freq);
         ctx.fillStyle = `rgb(${CANVAS.TARGET_COLOR.R}, ${CANVAS.TARGET_COLOR.G}, ${CANVAS.TARGET_COLOR.B})`; // Color bars based on magnitude
         ctx.fillRect(closestBin * barWidth, 0, barWidth, canvas.height);
