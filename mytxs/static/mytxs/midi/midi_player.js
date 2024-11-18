@@ -3,7 +3,7 @@ import {MidiParser} from './midi-parser.js';
 import Mutex from './mutex.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
 import {uiCreateMasterUi, uiCreateTrackUi, uiReset, uiSetProgress} from './ui.js';
-import { playerVolume, playerBalance, playerSilence, playerSilenceAll, playerSleep, playerReset } from './player.js';
+import { playerVolume, playerBalance, playerSilence, playerSilenceAll, playerSleep, playerReset, playerInit, playerPlayEvent } from './player.js';
 
 let playerIndex = 0;
 let playerTime = 0;
@@ -65,10 +65,10 @@ function startingIndexFromBar(allEvents, bar) {
     return high < allEvents.length ? high : low;
 }
 
-async function playRealtime(obj, uiDiv, output) {
+async function playRealtime(obj, uiDiv) {
     // Reset
     uiReset();
-    playerReset(output);
+    playerReset();
 
     if (obj.formatType != MIDI.FORMAT_TYPE_MULTITRACK) {
         alert("".concat(source, " har et ugyldig format: ", obj.formatType));
@@ -110,7 +110,7 @@ async function playRealtime(obj, uiDiv, output) {
     const songBars = Math.floor(allEvents[allEvents.length - 1].bar);
 
     const progressCallback = async e => {
-        playerSilenceAll(output);
+        playerSilenceAll();
         const jumpTime = e.target.value;
         const unlock = await mutex.lock();
         playerIndex = startingIndexFromTime(allEvents, jumpTime);
@@ -120,7 +120,7 @@ async function playRealtime(obj, uiDiv, output) {
     };
 
     const barNumberCallback = async e => {
-        playerSilenceAll(output);
+        playerSilenceAll();
         const jumpBar = e.target.value;
         const unlock = await mutex.lock();
         playerIndex = startingIndexFromBar(allEvents, jumpBar);
@@ -142,7 +142,7 @@ async function playRealtime(obj, uiDiv, output) {
         paused = !paused;
         e.target.innerText = paused ? "Play" : "Pause";
         if (paused) {
-            playerSilenceAll(output);
+            playerSilenceAll();
             pausePromise = createPausePromise();
         } else {
             resume();
@@ -175,13 +175,13 @@ async function playRealtime(obj, uiDiv, output) {
         }
 
         const trackId = track.event[0].trackId;
-        const volumeCallback = e => playerVolume(output, trackId, e.target.value);
-        const balanceCallback = e => playerBalance(output, trackId, e.target.value);
+        const volumeCallback = e => playerVolume(trackId, e.target.value);
+        const balanceCallback = e => playerBalance(trackId, e.target.value);
         trackMuted.set(trackId, false);
         const muteCallback = e => {
             const wasMuted = trackMuted.get(trackId);
             if (!wasMuted) {
-                playerSilence(output, trackId);
+                playerSilence(trackId);
             }
             e.target.innerText = wasMuted ? "Mute" : "Unmute";
             trackMuted.set(trackId, !wasMuted);
@@ -211,7 +211,7 @@ async function playRealtime(obj, uiDiv, output) {
                 const e = allEvents[playerIndex];
                 if (loopActive && e.bar >= loopEnd) {
                     // Jump to start of loop
-                    playerSilenceAll(output);
+                    playerSilenceAll();
                     playerIndex = startingIndexFromBar(allEvents, loopStart);
                     playerTime = allEvents[playerIndex].timestamp;
                     uiSetProgress(playerTime, allEvents[playerIndex].bar);
@@ -223,14 +223,7 @@ async function playRealtime(obj, uiDiv, output) {
                     }
                     // Consider whether to actually send message
                     if (eventSendable(trackMuted, soloTrack, e)) {
-                        const message = [(e.type << MIDI.STATUS_MSB_OFFSET) | e.trackId];
-                        const data = Array.isArray(e.data) ? e.data : [e.data];
-                        message.push(...data);
-                        try {
-                            output.send(message);
-                        } catch (err) {
-                            console.error(err, e);
-                        }
+                        playerPlayEvent(e);
                     }
                     // Update player state
                     playerTime = e.timestamp;
@@ -243,18 +236,9 @@ async function playRealtime(obj, uiDiv, output) {
     }
 }
 
-window.navigator.requestMIDIAccess().then(
-    (access) => {
-        const outputs = access.outputs;
-
-        access.onstatechange = (event) => {
-            console.log(event.port.name, event.port.manufacturer, event.port.state);
-        };
-        const iter = outputs.values();
-        const output = iter.next().value;
-
-        const source = document.getElementById('filereader');
-        const uiDiv = document.getElementById('uiDiv');
-        MidiParser.parse(source, obj => playRealtime(obj, uiDiv, output));
-    }
-);
+window.onload = async () => {
+    await playerInit();
+    const source = document.getElementById('filereader');
+    const uiDiv = document.getElementById('uiDiv');
+    MidiParser.parse(source, obj => playRealtime(obj, uiDiv));
+};

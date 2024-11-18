@@ -5,7 +5,7 @@ import {uiCreateSingstarUi, uiReset, uiSetHighscore, uiSetProgress, uiSetScore, 
 import { freqGetSpectrum, freqStartRecording } from './freq.js';
 import { scoreGet } from './score.js';
 import { canvasClear, canvasDrawSpectrum, canvasDrawTargets, canvasInit } from './canvas.js';
-import { playerSilenceAll, playerSleep, playerReset } from './player.js';
+import { playerSilenceAll, playerSleep, playerReset, playerPlayEvent, playerInit } from './player.js';
 import Mutex from './mutex.js';
 
 let playerIndex = 0;
@@ -70,10 +70,10 @@ function eventSendable(event) {
     }
 }
 
-async function playSingstar(obj, uiDiv, output) {
+async function playSingstar(obj, uiDiv) {
     // Reset
     uiReset();
-    playerReset(output);
+    playerReset();
 
     if (obj.formatType != MIDI.FORMAT_TYPE_MULTITRACK) {
         alert("".concat(source, " har et ugyldig format: ", obj.formatType));
@@ -139,7 +139,7 @@ async function playSingstar(obj, uiDiv, output) {
             await startSession();
         } else {
             await stopSession();
-            playerSilenceAll(output);
+            playerSilenceAll();
         }
     };
     const singstarUi = uiCreateSingstarUi(songDuration, songBars, obj.track, trackSelectCallback, startCallback);
@@ -174,9 +174,6 @@ async function playSingstar(obj, uiDiv, output) {
             }
             // Consider whether to actually send message
             if (eventSendable(e)) {
-                const message = [(e.type << MIDI.STATUS_MSB_OFFSET) | e.trackId];
-                const data = Array.isArray(e.data) ? e.data : [e.data];
-                message.push(...data);
                 try {
                     const trackTones = activeTones.get(e.trackId);
                     if (e.type == MIDI.MESSAGE_TYPE_NOTEON) {
@@ -187,10 +184,10 @@ async function playSingstar(obj, uiDiv, output) {
                         }
                         trackTones.delete(e.data[0]);
                     }
-                    output.send(message);
                 } catch (err) {
                     console.error(err, e);
                 }
+                playerPlayEvent(e);
             }
 
             // Update player state
@@ -208,33 +205,25 @@ async function playSingstar(obj, uiDiv, output) {
     }
 }
 
-window.navigator.requestMIDIAccess().then(
-    (access) => {
-        const outputs = access.outputs;
+window.onload = async () => {
+    await playerInit();
 
-        access.onstatechange = (event) => {
-            console.log(event.port.name, event.port.manufacturer, event.port.state);
-        };
-        const iter = outputs.values();
-        const output = iter.next().value;
+    const source = document.getElementById('filereader');
+    const uiDiv = document.getElementById('uiDiv');
 
-        const source = document.getElementById('filereader');
-        const uiDiv = document.getElementById('uiDiv');
+    MidiParser.parse(source, obj => playSingstar(obj, uiDiv));
 
-        MidiParser.parse(source, obj => playSingstar(obj, uiDiv, output));
+    freqStartRecording(uiDiv, "click");
 
-        freqStartRecording(uiDiv, "click");
-
-        canvasInit();
-        function drawSpectrumLoop() {
-            requestAnimationFrame(drawSpectrumLoop); // Repeat in next animation frame
-            canvasClear();
-            canvasDrawSpectrum(freqGetSpectrum());
-            if (singstarIndex !== null) {
-                const targetTones = activeTones.get(singstarIndex);
-                canvasDrawTargets(targetTones);
-            }
+    canvasInit();
+    function drawSpectrumLoop() {
+        requestAnimationFrame(drawSpectrumLoop); // Repeat in next animation frame
+        canvasClear();
+        canvasDrawSpectrum(freqGetSpectrum());
+        if (singstarIndex !== null) {
+            const targetTones = activeTones.get(singstarIndex);
+            canvasDrawTargets(targetTones);
         }
-        drawSpectrumLoop();
     }
-);
+    drawSpectrumLoop();
+};
