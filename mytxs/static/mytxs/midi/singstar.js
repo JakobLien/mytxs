@@ -5,7 +5,7 @@ import {uiCreateSingstarUi, uiReset, uiSetHighscore, uiSetProgress, uiSetScore, 
 import { freqGetSpectrum, freqStartRecording } from './freq.js';
 import { scoreGet } from './score.js';
 import { canvasClear, canvasDrawSpectrum, canvasDrawTargets, canvasInit } from './canvas.js';
-import { silenceAll, sleep, resetMidiControl } from './player_utils.js';
+import { playerSilenceAll, playerSleep, playerReset } from './player.js';
 import Mutex from './mutex.js';
 
 let playerIndex = 0;
@@ -73,7 +73,7 @@ function eventSendable(event) {
 async function playSingstar(obj, uiDiv, output) {
     // Reset
     uiReset();
-    resetMidiControl(output);
+    playerReset(output);
 
     if (obj.formatType != MIDI.FORMAT_TYPE_MULTITRACK) {
         alert("".concat(source, " har et ugyldig format: ", obj.formatType));
@@ -139,7 +139,7 @@ async function playSingstar(obj, uiDiv, output) {
             await startSession();
         } else {
             await stopSession();
-            silenceAll(output);
+            playerSilenceAll(output);
         }
     };
     const singstarUi = uiCreateSingstarUi(songDuration, songBars, obj.track, trackSelectCallback, startCallback);
@@ -170,7 +170,7 @@ async function playSingstar(obj, uiDiv, output) {
             // Wait until event
             const dt = e.timestamp - playerTime;
             if (dt > 0) {
-                await sleep(dt/1000/tempo);
+                await playerSleep(dt/1000/tempo);
             }
             // Consider whether to actually send message
             if (eventSendable(e)) {

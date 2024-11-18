@@ -3,7 +3,7 @@ import {MidiParser} from './midi-parser.js';
 import Mutex from './mutex.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
 import {uiCreateMasterUi, uiCreateTrackUi, uiReset, uiSetProgress} from './ui.js';
-import { volumeChannel, balanceChannel, silenceChannel, silenceAll, sleep, resetMidiControl } from './player_utils.js';
+import { playerVolume, playerBalance, playerSilence, playerSilenceAll, playerSleep, playerReset } from './player.js';
 
 let playerIndex = 0;
 let playerTime = 0;
@@ -68,7 +68,7 @@ function startingIndexFromBar(allEvents, bar) {
 async function playRealtime(obj, uiDiv, output) {
     // Reset
     uiReset();
-    resetMidiControl(output);
+    playerReset(output);
 
     if (obj.formatType != MIDI.FORMAT_TYPE_MULTITRACK) {
         alert("".concat(source, " har et ugyldig format: ", obj.formatType));
@@ -110,7 +110,7 @@ async function playRealtime(obj, uiDiv, output) {
     const songBars = Math.floor(allEvents[allEvents.length - 1].bar);
 
     const progressCallback = async e => {
-        silenceAll(output);
+        playerSilenceAll(output);
         const jumpTime = e.target.value;
         const unlock = await mutex.lock();
         playerIndex = startingIndexFromTime(allEvents, jumpTime);
@@ -120,7 +120,7 @@ async function playRealtime(obj, uiDiv, output) {
     };
 
     const barNumberCallback = async e => {
-        silenceAll(output);
+        playerSilenceAll(output);
         const jumpBar = e.target.value;
         const unlock = await mutex.lock();
         playerIndex = startingIndexFromBar(allEvents, jumpBar);
@@ -142,7 +142,7 @@ async function playRealtime(obj, uiDiv, output) {
         paused = !paused;
         e.target.innerText = paused ? "Play" : "Pause";
         if (paused) {
-            silenceAll(output);
+            playerSilenceAll(output);
             pausePromise = createPausePromise();
         } else {
             resume();
@@ -175,13 +175,13 @@ async function playRealtime(obj, uiDiv, output) {
         }
 
         const trackId = track.event[0].trackId;
-        const volumeCallback = e => volumeChannel(output, trackId, e.target.value);
-        const balanceCallback = e => balanceChannel(output, trackId, e.target.value);
+        const volumeCallback = e => playerVolume(output, trackId, e.target.value);
+        const balanceCallback = e => playerBalance(output, trackId, e.target.value);
         trackMuted.set(trackId, false);
         const muteCallback = e => {
             const wasMuted = trackMuted.get(trackId);
             if (!wasMuted) {
-                silenceChannel(output, trackId);
+                playerSilence(output, trackId);
             }
             e.target.innerText = wasMuted ? "Mute" : "Unmute";
             trackMuted.set(trackId, !wasMuted);
@@ -211,7 +211,7 @@ async function playRealtime(obj, uiDiv, output) {
                 const e = allEvents[playerIndex];
                 if (loopActive && e.bar >= loopEnd) {
                     // Jump to start of loop
-                    silenceAll(output);
+                    playerSilenceAll(output);
                     playerIndex = startingIndexFromBar(allEvents, loopStart);
                     playerTime = allEvents[playerIndex].timestamp;
                     uiSetProgress(playerTime, allEvents[playerIndex].bar);
@@ -219,7 +219,7 @@ async function playRealtime(obj, uiDiv, output) {
                     // Wait until event
                     const dt = e.timestamp - playerTime;
                     if (dt > 0) {
-                        await sleep(dt/1000/tempo);
+                        await playerSleep(dt/1000/tempo);
                     }
                     // Consider whether to actually send message
                     if (eventSendable(trackMuted, soloTrack, e)) {
