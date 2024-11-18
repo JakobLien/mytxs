@@ -6,7 +6,7 @@ let spectrum;
 let numBins;
 let fs;
 
-function binToFreq(k) {
+function freqFromBin(k) {
     return k*fs/RECORD.FFT_SIZE;
 }
 
@@ -14,7 +14,7 @@ export function freqToClosestBin(f) {
     return Math.round(RECORD.FFT_SIZE*f/fs);
 }
 
-export function getLargestMagnitude() {
+export function freqGetLargestMagnitude() {
     let max = 0;
     for (let i = 0; i < numBins; i++) {
         if (max < spectrum[i]) {
@@ -24,20 +24,20 @@ export function getLargestMagnitude() {
     return max;
 }
 
-export function getMagnitude(freq) {
+export function freqGetMagnitude(freq) {
     const closestBin = freqToClosestBin(freq);
     return closestBin < numBins ? spectrum[closestBin] : 0;
 }
 
-export function getNumBins() {
+export function freqGetNumBins() {
     return numBins;
 }
 
-export function getSpectrum() {
+export function freqGetSpectrum() {
     return spectrum;
 }
 
-export function startRecording(triggerElement, triggerEventType) {
+export function freqStartRecording(triggerElement, triggerEventType) {
     // Check for browser support
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         // Create audio context and start trigger

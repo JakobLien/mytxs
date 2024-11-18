@@ -2,7 +2,7 @@ import { MIDI, PLAYER } from './constants.js';
 import {MidiParser} from './midi-parser.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
 import {uiCreateSingstarUi, uiReset, uiSetHighscore, uiSetProgress, uiSetScore, uiSetStartButtonText} from './ui.js';
-import { getSpectrum, startRecording } from './record.js';
+import { freqGetSpectrum, freqStartRecording } from './freq.js';
 import { scoreGet } from './score.js';
 import { canvasClear, canvasDrawSpectrum, canvasDrawTargets, canvasInit } from './canvas.js';
 import { silenceAll, sleep, resetMidiControl } from './player_utils.js';
@@ -223,13 +223,13 @@ window.navigator.requestMIDIAccess().then(
 
         MidiParser.parse(source, obj => playSingstar(obj, uiDiv, output));
 
-        startRecording(uiDiv, "click");
+        freqStartRecording(uiDiv, "click");
 
         canvasInit();
         function drawSpectrumLoop() {
             requestAnimationFrame(drawSpectrumLoop); // Repeat in next animation frame
             canvasClear();
-            canvasDrawSpectrum(getSpectrum());
+            canvasDrawSpectrum(freqGetSpectrum());
             if (singstarIndex !== null) {
                 const targetTones = activeTones.get(singstarIndex);
                 canvasDrawTargets(targetTones);
