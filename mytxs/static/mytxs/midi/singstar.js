@@ -42,7 +42,7 @@ async function stopSession() {
     // Act only if actually started
     const unlock = await mutex.lock();
     if (!stopped) {
-        uiSetStartButtonText("Stop");
+        uiSetStartButtonText("Start");
         stopped = true;
         startPromise = createStartPromise(); // Prepare promise before telling main thread that session is stopped
     }
