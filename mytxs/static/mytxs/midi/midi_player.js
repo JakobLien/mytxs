@@ -81,6 +81,8 @@ function realtimeReset() {
     playerSilenceAll();
     playerIndex = 0;
     playerTime = 0;
+    loopStart = null;
+    loopEnd = null;
     uiSetProgress(0, 0);
 }
 
