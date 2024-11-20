@@ -1,7 +1,7 @@
 import { MIDI, PLAYER } from './constants.js';
 import {MidiParser} from './midi-parser.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
-import {uiPopulateSingstarUi, uiSetHighscore, uiSetProgress, uiSetScore, uiSetSongName, uiSetStartButtonText} from './ui.js';
+import {uiClearTrackOptions, uiPopulateSingstarUi, uiSetHighscore, uiSetProgress, uiSetScore, uiSetSongName, uiSetStartButtonText} from './ui.js';
 import { freqGetSpectrum, freqStartRecording } from './freq.js';
 import { scoreGet } from './score.js';
 import { canvasClear, canvasDrawSpectrum, canvasDrawTargets, canvasInit } from './canvas.js';
@@ -15,6 +15,7 @@ let highscore = 0;
 const tempo = PLAYER.TEMPO.DEFAULT;
 const activeTones = new Map(); // Map of sets
 let singstarIndex = null;
+let allEvents = [];
 const mutex = new Mutex();
 
 let stopped = true;
@@ -70,10 +71,22 @@ function eventSendable(event) {
     }
 }
 
-async function playSingstar(obj) {
-    // Reset
+async function resetSingstar() {
+    await stopSession();
     playerReset();
+    playerSilenceAll();
+    playerIndex = 0;
+    playerTime = 0;
+    score = 0;
+    highscore = 0;
+    singstarIndex = null;
+    uiClearTrackOptions();
+    uiSetHighscore(0);
+    uiSetScore(0);
+    uiSetProgress(0, 0);
+}
 
+function setupSingstar(obj) {
     if (obj.formatType != MIDI.FORMAT_TYPE_MULTITRACK) {
         alert("".concat("Ugyldig format: ", obj.formatType));
     }
@@ -84,7 +97,7 @@ async function playSingstar(obj) {
     const ticksPerBeat = obj.timeDivision;
 
     // Process events into a playable format
-    const allEvents = [];
+    allEvents = [];
     for (const i in obj.track) {
         const track = obj.track[i];
         track.trackId = i;
@@ -140,7 +153,9 @@ async function playSingstar(obj) {
         }
     };
     uiPopulateSingstarUi(songDuration, songBars, obj.track, trackSelectCallback, startCallback);
+}
 
+async function playSingstar() {
     // Session loop
     while (true) {
 
@@ -208,7 +223,12 @@ window.onload = async () => {
     freqStartRecording(uiDiv, "click");
 
     const fileInput = document.getElementById('fileInput');
-    MidiParser.parse(fileInput, obj => playSingstar(obj));
+    const fileInputCallback = async obj => {
+        await resetSingstar();
+        setupSingstar(obj);
+    };
+    MidiParser.parse(fileInput, fileInputCallback);
+    setTimeout(playSingstar, 0); // Essentially call in new thread
 
     canvasInit();
     function drawSpectrumLoop() {

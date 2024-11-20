@@ -64,6 +64,8 @@ export function uiPopulateSingstarUi(songDuration, songBars, tracks, trackSelect
 
     const trackSelect = document.getElementById("trackSelect");
     trackSelect.oninput = trackSelectCallback;
+
+    const trackOptions = document.getElementById("trackOptions");
     for (const track of tracks) {
         if (track.event.every(e => e.type != MIDI.MESSAGE_TYPE_NOTEON)) {
             continue;
@@ -71,7 +73,7 @@ export function uiPopulateSingstarUi(songDuration, songBars, tracks, trackSelect
         const option = document.createElement("option");
         option.value = track.trackId;
         option.innerText = track.label;
-        trackSelect.appendChild(option);
+        trackOptions.appendChild(option);
     }
 
     const startButton = document.getElementById("startButton");
@@ -160,4 +162,11 @@ export function uiSetHighscore(highscore) {
 export function uiClearTrackDivs() {
     const trackUiDivs = document.getElementById("trackUiDivs");
     trackUiDivs.innerHTML = "";
+}
+
+export function uiClearTrackOptions() {
+    const trackOptions = document.getElementById("trackOptions");
+    trackOptions.innerHTML = "";
+    const defaultTrackOption = document.getElementById("defaultTrackOption");
+    defaultTrackOption.selected = true;
 }
