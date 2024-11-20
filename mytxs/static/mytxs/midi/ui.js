@@ -122,7 +122,8 @@ export function uiCreateTrackUi(label, volumeCallback, balanceCallback, muteCall
     soloButton.onclick = soloCallback;
     trackUiDiv.appendChild(soloButton);
 
-    return trackUiDiv;
+    const trackUiDivs = document.getElementById("trackUiDivs");
+    trackUiDivs.appendChild(trackUiDiv);
 }
 
 function usToMinSec(us) {

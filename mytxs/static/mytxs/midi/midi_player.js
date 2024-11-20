@@ -65,7 +65,7 @@ function startingIndexFromBar(allEvents, bar) {
     return high < allEvents.length ? high : low;
 }
 
-async function playRealtime(obj, uiDiv) {
+async function playRealtime(obj) {
     // Reset
     uiReset();
     playerReset();
@@ -191,8 +191,7 @@ async function playRealtime(obj, uiDiv) {
                 soloTrack = trackId;
             }
         };
-        const trackUi = uiCreateTrackUi(track.label, volumeCallback, balanceCallback, muteCallback, soloCallback);
-        uiDiv.appendChild(trackUi);
+        uiCreateTrackUi(track.label, volumeCallback, balanceCallback, muteCallback, soloCallback);
     }
 
     // Play
@@ -236,6 +235,5 @@ async function playRealtime(obj, uiDiv) {
 window.onload = async () => {
     await playerInit();
     const source = document.getElementById('filereader');
-    const uiDiv = document.getElementById('uiDiv');
-    MidiParser.parse(source, obj => playRealtime(obj, uiDiv));
+    MidiParser.parse(source, obj => playRealtime(obj));
 };
