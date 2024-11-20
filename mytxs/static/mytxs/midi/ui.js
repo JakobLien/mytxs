@@ -157,6 +157,7 @@ export function uiSetHighscore(highscore) {
     highscoreSpan.innerText = highscore.toFixed(SCORE.DISPLAY_DECIMALS);
 }
 
-export function uiReset() {
-    // Intentionally empty
+export function uiClearTrackDivs() {
+    const trackUiDivs = document.getElementById("trackUiDivs");
+    trackUiDivs.innerHTML = "";
 }

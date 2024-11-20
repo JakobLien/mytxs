@@ -16,6 +16,7 @@ export const PLAYER = {
         DEFAULT: 1.0,
         STEP: 0.01,
     },
+    RESTART_SLEEP_MS: 500,
 };
 
 export const RECORD = {

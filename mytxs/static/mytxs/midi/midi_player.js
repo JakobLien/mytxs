@@ -2,13 +2,23 @@ import { MIDI, PLAYER } from './constants.js';
 import {MidiParser} from './midi-parser.js'; 
 import Mutex from './mutex.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
-import {uiPopulateMasterUi, uiCreateTrackUi, uiReset, uiSetProgress, uiSetSongName} from './ui.js';
+import {uiPopulateMasterUi, uiCreateTrackUi, uiClearTrackDivs, uiSetProgress, uiSetSongName} from './ui.js';
 import { playerVolume, playerBalance, playerSilence, playerSilenceAll, playerSleep, playerReset, playerInit, playerPlayEvent } from './player.js';
 
 let playerIndex = 0;
 let playerTime = 0;
+
 let paused = true;
+let resume;
+function createPausePromise() {
+    return new Promise((resolve) => {
+        resume = resolve;
+    });
+}
+let pausePromise = createPausePromise();
+
 let tempo = PLAYER.TEMPO.DEFAULT;
+let allEvents = [];
 const trackMuted = new Map();
 let soloTrack = null;
 let loopActive = false;
@@ -65,11 +75,16 @@ function startingIndexFromBar(allEvents, bar) {
     return high < allEvents.length ? high : low;
 }
 
-async function playRealtime(obj) {
-    // Reset
-    uiReset();
+function realtimeReset() {
+    uiClearTrackDivs();
     playerReset();
+    playerSilenceAll();
+    playerIndex = 0;
+    playerTime = 0;
+    uiSetProgress(0, 0);
+}
 
+function realtimeSetup(obj) {
     if (obj.formatType != MIDI.FORMAT_TYPE_MULTITRACK) {
         alert("".concat("Ugyldig format: ", obj.formatType));
     }
@@ -80,7 +95,7 @@ async function playRealtime(obj) {
     const ticksPerBeat = obj.timeDivision;
 
     // Process events into a playable format
-    const allEvents = [];
+    allEvents = [];
     for (const i in obj.track) {
         const events = obj.track[i].event;
 
@@ -129,13 +144,6 @@ async function playRealtime(obj) {
 
     const tempoBarCallback = e => tempo = e.target.value;
 
-    let resume;
-    function createPausePromise() {
-        return new Promise((resolve) => {
-            resume = resolve;
-        });
-    }
-    let pausePromise = createPausePromise();
     const pauseCallback = e => {
         paused = !paused;
         e.target.innerText = paused ? "Play" : "Pause";
@@ -193,8 +201,9 @@ async function playRealtime(obj) {
         };
         uiCreateTrackUi(track.label, volumeCallback, balanceCallback, muteCallback, soloCallback);
     }
+}
 
-    // Play
+async function realtimePlay() {
     while (true) {
         playerTime = 0;
         playerIndex = 0;
@@ -229,11 +238,19 @@ async function playRealtime(obj) {
                 unlock();
             }
         }
+        // Avoid starving UI if allEvents.length is zero
+        // It would be much cleaner if there was a mechanic to set higher priority for UI threads
+        await playerSleep(PLAYER.RESTART_SLEEP_MS);
     }
 }
 
 window.onload = async () => {
     await playerInit();
     const fileInput = document.getElementById('fileInput');
-    MidiParser.parse(fileInput, obj => playRealtime(obj));
+    const fileInputCallback = obj => {
+        realtimeReset();
+        realtimeSetup(obj);
+    };
+    MidiParser.parse(fileInput, fileInputCallback);
+    realtimePlay();
 };

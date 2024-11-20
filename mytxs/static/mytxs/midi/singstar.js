@@ -1,7 +1,7 @@
 import { MIDI, PLAYER } from './constants.js';
 import {MidiParser} from './midi-parser.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
-import {uiPopulateSingstarUi, uiReset, uiSetHighscore, uiSetProgress, uiSetScore, uiSetSongName, uiSetStartButtonText} from './ui.js';
+import {uiPopulateSingstarUi, uiSetHighscore, uiSetProgress, uiSetScore, uiSetSongName, uiSetStartButtonText} from './ui.js';
 import { freqGetSpectrum, freqStartRecording } from './freq.js';
 import { scoreGet } from './score.js';
 import { canvasClear, canvasDrawSpectrum, canvasDrawTargets, canvasInit } from './canvas.js';
@@ -72,7 +72,6 @@ function eventSendable(event) {
 
 async function playSingstar(obj) {
     // Reset
-    uiReset();
     playerReset();
 
     if (obj.formatType != MIDI.FORMAT_TYPE_MULTITRACK) {
