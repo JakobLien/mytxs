@@ -157,7 +157,7 @@ async function playSingstar(obj) {
                 await startPromise;
                 break;
             } else if (playerIndex >= allEvents.length) {
-                stopSession();
+                await stopSession();
                 break;
             } 
 
