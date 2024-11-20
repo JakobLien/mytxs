@@ -205,12 +205,11 @@ async function playSingstar(obj) {
 window.onload = async () => {
     await playerInit();
 
-    const source = document.getElementById('filereader');
     const uiDiv = document.getElementById('uiDiv');
-
-    MidiParser.parse(source, obj => playSingstar(obj));
-
     freqStartRecording(uiDiv, "click");
+
+    const fileInput = document.getElementById('fileInput');
+    MidiParser.parse(fileInput, obj => playSingstar(obj));
 
     canvasInit();
     function drawSpectrumLoop() {

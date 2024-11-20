@@ -234,6 +234,6 @@ async function playRealtime(obj) {
 
 window.onload = async () => {
     await playerInit();
-    const source = document.getElementById('filereader');
-    MidiParser.parse(source, obj => playRealtime(obj));
+    const fileInput = document.getElementById('fileInput');
+    MidiParser.parse(fileInput, obj => playRealtime(obj));
 };
