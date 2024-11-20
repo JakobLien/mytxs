@@ -76,11 +76,11 @@ async function playSingstar(obj) {
     playerReset();
 
     if (obj.formatType != MIDI.FORMAT_TYPE_MULTITRACK) {
-        alert("".concat(source, " har et ugyldig format: ", obj.formatType));
+        alert("".concat("Ugyldig format: ", obj.formatType));
     }
 
     if (obj.timeDivision & (1 << MIDI.TIME_DIVISION_TICKS_PER_BEAT)) {
-        alert("".concat(source, " har et ugyldig tempoformat: ", obj.timeDivision));
+        alert("".concat("Ugyldig tempoformat: ", obj.timeDivision));
     }
     const ticksPerBeat = obj.timeDivision;
 
