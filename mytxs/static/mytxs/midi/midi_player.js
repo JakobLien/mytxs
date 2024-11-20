@@ -156,9 +156,21 @@ function realtimeSetup(obj) {
     };
 
     loopStart = 0;
-    const loopStartCallback = (e) => loopStart = e.target.value;
+    const loopStartCallback = e => {
+        if (e.target.value >= loopEnd) {
+            e.target.value = loopStart; // Reject value if invalid
+        } else {
+            loopStart = e.target.value;
+        }
+    };
     loopEnd = songBars;
-    const loopEndCallback = (e) => loopEnd = e.target.value;
+    const loopEndCallback = e => {
+        if (e.target.value <= loopStart) {
+            e.target.value = loopEnd; // Reject value if invalid
+        } else {
+            loopEnd = e.target.value;
+        }
+    };
     const loopActiveCallback = () => loopActive = !loopActive;
 
     uiPopulateMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback, loopStartCallback, loopEndCallback, loopActiveCallback);
