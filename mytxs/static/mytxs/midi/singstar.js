@@ -50,7 +50,7 @@ async function stopSession() {
     unlock();
 }
 
-function eventSendable(event) {
+function eventPlayable(event) {
     switch (event.type) {
         case MIDI.MESSAGE_TYPE_META:
             return false;
@@ -166,8 +166,7 @@ async function playSingstar() {
 
         // Run session
         while (true) {
-
-            // End session if any stop conditions are fulfilled
+            // Wait if stopped, and stop if at the end of song
             if (stopped) {
                 await startPromise;
                 break;
@@ -176,15 +175,23 @@ async function playSingstar() {
                 break;
             } 
 
-            // Handle MIDI event
-            const e = allEvents[playerIndex];
-            // Wait until event
-            const dt = e.timestamp - playerTime;
+            // Events are remaining - sleep until what is probably 
+            // the next event (unless user changes playerTime)
+            const dt = allEvents[playerIndex].timestamp - playerTime;
             if (dt > 0) {
                 await playerSleep(dt/1000/tempo);
             }
-            // Consider whether to actually send message
-            if (eventSendable(e)) {
+
+            // Wait for restart if stop button was pressed during sleep
+            if (stopped) {
+                await startPromise;
+                break;
+            } 
+
+            // Lock in event 
+            const e = allEvents[playerIndex];
+            // Decide whether to actually play event
+            if (eventPlayable(e)) {
                 try {
                     const trackTones = activeTones.get(e.trackId);
                     if (e.type == MIDI.MESSAGE_TYPE_NOTEON) {
