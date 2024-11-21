@@ -26,7 +26,7 @@ let loopStart = null;
 let loopEnd = null;
 const mutex = new Mutex();
 
-function eventSendable(trackMuted, soloTrack, event) {
+function eventPlayable(trackMuted, soloTrack, event) {
     switch (event.type) {
         case MIDI.MESSAGE_TYPE_META:
             return false;
@@ -224,35 +224,44 @@ async function realtimePlay() {
         playerTime = 0;
         playerIndex = 0;
         while (playerIndex < allEvents.length) {
-            // Play if not paused
+            // Do not sleep or play if paused
             if (paused) {
                 await pausePromise;
-            } else {
-                const unlock = await mutex.lock();
-                const e = allEvents[playerIndex];
-                if (loopActive && e.bar >= loopEnd) {
-                    // Jump to start of loop
-                    playerSilenceAll();
-                    playerIndex = startingIndexFromBar(allEvents, loopStart);
-                    playerTime = allEvents[playerIndex].timestamp;
-                    uiSetProgress(playerTime, allEvents[playerIndex].bar);
-                } else {
-                    // Wait until event
-                    const dt = e.timestamp - playerTime;
-                    if (dt > 0) {
-                        await playerSleep(dt/1000/tempo);
-                    }
-                    // Consider whether to actually send message
-                    if (eventSendable(trackMuted, soloTrack, e)) {
-                        playerPlayEvent(e);
-                    }
-                    // Update player state
-                    playerTime = e.timestamp;
-                    playerIndex += 1;
-                    uiSetProgress(playerTime, e.bar);
-                }
-                unlock();
+                continue;
+            } 
+
+            // Events are remaining - sleep until what is probably 
+            // the next event (unless user changes playerTime)
+            const dt = allEvents[playerIndex].timestamp - playerTime;
+            if (dt > 0) {
+                await playerSleep(dt/1000/tempo);
             }
+
+            // Check if user paused during sleep
+            if (paused) {
+                await pausePromise;
+            } 
+
+            // Lock in event
+            const unlock = await mutex.lock();
+            const e = allEvents[playerIndex];
+            if (loopActive && e.bar >= loopEnd) {
+                // Jump to start of loop
+                playerSilenceAll();
+                playerIndex = startingIndexFromBar(allEvents, loopStart);
+                playerTime = allEvents[playerIndex].timestamp;
+                uiSetProgress(playerTime, allEvents[playerIndex].bar);
+            } else {
+                // Consider whether to actually play event
+                if (eventPlayable(trackMuted, soloTrack, e)) {
+                    playerPlayEvent(e);
+                }
+                // Update player state
+                playerTime = e.timestamp;
+                playerIndex += 1;
+                uiSetProgress(playerTime, e.bar);
+            }
+            unlock();
         }
         // Avoid starving UI if allEvents.length is zero
         // It would be much cleaner if there was a mechanic to set higher priority for UI threads
