@@ -159,18 +159,20 @@ function realtimeSetup(obj) {
 
     loopStart = 0;
     const loopStartCallback = e => {
-        if (e.target.value >= loopEnd) {
+        const value = Number(e.target.value); // Avoid lexicographic string comparison
+        if (value >= loopEnd) {
             e.target.value = loopStart; // Reject value if invalid
         } else {
-            loopStart = e.target.value;
+            loopStart = value;
         }
     };
     loopEnd = songBars;
     const loopEndCallback = e => {
-        if (e.target.value <= loopStart) {
+        const value = Number(e.target.value); // Avoid lexicographic string comparison
+        if (value <= loopStart) {
             e.target.value = loopEnd; // Reject value if invalid
         } else {
-            loopEnd = e.target.value;
+            loopEnd = value;
         }
     };
     const loopActiveCallback = () => loopActive = !loopActive;
