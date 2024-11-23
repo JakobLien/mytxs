@@ -7,9 +7,6 @@ import { scoreGet } from './score.js';
 import { canvasClear, canvasDrawSpectrum, canvasDrawTargets, canvasInit } from './canvas.js';
 import { playerSilenceAll, playerSleep, playerReset, playerPlayEvent, playerInit } from './player.js';
 
-let playerIndex = 0;
-let playerTime = 0;
-let score = 0;
 let highscore = 0;
 const tempo = PLAYER.TEMPO.DEFAULT;
 const activeTones = new Map(); // Map of sets
@@ -18,6 +15,7 @@ let allEvents = [];
 
 let stopped = true;
 let stopRequested = false;
+let resetRequested = false;
 
 let start;
 function createStartPromise() {
@@ -48,16 +46,11 @@ function eventPlayable(event) {
 }
 
 function resetSingstar() {
-    stopRequested = true;
-
-    playerReset();
-    playerSilenceAll();
+    // Send message to main thread
+    resetRequested = true;
 
     singstarIndex = null;
     uiClearTrackOptions();
-
-    highscore = 0;
-    uiSetHighscore(0);
 }
 
 function setupSingstar(obj) {
@@ -134,6 +127,13 @@ async function playSingstar() {
     // Session loop
     while (true) {
 
+        if (resetRequested) {
+            playerReset();
+            highscore = 0;
+            uiSetHighscore(0);
+            resetRequested = false;
+        }
+
         uiSetStartButtonText("Start");
         const startPromise = createStartPromise();
         stopped = true;
@@ -145,9 +145,9 @@ async function playSingstar() {
         stopped = false;
 
         // Prepare session
-        playerTime = 0;
-        playerIndex = 0;
-        score = 0;
+        let playerIndex = 0;
+        let playerTime = 0;
+        let score = 0;
 
         uiSetProgress(0, 0);
         uiSetScore(0);
@@ -162,7 +162,7 @@ async function playSingstar() {
             }
 
             // Stop session if stop button was pressed during sleep
-            if (stopRequested) {
+            if (stopRequested || resetRequested) {
                 playerSilenceAll();
                 break;
             } 
