@@ -224,12 +224,6 @@ async function realtimePlay() {
         playerTime = 0;
         playerIndex = 0;
         while (playerIndex < allEvents.length) {
-            // Do not sleep or play if paused
-            if (paused) {
-                await pausePromise;
-                continue;
-            } 
-
             // Events are remaining - sleep until what is probably 
             // the next event (unless user changes playerTime)
             const dt = allEvents[playerIndex].timestamp - playerTime;
