@@ -3,10 +3,18 @@ import {MidiParser} from './midi-parser.js';
 import Mutex from './mutex.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
 import {uiPopulateMasterUi, uiCreateTrackUi, uiClearTrackDivs, uiSetProgress, uiSetSongName} from './ui.js';
-import { playerVolume, playerBalance, playerSilence, playerSilenceAll, playerSleep, playerReset, playerInit, playerPlayEvent } from './player.js';
+import { playerVolume, playerBalance, playerSilence, playerSilenceAll, playerSleep, playerReset, playerInit, playerPlayEvent, playerWakeUp } from './player.js';
 
 let playerIndex = 0;
 let playerTime = 0;
+
+let pendingReset = false;
+
+let signalExited;
+function createExitPromise() {
+    return new Promise(resolve => signalExited = resolve);
+}
+let exitPromise = null;
 
 let paused = true;
 let resume;
@@ -18,7 +26,6 @@ function createPausePromise() {
 let pausePromise = createPausePromise();
 
 let tempo = PLAYER.TEMPO.DEFAULT;
-let allEvents = [];
 const trackMuted = new Map();
 let soloTrack = null;
 let loopActive = false;
@@ -75,18 +82,27 @@ function startingIndexFromBar(allEvents, bar) {
     return high < allEvents.length ? high : low;
 }
 
-function realtimeReset() {
-    uiClearTrackDivs();
+async function realtimeReset() {
+    // Send message to player
+    pendingReset = true;
+
+    // If thread exists already, wait for it to exit
+    if (exitPromise !== null) {
+        await exitPromise;
+    }
+    exitPromise = createExitPromise();
+    
+    pendingReset = false;
+
     playerReset();
-    playerSilenceAll();
-    playerIndex = 0;
-    playerTime = 0;
+
     loopStart = null;
     loopEnd = null;
-    uiSetProgress(0, 0);
+
+    uiClearTrackDivs();
 }
 
-function realtimeSetup(obj) {
+function realtimeSetup(obj, allEvents) {
     if (obj.formatType != MIDI.FORMAT_TYPE_MULTITRACK) {
         alert("".concat("Ugyldig format: ", obj.formatType));
     }
@@ -97,7 +113,6 @@ function realtimeSetup(obj) {
     const ticksPerBeat = obj.timeDivision;
 
     // Process events into a playable format
-    allEvents = [];
     for (const i in obj.track) {
         const events = obj.track[i].event;
 
@@ -150,8 +165,8 @@ function realtimeSetup(obj) {
         paused = !paused;
         e.target.innerText = paused ? "Play" : "Pause";
         if (paused) {
-            playerSilenceAll();
             pausePromise = createPausePromise();
+            playerWakeUp(); // For main thread to quickly react to pausing
         } else {
             resume();
         }
@@ -219,10 +234,11 @@ function realtimeSetup(obj) {
     }
 }
 
-async function realtimePlay() {
-    while (true) {
+async function realtimePlay(allEvents) {
+    while (!pendingReset) {
         playerTime = 0;
         playerIndex = 0;
+        uiSetProgress(0, 0);
         while (playerIndex < allEvents.length) {
             // Events are remaining - sleep until what is probably 
             // the next event (unless user changes playerTime)
@@ -231,8 +247,12 @@ async function realtimePlay() {
                 await playerSleep(dt/1000/tempo);
             }
 
-            // Check if user paused during sleep
-            if (paused) {
+            // Check if user paused or requested reset during sleep
+            if (pendingReset) {
+                playerSilenceAll();
+                break;
+            } else if (paused) {
+                playerSilenceAll();
                 await pausePromise;
             } 
 
@@ -257,19 +277,20 @@ async function realtimePlay() {
             }
             unlock();
         }
-        // Avoid starving UI if allEvents.length is zero
-        // It would be much cleaner if there was a mechanic to set higher priority for UI threads
-        await playerSleep(PLAYER.RESTART_SLEEP_MS);
     }
+
+    // Resolve promise for new setup to continue
+    signalExited();
 }
 
 window.onload = async () => {
     await playerInit();
     const fileInput = document.getElementById('fileInput');
-    const fileInputCallback = obj => {
-        realtimeReset();
-        realtimeSetup(obj);
+    const fileInputCallback = async obj => {
+        const allEvents = [];
+        await realtimeReset();
+        realtimeSetup(obj, allEvents);
+        realtimePlay(allEvents);
     };
     MidiParser.parse(fileInput, fileInputCallback);
-    realtimePlay();
 };
