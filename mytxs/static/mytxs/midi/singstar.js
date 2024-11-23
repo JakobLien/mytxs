@@ -11,18 +11,21 @@ let highscore = 0;
 const tempo = PLAYER.TEMPO.DEFAULT;
 const activeTones = new Map(); // Map of sets
 let singstarIndex = null;
-let allEvents = [];
 
 let stopped = true;
 let stopRequested = false;
-let resetRequested = false;
+let pendingReset = false;
 
 let start;
 function createStartPromise() {
-    return new Promise((resolve) => {
-        start = resolve;
-    });
+    return new Promise(resolve => start = resolve);
 }
+
+let signalExited;
+function createExitPromise() {
+    return new Promise(resolve => signalExited = resolve);
+}
+let exitPromise = null;
 
 function eventPlayable(event) {
     switch (event.type) {
@@ -45,15 +48,28 @@ function eventPlayable(event) {
     }
 }
 
-function resetSingstar() {
-    // Send message to main thread
-    resetRequested = true;
+async function resetSingstar() {
+    // Send message to player
+    pendingReset = true;
+
+    // If thread exists already, wait for it to exit
+    if (exitPromise !== null) {
+        await exitPromise;
+    }
+    exitPromise = createExitPromise();
+    
+    pendingReset = false;
+
+    playerReset();
+
+    highscore = 0;
+    uiSetHighscore(0);
 
     singstarIndex = null;
     uiClearTrackOptions();
 }
 
-function setupSingstar(obj) {
+function setupSingstar(obj, allEvents) {
     if (obj.formatType != MIDI.FORMAT_TYPE_MULTITRACK) {
         alert("".concat("Ugyldig format: ", obj.formatType));
     }
@@ -64,7 +80,6 @@ function setupSingstar(obj) {
     const ticksPerBeat = obj.timeDivision;
 
     // Process events into a playable format
-    allEvents = [];
     for (const i in obj.track) {
         const track = obj.track[i];
         track.trackId = i;
@@ -123,16 +138,9 @@ function setupSingstar(obj) {
     uiPopulateSingstarUi(songDuration, songBars, obj.track, trackSelectCallback, startCallback);
 }
 
-async function playSingstar() {
+async function playSingstar(allEvents) {
     // Session loop
-    while (true) {
-
-        if (resetRequested) {
-            playerReset();
-            highscore = 0;
-            uiSetHighscore(0);
-            resetRequested = false;
-        }
+    while (!pendingReset) {
 
         uiSetStartButtonText("Start");
         const startPromise = createStartPromise();
@@ -162,7 +170,7 @@ async function playSingstar() {
             }
 
             // Stop session if stop button was pressed during sleep
-            if (stopRequested || resetRequested) {
+            if (stopRequested || pendingReset) {
                 playerSilenceAll();
                 break;
             } 
@@ -198,6 +206,9 @@ async function playSingstar() {
             uiSetHighscore(highscore);
         }
     }
+
+    // Resolve promise for new setup to continue
+    signalExited();
 }
 
 window.onload = async () => {
@@ -207,12 +218,13 @@ window.onload = async () => {
     freqStartRecording(uiDiv, "click");
 
     const fileInput = document.getElementById('fileInput');
-    const fileInputCallback = obj => {
-        resetSingstar();
-        setupSingstar(obj);
+    const fileInputCallback = async obj => {
+        const allEvents = [];
+        await resetSingstar();
+        setupSingstar(obj, allEvents);
+        playSingstar(allEvents);
     };
     MidiParser.parse(fileInput, fileInputCallback);
-    setTimeout(playSingstar, 0); // Essentially call in new thread
 
     canvasInit();
     function drawSpectrumLoop() {
