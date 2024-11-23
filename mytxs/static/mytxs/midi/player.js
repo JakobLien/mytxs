@@ -52,8 +52,18 @@ export function playerSilenceAll() {
     }
 }
 
+let wakeUp = null;
 export function playerSleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise(resolve => {
+        wakeUp = resolve;
+        setTimeout(wakeUp, ms);
+    });
+}
+
+export function playerWakeUp() {
+    if (wakeUp !== null) {
+        wakeUp();
+    }
 }
 
 export function playerReset() {

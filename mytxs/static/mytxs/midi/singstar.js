@@ -5,7 +5,7 @@ import {uiClearTrackOptions, uiPopulateSingstarUi, uiSetHighscore, uiSetProgress
 import { freqGetSpectrum, freqStartRecording } from './freq.js';
 import { scoreGet } from './score.js';
 import { canvasClear, canvasDrawSpectrum, canvasDrawTargets, canvasInit } from './canvas.js';
-import { playerSilenceAll, playerSleep, playerReset, playerPlayEvent, playerInit } from './player.js';
+import { playerSilenceAll, playerSleep, playerReset, playerPlayEvent, playerInit, playerWakeUp } from './player.js';
 
 let highscore = 0;
 const tempo = PLAYER.TEMPO.DEFAULT;
@@ -117,7 +117,7 @@ function setupSingstar(obj) {
             start();
         } else {
             stopRequested = true;
-            // TODO: Make playerSleep manually resolvable here, to update UI and player quicker
+            playerWakeUp();
         }
     };
     uiPopulateSingstarUi(songDuration, songBars, obj.track, trackSelectCallback, startCallback);
