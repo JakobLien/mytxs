@@ -6,7 +6,6 @@ import { freqGetSpectrum, freqStartRecording } from './freq.js';
 import { scoreGet } from './score.js';
 import { canvasClear, canvasDrawSpectrum, canvasDrawTargets, canvasInit } from './canvas.js';
 import { playerSilenceAll, playerSleep, playerReset, playerPlayEvent, playerInit } from './player.js';
-import Mutex from './mutex.js';
 
 let playerIndex = 0;
 let playerTime = 0;
@@ -16,38 +15,15 @@ const tempo = PLAYER.TEMPO.DEFAULT;
 const activeTones = new Map(); // Map of sets
 let singstarIndex = null;
 let allEvents = [];
-const mutex = new Mutex();
 
 let stopped = true;
+let stopRequested = false;
 
 let start;
 function createStartPromise() {
     return new Promise((resolve) => {
         start = resolve;
     });
-}
-let startPromise = createStartPromise();
-
-async function startSession() {
-    // Act only if actually stopped
-    const unlock = await mutex.lock();
-    if (stopped) {
-        uiSetStartButtonText("Stop");
-        stopped = false;
-        start();
-    }
-    unlock();
-}
-
-async function stopSession() {
-    // Act only if actually started
-    const unlock = await mutex.lock();
-    if (!stopped) {
-        uiSetStartButtonText("Start");
-        stopped = true;
-        startPromise = createStartPromise(); // Prepare promise before telling main thread that session is stopped
-    }
-    unlock();
 }
 
 function eventPlayable(event) {
@@ -71,19 +47,17 @@ function eventPlayable(event) {
     }
 }
 
-async function resetSingstar() {
-    await stopSession();
+function resetSingstar() {
+    stopRequested = true;
+
     playerReset();
     playerSilenceAll();
-    playerIndex = 0;
-    playerTime = 0;
-    score = 0;
-    highscore = 0;
+
     singstarIndex = null;
     uiClearTrackOptions();
+
+    highscore = 0;
     uiSetHighscore(0);
-    uiSetScore(0);
-    uiSetProgress(0, 0);
 }
 
 function setupSingstar(obj) {
@@ -144,12 +118,13 @@ function setupSingstar(obj) {
     const songDuration = allEvents[allEvents.length - 1].timestamp;
     const songBars = Math.floor(allEvents[allEvents.length - 1].bar);
     const trackSelectCallback = e => singstarIndex = e.target.value;
-    const startCallback = async () => {
+    const startCallback = () => {
         if (stopped) {
-            await startSession();
+            // Main thread will set stopped = false;
+            start();
         } else {
-            await stopSession();
-            playerSilenceAll();
+            stopRequested = true;
+            // TODO: Make playerSleep manually resolvable here, to update UI and player quicker
         }
     };
     uiPopulateSingstarUi(songDuration, songBars, obj.track, trackSelectCallback, startCallback);
@@ -159,37 +134,39 @@ async function playSingstar() {
     // Session loop
     while (true) {
 
+        uiSetStartButtonText("Start");
+        const startPromise = createStartPromise();
+        stopped = true;
+        stopRequested = false;
+
+        await startPromise;
+
+        uiSetStartButtonText("Stop");
+        stopped = false;
+
         // Prepare session
         playerTime = 0;
         playerIndex = 0;
         score = 0;
 
-        // Run session
-        while (true) {
-            // Wait if stopped, and stop if at the end of song
-            if (stopped) {
-                await startPromise;
-                break;
-            } else if (playerIndex >= allEvents.length) {
-                await stopSession();
-                break;
-            } 
+        uiSetProgress(0, 0);
+        uiSetScore(0);
 
-            // Events are remaining - sleep until what is probably 
-            // the next event (unless user changes playerTime)
-            const dt = allEvents[playerIndex].timestamp - playerTime;
+        // Run session
+        while (playerIndex < allEvents.length) {
+            // Events are remaining - sleep until next
+            const e = allEvents[playerIndex];
+            const dt = e.timestamp - playerTime;
             if (dt > 0) {
                 await playerSleep(dt/1000/tempo);
             }
 
-            // Wait for restart if stop button was pressed during sleep
-            if (stopped) {
-                await startPromise;
+            // Stop session if stop button was pressed during sleep
+            if (stopRequested) {
+                playerSilenceAll();
                 break;
             } 
 
-            // Lock in event 
-            const e = allEvents[playerIndex];
             // Decide whether to actually play event
             if (eventPlayable(e)) {
                 try {
@@ -230,8 +207,8 @@ window.onload = async () => {
     freqStartRecording(uiDiv, "click");
 
     const fileInput = document.getElementById('fileInput');
-    const fileInputCallback = async obj => {
-        await resetSingstar();
+    const fileInputCallback = obj => {
+        resetSingstar();
         setupSingstar(obj);
     };
     MidiParser.parse(fileInput, fileInputCallback);
