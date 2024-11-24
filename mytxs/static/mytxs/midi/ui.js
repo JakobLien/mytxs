@@ -45,6 +45,11 @@ export function uiPopulateMasterUi(songDuration, songBars, progressCallback, bar
     loopActive.oninput = loopActiveCallback;
 }
 
+export function uiSetPauseButtonText(text) {
+    const pauseButton = document.getElementById("pauseButton");
+    pauseButton.innerText = text;
+}
+
 export function uiPopulateSingstarUi(songDuration, songBars, tracks, trackSelectCallback, startCallback) {
     const progressSpan = document.getElementById("progressSpan");
     progressSpan.innerText = usToMinSec(0);

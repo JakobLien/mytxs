@@ -2,7 +2,7 @@ import { MIDI, PLAYER } from './constants.js';
 import {MidiParser} from './midi-parser.js'; 
 import Mutex from './mutex.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
-import {uiPopulateMasterUi, uiCreateTrackUi, uiClearTrackDivs, uiSetProgress, uiSetSongName} from './ui.js';
+import {uiPopulateMasterUi, uiCreateTrackUi, uiClearTrackDivs, uiSetProgress, uiSetSongName, uiSetPauseButtonText} from './ui.js';
 import { playerVolume, playerBalance, playerSilence, playerSilenceAll, playerSleep, playerReset, playerInit, playerPlayEvent, playerWakeUp } from './player.js';
 
 let playerIndex = 0;
@@ -19,9 +19,7 @@ let exitPromise = null;
 let paused = true;
 let resume;
 function createPausePromise() {
-    return new Promise((resolve) => {
-        resume = resolve;
-    });
+    return new Promise(resolve => resume = resolve);
 }
 let pausePromise = createPausePromise();
 
@@ -161,14 +159,16 @@ function realtimeSetup(obj, allEvents) {
 
     const tempoBarCallback = e => tempo = e.target.value;
 
-    const pauseCallback = e => {
-        paused = !paused;
-        e.target.innerText = paused ? "Play" : "Pause";
+    const pauseCallback = () => {
         if (paused) {
-            pausePromise = createPausePromise();
-            playerWakeUp(); // For main thread to quickly react to pausing
-        } else {
+            paused = false;
+            uiSetPauseButtonText("Pause");
             resume();
+        } else {
+            pausePromise = createPausePromise();
+            paused = true;
+            uiSetPauseButtonText("Play");
+            playerWakeUp(); // For main thread to quickly react to pausing
         }
     };
 
