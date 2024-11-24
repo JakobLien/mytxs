@@ -67,6 +67,7 @@ export const MIDI = {
     MESSAGE_TYPE_NOTEON: 9,
     MESSAGE_TYPE_CONTROL_CHANGE: 11, // Also used for channel mode messages
 
+    MODULATION_WHEEL: 1,
     VOLUME: 7,
     BALANCE: 8,
     PAN: 10,

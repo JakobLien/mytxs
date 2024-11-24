@@ -39,6 +39,7 @@ function eventPlayable(trackMuted, soloTrack, event) {
             return !trackMuted.get(event.trackId) && (soloTrack == null || soloTrack == event.trackId);
         case MIDI.MESSAGE_TYPE_CONTROL_CHANGE:
             switch (event.data[0]) { 
+                case MIDI.MODULATION_WHEEL: // More annoying than fun
                 // Return false for all events meant to be controlled by user
                 case MIDI.VOLUME:
                 case MIDI.BALANCE:
