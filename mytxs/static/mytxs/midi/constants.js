@@ -16,6 +16,11 @@ export const PLAYER = {
         DEFAULT: 1.0,
         STEP: 0.01,
     },
+    PROGRAM: {
+        MIN: 0,
+        MAX: 127,
+        DEFAULT: 0,
+    },
 };
 
 export const RECORD = {
@@ -66,6 +71,7 @@ export const MIDI = {
     MESSAGE_TYPE_NOTEOFF: 8,
     MESSAGE_TYPE_NOTEON: 9,
     MESSAGE_TYPE_CONTROL_CHANGE: 11, // Also used for channel mode messages
+    MESSAGE_TYPE_PROGRAM_CHANGE: 12,
 
     MODULATION_WHEEL: 1,
     VOLUME: 7,

@@ -44,6 +44,8 @@ function eventPlayable(event) {
                 default:
                     return true;
             }
+        case MIDI.MESSAGE_TYPE_PROGRAM_CHANGE:
+            return false;
         default:
             return true;
     }

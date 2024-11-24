@@ -42,6 +42,16 @@ function playerPan(channel, value) {
     midiOutput.send([(MIDI.MESSAGE_TYPE_CONTROL_CHANGE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.PAN, value])
 }
 
+export function playerProgram(channel, value) {
+    midiOutput.send([(MIDI.MESSAGE_TYPE_PROGRAM_CHANGE << MIDI.STATUS_MSB_OFFSET) | channel, value])
+}
+
+export function playerProgramAll(value) {
+    for (let channel = 0; channel < MIDI.NUM_CHANNELS; channel++) {
+        playerProgram(channel, value);
+    }
+}
+
 export function playerSilence(channel) {
     midiOutput.send([(MIDI.MESSAGE_TYPE_CONTROL_CHANGE << MIDI.STATUS_MSB_OFFSET) | channel, MIDI.ALL_SOUND_OFF, 0])
 }
@@ -71,6 +81,7 @@ export function playerReset() {
         playerVolume(channel, PLAYER.VOLUME.DEFAULT);
         playerBalance(channel, PLAYER.BALANCE.DEFAULT);
         playerPan(channel, PLAYER.PAN);
+        playerProgram(channel, PLAYER.PROGRAM.DEFAULT);
     }
 }
 

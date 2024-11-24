@@ -3,7 +3,7 @@ import {MidiParser} from './midi-parser.js';
 import Mutex from './mutex.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
 import {uiPopulateMasterUi, uiCreateTrackUi, uiClearTrackDivs, uiSetProgress, uiSetSongName, uiSetPauseButtonText} from './ui.js';
-import { playerVolume, playerBalance, playerSilence, playerSilenceAll, playerSleep, playerReset, playerInit, playerPlayEvent, playerWakeUp } from './player.js';
+import { playerVolume, playerBalance, playerSilence, playerSilenceAll, playerSleep, playerReset, playerInit, playerPlayEvent, playerWakeUp, playerProgramAll } from './player.js';
 
 let playerIndex = 0;
 let playerTime = 0;
@@ -48,6 +48,8 @@ function eventPlayable(trackMuted, soloTrack, event) {
                 default:
                     return true;
             }
+        case MIDI.MESSAGE_TYPE_PROGRAM_CHANGE:
+            return false;
         default:
             return true;
     }
@@ -193,7 +195,9 @@ function maestroSetup(obj, allEvents) {
     };
     const loopActiveCallback = () => loopActive = !loopActive;
 
-    uiPopulateMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback, loopStartCallback, loopEndCallback, loopActiveCallback);
+    const instrumentNumberCallback = e => playerProgramAll(e.target.value);
+
+    uiPopulateMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback, loopStartCallback, loopEndCallback, loopActiveCallback, instrumentNumberCallback);
 
     // Create UI for tracks which have noteon events
     for (let i = 0; i < obj.track.length; i++) {
