@@ -1,6 +1,9 @@
 import datetime
 from io import BytesIO
 from PIL import Image
+import certifi
+import urllib3
+urllib3.util.connection.HAS_IPV6 = False
 
 from django.core.files import File
 
@@ -43,3 +46,17 @@ def cropImage(imageFile, name, width, height):
 def getHalvårStart():
     halvårStart = datetime.date.today()
     return halvårStart.replace(month=(halvårStart.month // 7) * 6 + 1, day=1)
+
+
+def getCord(adresse):
+    http = urllib3.PoolManager(
+        cert_reqs="CERT_REQUIRED",
+        ca_certs=certifi.where()
+    )
+
+    cord = http.request("GET", 'https://ws.geonorge.no/adresser/v1/sok?sok='+adresse).json()
+    if len(cord['adresser']) > 0:
+        cord = cord['adresser'][0]['representasjonspunkt']
+        del cord['epsg']
+
+        return cord
