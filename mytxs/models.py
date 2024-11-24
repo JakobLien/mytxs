@@ -410,11 +410,13 @@ class Medlem(DbCacheModel):
 
     @dbCache
     def boAdresseCord(self):
-        return getCord(self.boAdresse)
+        if self.boAdresse:
+            return getCord(self.boAdresse)
     
     @dbCache
     def foreldreAdresseCord(self):
-        return getCord(self.foreldreAdresse)
+        if self.foreldreAdresse:
+            return getCord(self.foreldreAdresse)
 
     sjekkhefteSynlig = BitmapMultipleChoiceField(choicesList=consts.sjekkhefteSynligOptions, verbose_name='Synlig i sjekkheftet', editable=False)
     matpreferanse = BitmapMultipleChoiceField(choicesList=consts.matpreferanseOptions)
