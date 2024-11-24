@@ -1140,9 +1140,9 @@ def om(request):
     })
 
 @login_required
-def midi(request):
-    return render(request, 'mytxs/midi.html', {
-        'heading': 'Spill midifil'
+def maestro(request):
+    return render(request, 'mytxs/maestro.html', {
+        'heading': 'Maestro'
     })
 
 @login_required

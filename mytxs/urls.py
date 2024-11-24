@@ -35,7 +35,7 @@ urlpatterns = [
     
     path('om', views.om, name='om'),
 
-    path('midi', views.midi, name='midi'),
+    path('maestro', views.maestro, name='maestro'),
 
     path('medlem', views.medlemListe, name='medlem'),
     path('medlem/<int:medlemPK>', views.medlem, name='medlem'),

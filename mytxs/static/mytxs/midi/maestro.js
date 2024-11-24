@@ -80,7 +80,7 @@ function startingIndexFromBar(allEvents, bar) {
     return high < allEvents.length ? high : low;
 }
 
-async function realtimeReset() {
+async function maestroReset() {
     // Send message to player
     pendingReset = true;
 
@@ -100,7 +100,7 @@ async function realtimeReset() {
     uiClearTrackDivs();
 }
 
-function realtimeSetup(obj, allEvents) {
+function maestroSetup(obj, allEvents) {
     if (obj.formatType != MIDI.FORMAT_TYPE_MULTITRACK) {
         alert("".concat("Ugyldig format: ", obj.formatType));
     }
@@ -234,7 +234,7 @@ function realtimeSetup(obj, allEvents) {
     }
 }
 
-async function realtimePlay(allEvents) {
+async function maestroPlay(allEvents) {
     while (!pendingReset) {
         playerTime = 0;
         playerIndex = 0;
@@ -288,9 +288,9 @@ window.onload = async () => {
     const fileInput = document.getElementById('fileInput');
     const fileInputCallback = async obj => {
         const allEvents = [];
-        await realtimeReset();
-        realtimeSetup(obj, allEvents);
-        realtimePlay(allEvents);
+        await maestroReset();
+        maestroSetup(obj, allEvents);
+        maestroPlay(allEvents);
     };
     MidiParser.parse(fileInput, fileInputCallback);
 };
