@@ -182,7 +182,7 @@ for model in strToModels(consts.loggedModelNames):
 
 @recieverWithModels(m2m_changed, senders=m2mFields)
 def log_m2m_changed(sender, instance, action, reverse, model, pk_set, **kwargs):
-    if action in ('post_add', 'post_remove', 'post_clear'):
+    if action in ('post_add', 'post_remove'):
         for key in pk_set:
             if not reverse:
                 makeM2MLogg(sender, action, instance.pk, key)

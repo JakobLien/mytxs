@@ -78,9 +78,9 @@ def addHendelseMedlemmer(HendelseForm, queryset=None, enableQueryset=None):
 
             self.fields['medlemmer'].queryset = self.instance.oppmøteMedlemmer | (
                 queryset.distinct() if queryset else Medlem.objects.filter(
-                    vervInnehavelseAktiv(), 
+                    vervInnehavelseAktiv(dato=self.instance.startDate), 
                     stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
-                    vervInnehavelser__verv__kor__navn__in=consts.bareStorkorNavn if self.instance.kor.navn == 'Sangern' else [self.instance.kor.navn]
+                    vervInnehavelser__verv__kor__navn__in=consts.bareStorkorNavn if self.instance.kor.navn == consts.Kor.Sangern else [self.instance.kor.navn]
                 ).distinct()
             )
 
@@ -88,9 +88,11 @@ def addHendelseMedlemmer(HendelseForm, queryset=None, enableQueryset=None):
 
             self.fields['medlemmer'].setEnableQueryset(
                 enableQueryset=self.fields['medlemmer'].queryset.exclude(
-                    vervInnehavelseAktiv(),
-                    vervInnehavelser__verv__tilganger__navn__in=self.instance.prefiksArray,
-                    vervInnehavelser__verv__tilganger__kor=self.instance.kor
+                    pk__in=Medlem.objects.filter(
+                        vervInnehavelseAktiv(dato=self.instance.startDate),
+                        vervInnehavelser__verv__tilganger__navn__in=self.instance.prefiksArray,
+                        vervInnehavelser__verv__tilganger__kor=self.instance.kor
+                    )
                 ).filter(pk__in=enableQueryset.values_list('pk', flat=True) if enableQueryset else Medlem.objects.all().values_list('pk', flat=True)),
                 initialValue=self.fields['medlemmer'].initial
             )

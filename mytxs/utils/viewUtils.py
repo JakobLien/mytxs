@@ -7,6 +7,7 @@ from django.db.models import FileField
 from django.http import HttpResponse
 from django.shortcuts import redirect
 
+from mytxs import consts
 from mytxs.models import Medlem
 
 # Utils til bruk i og rundt views
@@ -129,7 +130,7 @@ def harFilTilgang(medlem, filePath):
         if instance.aktiveKor.exists():
             return True
         
-        if medlem.tilganger.filter(navn='medlemsdata', kor__navn=instance.storkorNavn()):
+        if medlem.tilganger.filter(navn=consts.Tilgang.medlemsdata, kor__navn=instance.storkorNavn()):
             return True
 
     return False

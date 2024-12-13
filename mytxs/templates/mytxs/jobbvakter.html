@@ -4,55 +4,57 @@
 {% block content %}
 
 {% toggleURLparam 'jobbvakter' 'jobbvakter' %}
-<form action="{{ request.get_full_path }}" method="post" class="managedForm">
-    {% csrf_token %}
 
-    <table class="text-left">
-        <tr class="[&>*]:w-52 border-b border-black">
-            <th>Hva</th>
-            <th>Når</th>
-            <th>Medlemmer</th>
-            <th>Oppmeldt</th>
-        </tr>
-        
-        {{ hendelseFormset.management_form }}
-        {% for form in hendelseFormset %}
-        {% with hendelse=form.instance %}
+<table class="text-left">
+    <tr class="[&>*]:w-52 border-b border-black">
+        <th>Hva</th>
+        <th>Når</th>
+        <th>Medlemmer</th>
+        <th>Oppmeldt</th>
+    </tr>
+    {% for hendelse in request.queryset %}
+    <tr class="border-b border-black">
+        <td>
+            {{hendelse.navn}}
 
-        <tr class="border-b border-black">
-            <td>{{hendelse.navn}}</td>
-            <td>
-                {{ hendelse.startDate|date:'D j. M' }}
-                {% if hendelse.startTime %}
-                {{ hendelse.startTime }}
-                {% endif %}
+            {% if user.medlem|tilgangExists:consts.Tilgang.semesterplan %} 
+            <a class="text-sm" href="{% url 'hendelse' hendelse.pk %}">Rediger</a> 
+            {% endif %}
+        </td>
+        <td>
+            {{ hendelse.startDate|date:'D j. M' }}
+            {% if hendelse.startTime %}
+            {{ hendelse.startTime }}
+            {% endif %}
 
-                {% if hendelse.slutt %}
-                -
-                {% if hendelse.slutt.date|default:hendelse.slutt != hendelse.startDate %}
-                <br>{{ hendelse.slutt|date:'D j. M' }}
-                {% endif %}
-                {% if hendelse.sluttTime %}
-                {{ hendelse.sluttTime }}
-                {% endif %}
-                {% endif %}
-            </td>
-
-            <td class="[&>label]:hidden">
-                {{ form.medlemmer.label_tag }}
-                {{ form.medlemmer }}
-                {{ form.id }}
-            </td>
-
-            <td>{% if request.user.medlem.pk in form.medlemmer.value %}Oppmeldt{% endif%}</td>
-        </tr>
-        {% endwith %}
-        {% endfor %}
-
-    </table>
-
-    <input type="button" value="Angre" onclick="resetForm(this.form)">
-    <input type="submit" value="Lagre">
-</form>
+            {% if hendelse.slutt %}
+            -
+            {% if hendelse.slutt.date|default:hendelse.slutt != hendelse.startDate %}
+            <br>{{ hendelse.slutt|date:'D j. M' }}
+            {% endif %}
+            {% if hendelse.sluttTime %}
+            {{ hendelse.sluttTime }}
+            {% endif %}
+            {% endif %}
+        </td>
+        <td>
+            {% for oppmøte in hendelse.oppmøter.all %}
+            {% if oppmøte.medlem == user.medlem %}
+            <div class="font-bold">{{ oppmøte.medlem }}</div>
+            {% else %}
+            <div>{{ oppmøte.medlem }}</div>
+            {% endif %}
+            {% endfor %}
+        </td>
+        <td>
+            {% if not hendelse.full or hendelse.påmeldt %}
+            <a href="{% setURLParams toggle=hendelse.pk %}">
+                {% if hendelse.påmeldt %}Avmeld{% else %}Påmeld{% endif %}
+            </a>
+            {% elif hendelse.full %}Fullt{% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+</table>
 
 {% endblock %}

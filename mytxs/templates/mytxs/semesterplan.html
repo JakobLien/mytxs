@@ -21,11 +21,11 @@
 <br>
 {% endif %}
 
-{% toggleURLparam 'jobbvakter' 'jobbvakter' gammelt=None %} {% toggleURLparam 'gammelt' 'vis gammelt' %}
+{% toggleURLparam 'jobbvakter' 'jobbvakter' gammelt=None %} {% toggleURLparam 'gammelt' 'vis gammelt' %} {% toggleURLparam 'utenUndergruppe' 'skjul undergruppe hendelser' %}
 <br>
-<span>Minutter gyldig fravær: {{ medlem|showFravær:True }}</span>
+<span>Minutter gyldig fravær: {{ medlem|showFravær:'gyldigFravær' }}</span>
 <br>
-<span>Minutter ugyldig fravær: {{ medlem|showFravær:False }}</span>
+<span>Minutter ugyldig fravær: {{ medlem|showFravær:'altUgyldigFravær' }}</span>
 
 <table class="text-left">
     <tr class="[&>*]:w-52 border-b border-black">
@@ -59,7 +59,7 @@
         <td><a href="{{ oppmøte.get_absolute_url }}">
             {{ oppmøte.fraværTekst }}
         </a></td>
-        {% endif %}{% endwith%}
+        {% endif %}{% endwith %}
     </tr>
     {% endfor %}
 </table>

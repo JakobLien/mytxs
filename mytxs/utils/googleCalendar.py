@@ -1,9 +1,10 @@
 import datetime
 import os
-import threading
 from time import sleep
 
+from mytxs import consts
 from mytxs.utils.downloadUtils import getVeventFromHendelse
+from mytxs.utils.threadUtils import thread
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -178,23 +179,10 @@ def getHendelseBody(veventDict):
     return body
 
 
-def thread(func):
-    def _decorator(*args, **kwargs):
-        t = threading.Thread(
-            target=func, 
-            args=args, 
-            kwargs=kwargs,
-            daemon=True
-        )
-        t.start()
-        return t
-    return _decorator
-
-
 @thread
 def getOrCreateAndShareCalendar(korNavn, medlem, gmail):
     gCalManager = GoogleCalendarManager(requestCountDown=200)
-    
+
     calendarId = gCalManager.getCalendarIDs(korNavn, [medlem]).get(medlem)
 
     if not calendarId:
@@ -215,8 +203,8 @@ def updateGoogleCalendar(hendelse, changed=False, oldMedlemmer=[], newMedlemmer=
     gCalManager = GoogleCalendarManager(requestCountDown=200)
     
     # Sangern hendelser kan vær i begge storkor sine kalendere
-    if hendelse.kor.navn == 'Sangern':
-        medlemCalendars = gCalManager.getCalendarIDs('TSS', oldMedlemmer+newMedlemmer) | gCalManager.getCalendarIDs('TKS', oldMedlemmer+newMedlemmer)
+    if hendelse.kor.navn == consts.Kor.Sangern:
+        medlemCalendars = gCalManager.getCalendarIDs(consts.Kor.TSS, oldMedlemmer+newMedlemmer) | gCalManager.getCalendarIDs(consts.Kor.TKS, oldMedlemmer+newMedlemmer)
     else:
         medlemCalendars = gCalManager.getCalendarIDs(hendelse.kor.navn, oldMedlemmer+newMedlemmer)
     

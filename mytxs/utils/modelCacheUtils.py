@@ -28,8 +28,15 @@ class DbCacheModel(models.Model):
                 DbCacheModel.save(related)
 
     def save(self, *args, **kwargs):
-        self.dbCacheField = {}
+        for key in [k for k in self.dbCacheField.keys() if k not in getDbCachedFields(type(self))]:
+            del self.dbCacheField[key]
+
         for methodName in getDbCachedFields(type(self)):
+            if getattr(self, methodName).onChange:
+                oldSelf = type(self).objects.filter(pk=self.pk).first()
+                if all([getattr(oldSelf, f) == getattr(self, f) for f in getattr(self, methodName).onChange]) and self.dbCacheField.get(methodName):
+                    continue
+
             self.dbCacheField[methodName] = getattr(self, methodName)(skipDecorator=True)
 
         changed = hasChanged(self)
@@ -62,9 +69,12 @@ def getRelatedFieldsToUpdate(model, changed, cacheChanged):
     return list(modelsToUpdate)
 
 
-def dbCache(actualMethod=None, affectedByFields=[], affectedByCache=[]):
+def dbCache(actualMethod=None, onChange=[], affectedByFields=[], affectedByCache=[]):
     '''
     Kan brukes på modeller som arver fra dbCacheModel, gjør at resultatet av methoden lagres i dbCacheField ved lagring. 
+
+    onChange er en liste av fields på denne modellen, der metoden kun skal kjøres når disse endrer seg. Når dette er satt kjører vi
+    heller ikkje metoden når metoden kalles og vi har en falsy verdi i cachen. 
 
     affectedByFields tar en liste av field navn på denne modellen som er relations til andre modeller, og gjør at når relaterte
     instances av de modellene lagres, og et felt endrer verdi, vil denne instansen også lagres. affectedByCache er det samme, 
@@ -75,14 +85,14 @@ def dbCache(actualMethod=None, affectedByFields=[], affectedByCache=[]):
     '''
     if not actualMethod:
         # Om vi calle decoratoren, return resten av funksjonen wrapped i en lambda (her må vi passe videre ALLE harTilgang parametersa)
-        return lambda actualMethod: dbCache(actualMethod, affectedByFields=affectedByFields, affectedByCache=affectedByCache)
+        return lambda actualMethod: dbCache(actualMethod, onChange=onChange, affectedByFields=affectedByFields, affectedByCache=affectedByCache)
 
     def _decorator(self, skipDecorator=False):
         if skipDecorator:
             return actualMethod(self)
 
         # Return verdien om den finnes
-        if actualMethod.__name__ in self.dbCacheField:
+        if self.dbCacheField.get(actualMethod.__name__) or onChange:
             return self.dbCacheField.get(actualMethod.__name__)
 
         # Om ikke, sett den og return den
@@ -97,6 +107,7 @@ def dbCache(actualMethod=None, affectedByFields=[], affectedByCache=[]):
         return self.dbCacheField[actualMethod.__name__]
     
     _decorator.dbCached = True
+    _decorator.onChange = onChange
     _decorator.affectedByFields = affectedByFields
     _decorator.affectedByCache = affectedByCache
     return _decorator
