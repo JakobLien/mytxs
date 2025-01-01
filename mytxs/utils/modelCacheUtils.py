@@ -1,7 +1,7 @@
-
 from django.db import models
 
-from mytxs.utils.modelUtils import dbCacheChanged, getAllRelatedModelsWithFieldNameAndReverse, hasChanged
+from mytxs.utils.modelUtils import getAllRelatedModelsWithFieldNameAndReverse
+from mytxs.utils.threadUtils import thread
 
 class DbCacheModel(models.Model):
     '''
@@ -13,43 +13,73 @@ class DbCacheModel(models.Model):
 
     dbCacheField = models.JSONField(editable=False, default=dict)
 
-    def updateRelated(self, changed, cacheChanged):
-        if not (changed or cacheChanged):
-            return
-        
-        for relName in getRelatedFieldsToUpdate(type(self), changed=changed, cacheChanged=cacheChanged):
-            related = getattr(self, relName)
-            if hasattr(related, 'all'):
-                if self.pk: 
-                    # Om vi ikke har self.pk, har vi heller ikke forward relations. 
-                    for related in related.all():
-                        DbCacheModel.save(related)
-            else:
-                DbCacheModel.save(related)
+    def saveRelated(self, oldSelf=None, caller=None, delete=False):
+        'Lagre relaterte objekt basert på dbCache sin path.'
+        for relation, reverseRelation, model in getAllRelatedModelsWithFieldNameAndReverse(type(self)):
+            dbCacheFields = []
 
-    def save(self, *args, **kwargs):
+            for dbCacheFieldName in getDbCachedFields(model):
+                fields = [p.split('.')[1] for p in getattr(model, dbCacheFieldName).paths if p.split('.')[0] == reverseRelation]
+                if (delete and fields) or any([f == '' or getAttrAndCall(self, f) != getAttrAndCall(oldSelf, f) for f in fields]):
+                    dbCacheFields.append(dbCacheFieldName)
+
+            if not dbCacheFields:
+                continue
+
+            # Bare lagre felt som ikkje lagres hver save
+            dbCacheFields = [f for f in dbCacheFields if any(
+                [p.split('.')[0] == '' and p.split(".")[1] != '' for p in getattr(model, f).paths]
+            )]
+
+            relatedList = [getattr(self, relation)]
+            if hasattr(getattr(self, relation), 'all') and self.pk:
+                relatedList = relatedList[0].all()
+
+            for related in relatedList:
+                if caller == f'{relation}#{related.pk}':
+                    continue
+
+                for field in dbCacheFields:
+                    getattr(related, field)(run=True)
+                DbCacheModel.save(related, caller=f'{reverseRelation}#{self.pk}')
+
+    def save(self, *args, caller=None, **kwargs):
+        'Save som vedlikeheld dbCache fields og relaterte avhengige dbCache fields.'
+        # Slett ting i dbCache vi ikkje har metoda for
         for key in [k for k in self.dbCacheField.keys() if k not in getDbCachedFields(type(self))]:
             del self.dbCacheField[key]
 
-        for methodName in getDbCachedFields(type(self)):
-            if getattr(self, methodName).onChange:
-                oldSelf = type(self).objects.filter(pk=self.pk).first()
-                if all([getattr(oldSelf, f) == getattr(self, f) for f in getattr(self, methodName).onChange]) and self.dbCacheField.get(methodName):
-                    continue
+        oldSelf = type(self).objects.filter(pk=self.pk).first()
 
-            self.dbCacheField[methodName] = getattr(self, methodName)(skipDecorator=True)
+        for dbCacheFieldName in getDbCachedFields(type(self)):
+            fields = [p[1:] for p in getattr(type(self), dbCacheFieldName).paths if p.split(".")[0] == '' and p.split(".")[1] != '']
 
-        changed = hasChanged(self)
-        cacheChanged = dbCacheChanged(self)
+            if len(fields) == 0 or any([getAttrAndCall(self, field) != getAttrAndCall(oldSelf, field) for field in fields]):
+                getattr(self, dbCacheFieldName)(run=True)
+
         super().save(*args, **kwargs)
-        self.updateRelated(changed, cacheChanged)
+
+        if caller == None:
+            thread(self.saveRelated)(oldSelf, caller)
+        else:
+            self.saveRelated(oldSelf, caller)
 
     def delete(self, *args, **kwargs):
+        'Delete som vedlikeheld dbCache fields og relaterte avhengige dbCache fields.'
         super().delete(*args, **kwargs)
-        self.updateRelated(changed=True, cacheChanged=True)
+
+        thread(self.saveRelated)(delete=True)
 
     class Meta:
         abstract = True
+
+
+def getAttrAndCall(self, field):
+    'Hjelpemetode som calle etter getattr dersom det e callable'
+    res = getattr(self, field, None)
+    if callable(res):
+        return res()
+    return res
 
 
 def getDbCachedFields(model):
@@ -57,59 +87,27 @@ def getDbCachedFields(model):
     return [f for f in dir(model) if getattr(getattr(model, f, None), 'dbCached', False)]
 
 
-def getRelatedFieldsToUpdate(model, changed, cacheChanged):
-    'Returne navnet på relasjonene fra denne modellen som må oppdateres'
-    modelsToUpdate = set()
-    for relName, reverseRelName, relModel in getAllRelatedModelsWithFieldNameAndReverse(model):
-        for dbCachedMethodName in getDbCachedFields(relModel):
-            if changed and reverseRelName in getattr(relModel, dbCachedMethodName).affectedByFields:
-                modelsToUpdate.add(relName)
-            if cacheChanged and reverseRelName in getattr(relModel, dbCachedMethodName).affectedByCache:
-                modelsToUpdate.add(relName)
-    return list(modelsToUpdate)
-
-
-def dbCache(actualMethod=None, onChange=[], affectedByFields=[], affectedByCache=[]):
+def dbCache(actualMethod=None, paths=[]):
     '''
     Kan brukes på modeller som arver fra dbCacheModel, gjør at resultatet av methoden lagres i dbCacheField ved lagring. 
 
-    onChange er en liste av fields på denne modellen, der metoden kun skal kjøres når disse endrer seg. Når dette er satt kjører vi
-    heller ikkje metoden når metoden kalles og vi har en falsy verdi i cachen. 
-
-    affectedByFields tar en liste av field navn på denne modellen som er relations til andre modeller, og gjør at når relaterte
-    instances av de modellene lagres, og et felt endrer verdi, vil denne instansen også lagres. affectedByCache er det samme, 
-    men oppdaterer bare når cachen av relaterte modeller endrer seg. Altså kan affectedByCache intreffe uten affectedByFields. 
-
-    Dette lar oss spare arbeid f.eks. om et verv bytte navn, og relaterte vervInnehavelser følgelig endre navn, 
-    men ikkje oppdatere relaterte medlemmer fordi medlem ikke er avhengig av vervInnehavelser sin cache, bare av fields. 
+    path er en liste av ting denne skal oppdateres på, format "relasjon.felt"
+    - I utgangspunktet kjøre metoden ved hver lagring. Bruk ".felt" for å avgrens til bare når felt har endra seg. 
+    - Om en relasjon spesifiseres, "relasjon.", skal vi også kjør hver gong den lagres. 
+    - "relasjon.felt" fungere slik man sku forvent, på det relaterte objektet må det feltet ha endra seg. 
     '''
     if not actualMethod:
-        # Om vi calle decoratoren, return resten av funksjonen wrapped i en lambda (her må vi passe videre ALLE harTilgang parametersa)
-        return lambda actualMethod: dbCache(actualMethod, onChange=onChange, affectedByFields=affectedByFields, affectedByCache=affectedByCache)
+        # Om vi calle decoratoren, return resten av funksjonen wrapped i en lambda
+        return lambda actualMethod: dbCache(actualMethod, paths=paths)
 
-    def _decorator(self, skipDecorator=False):
-        if skipDecorator:
-            return actualMethod(self)
-
-        # Return verdien om den finnes
-        if self.dbCacheField.get(actualMethod.__name__) or onChange:
-            return self.dbCacheField.get(actualMethod.__name__)
-
-        # Om ikke, sett den og return den
-        if self.pk:
-            # Om dbCache calles via str av objektet i modellens save metode, før save calles videre oppover,
-            # vil den neste kodelinjen lage et nytt objekt, og den faktiske saven vil faile med error
-            # "django.db.utils.IntegrityError: duplicate key value violates unique constraint", 
-            # hvilket ser veldig ut som et databaseproblem uten at det er det. Derfor "if self.pk:" over
-            DbCacheModel.save(self, update_fields=['dbCacheField'])
-        else:
+    def _decorator(self, run=False):
+        if run:
             self.dbCacheField[actualMethod.__name__] = actualMethod(self)
-        return self.dbCacheField[actualMethod.__name__]
-    
+
+        return self.dbCacheField.get(actualMethod.__name__)
+
     _decorator.dbCached = True
-    _decorator.onChange = onChange
-    _decorator.affectedByFields = affectedByFields
-    _decorator.affectedByCache = affectedByCache
+    _decorator.paths = paths
     return _decorator
 
 

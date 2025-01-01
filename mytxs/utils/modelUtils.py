@@ -328,22 +328,3 @@ def annotateInstance(instance, annotateFunction, *args, **kwargs):
 def refreshQueryset(queryset):
     'En quick fix funksjon som hindrer at filters ikkje kombineres på uintensjonelle måter.'
     return queryset.model.objects.filter(pk__in=queryset.values_list('pk', flat=True))
-
-
-def hasChanged(instance, skipDbCache=True):
-    'Sjekke om en instance er annerledes fra det som er i databasen'
-    dbInstance = type(instance).objects.filter(pk=instance.pk).first()
-    if not dbInstance:
-        return True
-    for field in instance._meta.fields:
-        if skipDbCache and field.name == 'dbCacheField':
-            continue
-        if getattr(instance, field.name) != getattr(dbInstance, field.name):
-            return True
-    return False
-
-
-def dbCacheChanged(instance):
-    'Sjekke om dbCacheField er annerledes fra det som er i databasen'
-    dbInstance = type(instance).objects.filter(pk=instance.pk).first()
-    return not dbInstance or instance.dbCacheField != dbInstance.dbCacheField

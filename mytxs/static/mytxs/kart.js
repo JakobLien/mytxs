@@ -11,13 +11,13 @@ if(document.currentScript.dataset.json){
         return cord['lat'] + '' + cord['lon'];
     }
 
-    function addAdressToMap(medlem, cord){
+    function addAdressToMap(medlem, cord, suffix=''){
         if(markerMapping[strCord(cord)]){
             const marker = markerMapping[strCord(cord)];
-            marker.bindPopup(marker._popup._content + '<br>' + `<a href="/sjekkheftet/${medlem.storkorNavn}#m_${medlem.pk}">${medlem.navn}</a>`);
+            marker.bindPopup(marker._popup._content + '<br>' + `<a href="/sjekkheftet/${medlem.storkorNavn}#m_${medlem.pk}">${medlem.navn}${suffix}</a>`);
         }else{
             const marker = L.marker([cord.lat, cord.lon]).addTo(map);
-            marker.bindPopup(`<a href="/sjekkheftet/${medlem.storkorNavn}#m_${medlem.pk}">${medlem.navn}</a>`);
+            marker.bindPopup(`<a href="/sjekkheftet/${medlem.storkorNavn}#m_${medlem.pk}">${medlem.navn}${suffix}</a>`);
             markerMapping[strCord(cord)] = marker;
         }
     }
@@ -26,8 +26,8 @@ if(document.currentScript.dataset.json){
         if(medlem.boCord){
             addAdressToMap(medlem, medlem.boCord);
         }
-        if(medlem.foredlreCord){
-            addAdressToMap(medlem, medlem.foredlreCord);
+        if(medlem.foreldreCord){
+            addAdressToMap(medlem, medlem.foreldreCord, suffix=' (hjemme)');
         }
     }
 }

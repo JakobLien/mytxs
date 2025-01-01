@@ -27,7 +27,6 @@ from mytxs.utils.googleCalendar import getOrCreateAndShareCalendar
 from mytxs.utils.lazyDropdown import lazyDropdown
 from mytxs.utils.formUtils import filesIfPost, postIfPost, inlineFormsetArgs
 from mytxs.utils.hashUtils import addHash, testHash
-from mytxs.utils.logAuthorUtils import logAuthorAndSave, logAuthorInstance
 from mytxs.utils.modelUtils import inneværendeSemester, korLookup, qBool, randomDistinct, stemmegruppeOrdering, vervInnehavelseAktiv, stemmegruppeVerv, annotateInstance
 from mytxs.utils.pagination import getPaginatedInlineFormSet, addPaginatorPage
 from mytxs.utils.downloadUtils import downloadFile, downloadICal, downloadVCard
@@ -291,7 +290,7 @@ def medlemListe(request):
 
     if request.method == 'POST':
         if nyttMedlemForm.is_valid():
-            logAuthorAndSave(nyttMedlemForm, request.user.medlem)
+            nyttMedlemForm.save()
             messages.info(request, f'{nyttMedlemForm.instance} opprettet!')
             return redirect(nyttMedlemForm.instance)
     
@@ -353,11 +352,11 @@ def medlem(request, medlemPK):
 
     if request.method == 'POST':
         if medlemsDataForm.is_valid():
-            logAuthorAndSave(medlemsDataForm, request.user.medlem)
+            medlemsDataForm.save()
         if vervInnehavelseFormset.is_valid():
-            logAuthorAndSave(vervInnehavelseFormset, request.user.medlem)
+            vervInnehavelseFormset.save()
         if dekorasjonInnehavelseFormset.is_valid():
-            logAuthorAndSave(dekorasjonInnehavelseFormset, request.user.medlem)
+            dekorasjonInnehavelseFormset.save()
         if medlemsDataForm.is_valid() and vervInnehavelseFormset.is_valid() and dekorasjonInnehavelseFormset.is_valid():
             return redirectToInstance(request)
 
@@ -464,7 +463,7 @@ def meldFravær(request, medlemPK, hendelsePK):
 
     if request.method == 'POST':
         if oppmøteForm.is_valid():
-            logAuthorAndSave(oppmøteForm, request.user.medlem)
+            oppmøteForm.save()
             return redirectToInstance(request)
 
     return render(request, 'mytxs/instance.html', {
@@ -513,7 +512,6 @@ def egenFøring(request, hendelsePK):
     ))
     
     request.instance.save() # Ikke fjern meg!
-    logAuthorInstance(request.instance, request.user.medlem)
 
     messages.info(request, f'Oppmøte ført med {request.instance.fravær} minutter forsentkomming!')
     
@@ -643,7 +641,7 @@ def hendelseListe(request):
 
     if request.method == 'POST':
         if nyHendelseForm.is_valid():
-            logAuthorAndSave(nyHendelseForm, request.user.medlem)
+            nyHendelseForm.save()
             messages.info(request, f'{nyHendelseForm.instance} opprettet!')
             return redirect(nyHendelseForm.instance)
 
@@ -673,7 +671,6 @@ def hendelse(request, hendelsePK):
                 if oppmøte.fravær == None:
                     oppmøte.fravær = int(max((min(request.instance.slutt, datetime.datetime.now()) - request.instance.start).total_seconds() / 60, 0))
                     oppmøte.save()
-                    logAuthorInstance(oppmøte, request.user.medlem)
                 request.GET = request.GET.copy()
                 request.GET['medlem'] = request.GET['førFraværFor']
                 del request.GET['førFraværFor']
@@ -688,7 +685,7 @@ def hendelse(request, hendelsePK):
             )
 
             if request.method == 'POST' and endreFraværForm.is_valid():
-                logAuthorAndSave(endreFraværForm, request.user.medlem)
+                endreFraværForm.save()
                 return redirectToInstance(request)
         
         return render(request, 'mytxs/fraværModus.html', {
@@ -703,7 +700,6 @@ def hendelse(request, hendelsePK):
         if request.instance.sluttDate:
             request.instance.sluttDate += datetime.timedelta(weeks=1)
         request.instance.save()
-        logAuthorInstance(request.instance, request.user.medlem)
 
         request.GET = request.GET.copy()
         del request.GET['dupliser']
@@ -742,9 +738,9 @@ def hendelse(request, hendelsePK):
     if request.method == 'POST':
         # Rekkefølgen her e viktig for at bruker skal kunne slette oppmøter nødvendig for å flytte hendelse på en submit:)
         if oppmøteFormset and oppmøteFormset.is_valid():
-            logAuthorAndSave(oppmøteFormset, request.user.medlem)
+            oppmøteFormset.save()
         if hendelseForm.is_valid():
-            logAuthorAndSave(hendelseForm, request.user.medlem)
+            hendelseForm.save()
             if hendelseForm.cleaned_data['DELETE']:
                 messages.info(request, f'{hendelseForm.instance} slettet')
                 return redirect('hendelse')
@@ -786,7 +782,7 @@ def lenker(request):
 
     if request.method == 'POST':
         if lenkerFormset.is_valid():
-            logAuthorAndSave(lenkerFormset, request.user.medlem)
+            lenkerFormset.save()
             return redirect(request.get_full_path())
 
     return render(request, 'mytxs/lenker.html', {
@@ -816,7 +812,7 @@ def vervListe(request):
 
     if request.method == 'POST':
         if nyttVervForm.is_valid():
-            logAuthorAndSave(nyttVervForm, request.user.medlem)
+            nyttVervForm.save()
             messages.info(request, f'{nyttVervForm.instance} opprettet!')
             return redirect(nyttVervForm.instance)
     
@@ -850,12 +846,12 @@ def verv(request, kor, vervNavn):
 
     if request.method == 'POST':
         if vervForm.is_valid():
-            logAuthorAndSave(vervForm, request.user.medlem)
+            vervForm.save()
             if vervForm.cleaned_data['DELETE']:
                 messages.info(request, f'{vervForm.instance} slettet')
                 return redirect('verv')
         if vervInnehavelseFormset.is_valid():
-            logAuthorAndSave(vervInnehavelseFormset, request.user.medlem)
+            vervInnehavelseFormset.save()
         
         if vervForm.is_valid() and vervInnehavelseFormset.is_valid():
             return redirectToInstance(request)
@@ -880,7 +876,7 @@ def dekorasjonListe(request):
 
     if request.method == 'POST':
         if nyDekorasjonForm.is_valid():
-            logAuthorAndSave(nyDekorasjonForm, request.user.medlem)
+            nyDekorasjonForm.save()
             messages.info(request, f'{nyDekorasjonForm.instance} opprettet!')
             return redirect(nyDekorasjonForm.instance)
 
@@ -910,12 +906,12 @@ def dekorasjon(request, kor, dekorasjonNavn):
 
     if request.method == 'POST':
         if dekorasjonForm.is_valid():
-            logAuthorAndSave(dekorasjonForm, request.user.medlem)
+            dekorasjonForm.save()
             if dekorasjonForm.cleaned_data['DELETE']:
                 messages.info(request, f'{dekorasjonForm.instance} slettet')
                 return redirect('dekorasjon')
         if dekorasjonInnehavelseFormset.is_valid():
-            logAuthorAndSave(dekorasjonInnehavelseFormset, request.user.medlem)
+            dekorasjonInnehavelseFormset.save()
 
         if dekorasjonForm.is_valid() and dekorasjonInnehavelseFormset.is_valid():
             return redirectToInstance(request)
@@ -954,7 +950,7 @@ def tilgangSide(request, side=None):
 
     if request.method == 'POST':
         if nyTilgangForm.is_valid():
-            logAuthorAndSave(nyTilgangForm, request.user.medlem)
+            nyTilgangForm.save()
             messages.info(request, f'{nyTilgangForm.instance} opprettet!')
             return redirect(nyTilgangForm.instance)
 
@@ -978,7 +974,7 @@ def tilgang(request, kor, tilgangNavn):
 
     if request.method == 'POST':
         if tilgangForm.is_valid():
-            logAuthorAndSave(tilgangForm, request.user.medlem)
+            tilgangForm.save()
             if tilgangForm.cleaned_data['DELETE']:
                 messages.info(request, f'{tilgangForm.instance} slettet')
                 return redirect('tilgang')
@@ -1003,7 +999,7 @@ def turneListe(request):
 
     if request.method == 'POST':
         if nyTurneForm.is_valid():
-            logAuthorAndSave(nyTurneForm, request.user.medlem)
+            nyTurneForm.save()
             messages.info(request, f'{nyTurneForm.instance} opprettet!')
             return redirect(nyTurneForm.instance)
 
@@ -1027,7 +1023,7 @@ def turne(request, kor, år, turneNavn):
 
     if request.method == 'POST':
         if turneForm.is_valid():
-            logAuthorAndSave(turneForm, request.user.medlem)
+            turneForm.save()
             if turneForm.cleaned_data['DELETE']:
                 messages.info(request, f'{turneForm.instance} slettet')
                 return redirect('turne')

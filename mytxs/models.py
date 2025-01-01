@@ -408,12 +408,12 @@ class Medlem(DbCacheModel):
     boAdresse = models.CharField(max_length=100, blank=True, verbose_name='Bo adresse')
     foreldreAdresse = models.CharField(max_length=100, blank=True, verbose_name='Foreldre adresse')
 
-    @dbCache(onChange=['boAdresse'])
+    @dbCache(paths=['.boAdresse'])
     def boAdresseCord(self):
         if self.boAdresse:
             return getCord(self.boAdresse)
 
-    @dbCache(onChange=['foreldreAdresse'])
+    @dbCache(paths=['.foreldreAdresse'])
     def foreldreAdresseCord(self):
         if self.foreldreAdresse:
             return getCord(self.foreldreAdresse)
@@ -435,7 +435,7 @@ class Medlem(DbCacheModel):
 
     overførtData = models.BooleanField(default=False, editable=False)
 
-    @dbCache(affectedByFields=['vervInnehavelser'])
+    @dbCache(paths=['vervInnehavelser.'])
     def storkorNavn(self):
         annotateInstance(self, lambda qs: qs.annotateKor())
         return self.korNavn
@@ -719,7 +719,7 @@ class Medlem(DbCacheModel):
     def get_absolute_url(self):
         return reverse('medlem', args=[self.pk])
     
-    @dbCache(affectedByFields=['vervInnehavelser'])
+    @dbCache(paths=['vervInnehavelser.'])
     def __str__(self):
         if self.pk:
             # Det som allerede e annotata kan vær feil no, så gjør det på nytt!
@@ -850,7 +850,7 @@ class VervInnehavelse(DbCacheModel):
     def kor(self):
         return self.verv.kor if self.verv_id else None
     
-    @dbCache(affectedByCache=['medlem', 'verv'])
+    @dbCache(paths=['medlem.__str__', 'verv.__str__'])
     def __str__(self):
         return f'{self.medlem.__str__()} -> {self.verv.__str__()}'
     
@@ -1029,7 +1029,7 @@ class DekorasjonInnehavelse(DbCacheModel):
     def kor(self):
         return self.dekorasjon.kor if self.dekorasjon_id else None
     
-    @dbCache(affectedByCache=['medlem', 'dekorasjon'])
+    @dbCache(paths=['medlem.__str__', 'dekorasjon.__str__'])
     def __str__(self):
         return f'{self.medlem.__str__()} -> {self.dekorasjon.__str__()}'
     
@@ -1185,17 +1185,15 @@ class Hendelse(DbCacheModel):
     def varighet(self):
         return int((self.slutt - self.start).total_seconds() // 60) if self.sluttTime else None
     
-    def getKalenderMedlemmer(self):
+    @property
+    def kalenderMedlemmer(self):
         'Omvendte av Medlem.getHendelser, returne queryset av medlemmer som skal få opp dette i kalendern sin.'
-        if self.kategori == Hendelse.UNDERGRUPPE:
-            return Medlem.objects.filter(oppmøter__hendelse=self)
-
-        # Dette må vær det nøyaktig omvendte av Medlem.getHendelser, om ikkje vil vi få unødvendige updates
         return Medlem.objects.filter(# Dem som e aktiv no
             vervInnehavelseAktiv(),
             stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
             vervInnehavelser__verv__kor__navn__in=consts.bareStorkorNavn if self.kor.navn == consts.Kor.Sangern else [self.kor.navn]
-        ).filter(# Og som begynt før hendelsen her
+        ).filter(# Og som begynt før hendelsen her (og undergruppe da)
+            Q(oppmøter__hendelse=self) if self.kategori == Hendelse.UNDERGRUPPE else qBool(True),
             stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
             vervInnehavelser__start__lte=self.startDate,
             vervInnehavelser__verv__kor__navn__in=consts.bareStorkorNavn if self.kor.navn == consts.Kor.Sangern else [self.kor.navn]
@@ -1344,13 +1342,13 @@ class Hendelse(DbCacheModel):
 
         oldSelf = Hendelse.objects.filter(pk=self.pk).first()
 
-        oldMedlemmer = [] if not oldSelf else list(oldSelf.getKalenderMedlemmer())
+        oldMedlemmer = [] if not oldSelf else list(oldSelf.kalenderMedlemmer)
 
         super().save(*args, **kwargs)
 
         self.genererOppmøter(oldSelf=oldSelf)
 
-        newMedlemmer = list(self.getKalenderMedlemmer())
+        newMedlemmer = list(self.kalenderMedlemmer)
 
         changed = not oldSelf or any([getattr(self, f) != getattr(oldSelf, f) for f in self.__dict__.keys() if not f.startswith('_')])
 
@@ -1361,7 +1359,7 @@ class Hendelse(DbCacheModel):
     def delete(self, *args, **kwargs):
         if os.environ.get('GOOGLE_CALENDAR_TOKEN_PATH'):
             # Hendelsen sin pk blir None når den slettes, så vi må pass den videre separat her
-            updateGoogleCalendar(self, oldMedlemmer=list(self.getKalenderMedlemmer()), hendelsePK=self.pk)
+            updateGoogleCalendar(self, oldMedlemmer=list(self.kalenderMedlemmer), hendelsePK=self.pk)
 
         super().delete(*args, **kwargs)
 
@@ -1423,7 +1421,7 @@ class Oppmøte(DbCacheModel):
     def get_absolute_url(self):
         return reverse('meldFravær', args=[self.medlem.pk, self.hendelse.pk])
 
-    @dbCache(affectedByCache=['hendelse', 'medlem'])
+    @dbCache(paths=['hendelse.__str__', 'medlem.__str__'])
     def __str__(self):
         if self.hendelse.kategori == Hendelse.OBLIG:
             return f'Fraværssøknad {self.medlem} -> {self.hendelse}'

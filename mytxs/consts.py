@@ -76,7 +76,7 @@ tilgangBeskrivelser = [
     'Gjør at all dataen i sjekkheftet er synlig for deg.'
 ]
 
-alleTilganger = tilgangTilKorNavn.keys()
+alleTilganger = list(tilgangTilKorNavn.keys())
 
 # Hold denne lista i en rekkefølge vi ønske å slett de i, for seed --clear sin del:)
 loggedModelNames = [

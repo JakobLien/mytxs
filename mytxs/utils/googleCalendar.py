@@ -202,7 +202,7 @@ def updateGoogleCalendar(hendelse, changed=False, oldMedlemmer=[], newMedlemmer=
     'Oppdatere Google Calendar gitt liste av gamle og nye medlemmer. hendelsePK til bruk ved sletting.'
     gCalManager = GoogleCalendarManager(requestCountDown=200)
     
-    # Sangern hendelser kan vær i begge storkor sine kalendere
+    # Sangern hendelser er i begge storkor kalendere
     if hendelse.kor.navn == consts.Kor.Sangern:
         medlemCalendars = gCalManager.getCalendarIDs(consts.Kor.TSS, oldMedlemmer+newMedlemmer) | gCalManager.getCalendarIDs(consts.Kor.TKS, oldMedlemmer+newMedlemmer)
     else:

@@ -319,13 +319,13 @@ def runSeed(self):
                 }
             )
             if tilgangCreated:
-                print(f'Created tilgang {tilgang}')
+                self.stdout.write(f'Created tilgang {tilgang}')
 
         # Slett tilganger i kor som ikkje har de. 
         for tilgang in kor.tilganger.filter(~Q(navn__in=tilgangerForKor), bruktIKode=True):
             tilgang.verv.clear()
             tilgang.delete()
-            print(f'Slettet tilgang {tilgang}')
+            self.stdout.write(f'Slettet tilgang {tilgang}')
 
         # Under her e om det e et kor (ikke Sangern)
         if kor.navn not in consts.bareKorNavn:
