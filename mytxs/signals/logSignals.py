@@ -113,7 +113,7 @@ def recieverWithModels(signal, senders=strToModels(consts.loggedModelNames)):
 
 @recieverWithModels(post_save)
 def log_post_save(sender, instance, created, **kwargs):
-    author = THREAD_LOCAL.request.user.medlem if hasattr(THREAD_LOCAL, 'request') else None
+    author = getattr(getattr(getattr(THREAD_LOCAL, 'request', None), 'user', None), 'medlem', None)
 
     if created:
         # This is creation
@@ -145,7 +145,7 @@ def log_post_save(sender, instance, created, **kwargs):
 
 @recieverWithModels(post_delete)
 def log_post_delete(sender, instance, **kwargs):
-    author = THREAD_LOCAL.request.user.medlem if hasattr(THREAD_LOCAL, 'request') else None
+    author = getattr(getattr(getattr(THREAD_LOCAL, 'request', None), 'user', None), 'medlem', None)
 
     # This is deletion
     Logg.objects.create(
@@ -167,7 +167,7 @@ def makeM2MLogg(sender, action, fromPK, toPK):
     - fromPK: The pk of the source model
     - toPK: The pk of the target model
     '''
-    author = THREAD_LOCAL.request.user.medlem if hasattr(THREAD_LOCAL, 'request') else None
+    author = getattr(getattr(getattr(THREAD_LOCAL, 'request', None), 'user', None), 'medlem', None)
 
     [fromModelName, fieldName] = sender._meta.object_name.split('_')
 
