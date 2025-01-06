@@ -32,8 +32,12 @@ class DbCacheModel(models.Model):
             )]
 
             relatedList = [getattr(self, relation)]
-            if hasattr(getattr(self, relation), 'all') and self.pk:
-                relatedList = relatedList[0].all()
+            if hasattr(relatedList[0], 'all'):
+                if delete:
+                    # Slettede ting har ikkje RelatedManager, altså .all() raise exception. 
+                    relatedList = []
+                else:
+                    relatedList = relatedList[0].all()
 
             for related in relatedList:
                 if caller == f'{relation}#{related.pk}':

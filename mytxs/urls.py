@@ -55,7 +55,7 @@ urlpatterns = [
     path('hendelse/<int:hendelsePK>', views.hendelse, name='hendelse'),
 
     path('lenker', views.lenker, name='lenker'),
-    path('to/<kor:kor>/<str:lenkeNavn>', views.lenkeRedirect, name='lenkeRedirect'),
+    path('to/<kor:kor>/<path:lenkeNavn>', views.lenkeRedirect, name='lenkeRedirect'),
 
     path('dekorasjon', views.dekorasjonListe, name='dekorasjon'),
     path('dekorasjon/<kor:kor>/<path:dekorasjonNavn>', views.dekorasjon, name='dekorasjon'),

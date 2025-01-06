@@ -862,7 +862,7 @@ class VervInnehavelse(DbCacheModel):
     def clean(self, *args, **kwargs):
         validateStartSlutt(self)
         # Valider at dette medlemmet ikke har dette vervet i samme periode med en annen vervInnehavelse.
-        if hasattr(self, 'verv'):
+        if hasattr(self, 'verv') and hasattr(self, 'medlem'):
             if self.verv.stemmegruppeVerv:
                 if VervInnehavelse.objects.filter(
                     ~Q(pk=self.pk),
