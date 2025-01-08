@@ -426,7 +426,9 @@ class Medlem(DbCacheModel):
 
     bilde = models.ImageField(upload_to=bildeUploadTo, null=True, blank=True)
 
-    ønskerVårbrev = models.BooleanField(default=False, verbose_name='Ønsker vårbrev')
+    VÅRBREV_FYSISK, VÅRBREV_DIGITALT, VÅRBREV_IKKE = True, None, False
+    VÅRBREV_CHOICES = ((VÅRBREV_FYSISK, 'Ønsker fysisk vårbrev'), (VÅRBREV_DIGITALT, 'Ønsker digitalt vårbrev'), (VÅRBREV_IKKE, 'Ønsker ikke vårbrev'))
+    ønskerVårbrev = models.BooleanField(null=True, blank=True, verbose_name='Ønsker vårbrev', choices=VÅRBREV_CHOICES, default=VÅRBREV_IKKE)
     død = models.BooleanField(default=False)
     notis = models.TextField(blank=True)
 
