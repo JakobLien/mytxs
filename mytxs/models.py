@@ -1130,7 +1130,7 @@ def validateDekorasjonInnehavelse(instance):
             )
         elif instance.start < undervalør.start:
             raise ValidationError(
-                _(f'Dekorasjonsinnehavelsen {instance} kan ikke ha startdato før {undervalør} ({undervalør.start})'),
+                _(f'Dekorasjonsinnehavelsen {instance} kan ikke ha startdato før {undervalør.dekorasjon} ({undervalør.start})'),
                 code='dekorasjonInnehavelseUgyldigDato'
             )
     kanHaOvervalør = instance.dekorasjon.overvalør is not None
@@ -1138,7 +1138,7 @@ def validateDekorasjonInnehavelse(instance):
         overvalør = instance.dekorasjon.overvalør.dekorasjonInnehavelser.filter(medlem__id=instance.medlem.id).first()
         if overvalør is not None and instance.start > overvalør.start:
             raise ValidationError(
-                _(f'Dekorasjonsinnehavelsen {instance} kan ikke ha startdato etter {overvalør} ({overvalør.start})'),
+                _(f'Dekorasjonsinnehavelsen {instance} kan ikke ha startdato etter {overvalør.dekorasjon} ({overvalør.start})'),
                 code='dekorasjonInnehavelseUgyldigDato'
             )
 
