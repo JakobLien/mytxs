@@ -14,7 +14,7 @@ from django.db.models.functions import Cast
 from django.forms import inlineformset_factory, modelform_factory, modelformset_factory
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from django.http import FileResponse, Http404 
+from django.http import FileResponse, HttpResponseForbidden, HttpResponseNotFound
 
 from mytxs import consts
 from mytxs.fields import intToBitList
@@ -40,10 +40,12 @@ def serve(request, path):
         return HttpResponseUnauthorized()
     
     if not harFilTilgang(request.user.medlem, path):
-        raise Http404()
+        return HttpResponseForbidden()
 
-    return FileResponse(open('uploads/'+path, 'rb'))
-
+    try:
+        return FileResponse(open('uploads/'+path, 'rb'))
+    except FileNotFoundError:
+        return HttpResponseNotFound()
 
 def login(request):
     if request.user.is_authenticated:
