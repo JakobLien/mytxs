@@ -9,6 +9,8 @@ from django.db.models.fields.related import RelatedField
 from django.forms import ValidationError
 from django.utils.translation import gettext_lazy as _
 
+from mytxs.utils.utils import getStemmegrupper
+
 # Utils for modeller
 
 def vervInnehavelseAktiv(pathToVervInnehavelse='vervInnehavelser', dato=None, utvidetStart=datetime.timedelta(), utvidetSlutt=datetime.timedelta()):
@@ -79,20 +81,11 @@ def isStemmegruppeVervNavn(navn, includeUkjentStemmegruppe=True):
     return re.match(stemmegruppeVervRegex, navn) or (includeUkjentStemmegruppe and navn == 'ukjentStemmegruppe')
 
 
-def stemmegruppeOrdering(fieldName='navn', includeDirr=False):
-    ordering = [When(**{fieldName:'Dirigent'}, then=0)] if includeDirr else []
-    count = 1 if includeDirr else 0
-
-    for letter in 'SATB':
-        for y in '12':
-            ordering.append(When(**{fieldName:y+letter}, then=count))
-            count += 1
-            for x in '12':
-                ordering.append(When(**{fieldName:x+y+letter}, then=count))
-                count += 1
-    
-    ordering.append(When(**{fieldName:'ukjentStemmegruppe'}, then=count))
-    return Case(*ordering, default=count+1)
+def stemmegruppeOrdering(fieldName='navn'):
+    ordering = []
+    for stemmegruppe in getStemmegrupper('SATB', 2, 1):
+        ordering.append(When(**{fieldName: stemmegruppe}, then=len(ordering)))
+    return Case(*ordering, default=len(ordering))
 
 
 def inneværendeSemester(pathToDate):
@@ -335,28 +328,3 @@ def annotateInstance(instance, annotateFunction, *args, **kwargs):
 def refreshQueryset(queryset):
     'En quick fix funksjon som hindrer at filters ikkje kombineres på uintensjonelle måter.'
     return queryset.model.objects.filter(pk__in=queryset.values_list('pk', flat=True))
-
-
-def hasChanged(instance, skipDbCache=True):
-    'Sjekke om en instance er annerledes fra det som er i databasen'
-    dbInstance = type(instance).objects.filter(pk=instance.pk).first()
-    if not dbInstance:
-        return True
-    for field in instance._meta.fields:
-        if skipDbCache and field.name == 'dbCacheField':
-            continue
-        if getattr(instance, field.name) != getattr(dbInstance, field.name):
-            return True
-    return False
-
-
-def dbCacheChanged(instance):
-    'Sjekke om dbCacheField er annerledes fra det som er i databasen'
-    dbInstance = type(instance).objects.filter(pk=instance.pk).first()
-    return not dbInstance or instance.dbCacheField != dbInstance.dbCacheField
-
-
-class NoReuseMin(Min):
-    'Versjon av Min som generere nye joins heller enn å bruk de som allerede finnes.'
-    def resolve_expression(self, query=None, allow_joins=True, reuse=None, summarize=False, for_save=False):
-        return super().resolve_expression(query=query, allow_joins=allow_joins, reuse=set(), summarize=summarize, for_save=for_save)

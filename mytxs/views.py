@@ -1,5 +1,6 @@
 import datetime
 import json
+import csv
 
 from django import forms
 from django.contrib import messages
@@ -13,7 +14,7 @@ from django.db.models.functions import Cast
 from django.forms import inlineformset_factory, modelform_factory, modelformset_factory
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from django.http import Http404 
+from django.http import FileResponse, Http404 
 
 from mytxs import consts
 from mytxs.fields import intToBitList
@@ -26,14 +27,23 @@ from mytxs.utils.googleCalendar import getOrCreateAndShareCalendar
 from mytxs.utils.lazyDropdown import lazyDropdown
 from mytxs.utils.formUtils import filesIfPost, postIfPost, inlineFormsetArgs
 from mytxs.utils.hashUtils import addHash, testHash
-from mytxs.utils.logAuthorUtils import logAuthorAndSave, logAuthorInstance
-from mytxs.utils.modelUtils import inneværendeSemester, korLookup, qBool, randomDistinct, stemmegruppeOrdering, vervInnehavelseAktiv, stemmegruppeVerv
+from mytxs.utils.modelUtils import inneværendeSemester, korLookup, qBool, randomDistinct, stemmegruppeOrdering, vervInnehavelseAktiv, stemmegruppeVerv, annotateInstance
 from mytxs.utils.pagination import getPaginatedInlineFormSet, addPaginatorPage
-from mytxs.utils.downloadUtils import downloadCSV, downloadICal, downloadVCard
-from mytxs.utils.viewUtils import harTilgang, redirectToInstance
-from mytxs.utils.modelUtils import annotateInstance
+from mytxs.utils.downloadUtils import downloadFile, downloadICal, downloadVCard
+from mytxs.utils.utils import getHalvårStart
+from mytxs.utils.viewUtils import HttpResponseUnauthorized, harFilTilgang, harTilgang, redirectToInstance
 
 # Create your views here.
+
+def serve(request, path):
+    if not request.user.is_authenticated:
+        return HttpResponseUnauthorized()
+    
+    if not harFilTilgang(request.user.medlem, path):
+        raise Http404()
+
+    return FileResponse(open('uploads/'+path, 'rb'))
+
 
 def login(request):
     if request.user.is_authenticated:
@@ -47,6 +57,8 @@ def login(request):
             if user is not None:
                 auth_login(request, user)
                 messages.info(request, 'Login successful')
+                user.medlem.innlogginger += 1
+                user.medlem.save()
                 if request.GET.get('next'):
                     return redirect(request.GET.get('next'))
                 if request.user.medlem.storkorNavn():
@@ -156,8 +168,8 @@ def sjekkheftet(request, side, underside=None):
     if side == 'kart':
         request.medlemMapData = json.dumps([{
             'navn': medlem.navn,
-            'boAdresse': medlem.public__boAdresse,
-            'foreldreAdresse': medlem.public__foreldreAdresse,
+            'boCord': medlem.boAdresseCord() if medlem.public__boAdresse else None,
+            'foreldreCord': medlem.foreldreAdresseCord() if medlem.public__foreldreAdresse else None,
             'storkorNavn': medlem.storkorNavn(),
             'pk': medlem.pk
         } for medlem in Medlem.objects.distinct().filter(
@@ -184,7 +196,7 @@ def sjekkheftet(request, side, underside=None):
     grupperinger = {}
     if kor := Kor.objects.filter(navn=side).first():
         request.queryset = Medlem.objects.distinct().order_by(*Medlem._meta.ordering).annotateKarantenekor(
-            kor=kor if kor.navn != 'Sangern' else None
+            kor=kor if kor.navn != consts.Kor.Sangern else None
         )
 
         if tilgang := Tilgang.objects.filter(sjekkheftetSynlig=True, navn=underside, kor=kor).first():
@@ -194,7 +206,7 @@ def sjekkheftet(request, side, underside=None):
                 vervInnehavelser__verv__kor=kor,
                 vervInnehavelser__verv__tilganger=tilgang
             ).annotatePublic(
-                overrideVisible=request.user.medlem.tilganger.filter(navn='sjekkhefteSynlig', kor=kor).exists()
+                overrideVisible=request.user.medlem.tilganger.filter(navn=consts.Tilgang.sjekkhefteSynlig, kor=kor).exists()
             ).sjekkheftePrefetch(kor=kor)
 
             grupperinger = {'': request.queryset}
@@ -205,7 +217,7 @@ def sjekkheftet(request, side, underside=None):
                 vervInnehavelseAktiv(),
                 vervInnehavelser__verv__kor=kor
             ).annotatePublic(
-                overrideVisible=request.user.medlem.tilganger.filter(navn='sjekkhefteSynlig', kor=kor).exists()
+                overrideVisible=request.user.medlem.tilganger.filter(navn=consts.Tilgang.sjekkhefteSynlig, kor=kor).exists()
             ).annotateStemmegruppe(kor, includeDirr=True)
 
             if kor.navn not in consts.bareSmåkorNavn:
@@ -236,6 +248,19 @@ def sjekkheftet(request, side, underside=None):
 
         grupperinger = {'': request.queryset}
 
+    elif side == 'fellesEmner':
+        for emne in request.user.medlem.emnekoder.split():
+            emne = emne.strip(',')
+            medlem = Medlem.objects.filter(
+                emnekoder__icontains=emne
+            ).sjekkheftePrefetch(kor=None).annotatePublic()
+
+            grupperinger[emne.upper()] = medlem
+
+        return render(request, 'mytxs/fellesEmner.html', {
+            'heading': 'Sjekkheftet', 'grupperinger': grupperinger
+        })
+
     if request.GET.get('vcard'):
         return downloadVCard(request.queryset)
 
@@ -260,12 +285,12 @@ def medlemListe(request):
     if disableFormMedlem(request.user.medlem, nyttMedlemForm):
         # Krev at man må ha tversAvKor tilgangen for å opprett nye medlemma. 
         # Om ikkje vil man ikkje ha tilgang til det nye medlemmet, siden det er uten kormedlemskap
-        if not request.user.medlem.tilganger.filter(navn='tversAvKor').exists():
+        if not request.user.medlem.tilganger.filter(navn=consts.Tilgang.tversAvKor).exists():
             disableFields(nyttMedlemForm)
 
     if request.method == 'POST':
         if nyttMedlemForm.is_valid():
-            logAuthorAndSave(nyttMedlemForm, request.user.medlem)
+            nyttMedlemForm.save()
             messages.info(request, f'{nyttMedlemForm.instance} opprettet!')
             return redirect(nyttMedlemForm.instance)
     
@@ -327,11 +352,11 @@ def medlem(request, medlemPK):
 
     if request.method == 'POST':
         if medlemsDataForm.is_valid():
-            logAuthorAndSave(medlemsDataForm, request.user.medlem)
+            medlemsDataForm.save()
         if vervInnehavelseFormset.is_valid():
-            logAuthorAndSave(vervInnehavelseFormset, request.user.medlem)
+            vervInnehavelseFormset.save()
         if dekorasjonInnehavelseFormset.is_valid():
-            logAuthorAndSave(dekorasjonInnehavelseFormset, request.user.medlem)
+            dekorasjonInnehavelseFormset.save()
         if medlemsDataForm.is_valid() and vervInnehavelseFormset.is_valid() and dekorasjonInnehavelseFormset.is_valid():
             return redirectToInstance(request)
 
@@ -350,6 +375,37 @@ def semesterplan(request, kor):
         messages.error(request, f'Du har ikke tilgang til andre kors kalender')
         return redirect(request.user.medlem)
     
+    if request.GET.get('jobbvakter'):
+        if hendelsePK := request.GET.get('toggle'):
+            hendelse = Hendelse.objects.filter(pk=hendelsePK).first()
+            if not hendelse:
+                messages.error(request, f'Fant ikke hendelse med pk {hendelsePK}.')
+                return redirect(request.path+'?jobbvakter=True')
+
+            if hendelse.undergruppeAntall and (not hendelse.undergruppeAntall <= hendelse.oppmøter.count() or request.user.medlem in hendelse.oppmøteMedlemmer):
+                if request.user.medlem in hendelse.oppmøteMedlemmer:
+                    Oppmøte.objects.filter(hendelse=hendelse, medlem=request.user.medlem).delete()
+                else:
+                    Oppmøte.objects.create(hendelse=hendelse, medlem=request.user.medlem, ankomst=hendelse.defaultAnkomst)
+            else:
+                messages.error(request, f'Du kan ikke meldes på/av hendelsen med pk {hendelsePK}.')
+
+            return redirect(request.path+'?jobbvakter=True')
+
+        request.queryset = Hendelse.objects.filter(
+            kategori=Hendelse.UNDERGRUPPE,
+            kor__navn__in=[consts.Kor.Sangern, kor] if kor in consts.bareStorkorNavn else [kor],
+            startDate__gte=getHalvårStart(),
+            navn__regex=r'\[(.* )*#[0-9]+( .*)*\]' # Regex for firkantparentes med et hashtag tall ledd separert med mellomrom
+        ).prefetch_related('oppmøter__medlem')
+
+        for hendelse in request.queryset:
+            # For å gjør det lettar i templaten, og for å gjør det raskt (uten oppmøteMedlemmer query)
+            hendelse.full = hendelse.undergruppeAntall <= hendelse.oppmøter.count()
+            hendelse.påmeldt = any([o.medlem == request.user.medlem for o in hendelse.oppmøter.all()])
+
+        return render(request, 'mytxs/jobbvakter.html')
+
     shareCalendarForm = ShareCalendarForm(postIfPost(request, 'shareCalendar'), prefix='shareCalendar')
 
     if request.method == 'POST':
@@ -361,6 +417,9 @@ def semesterplan(request, kor):
 
     if not request.GET.get('gammelt'):
         request.queryset = request.queryset.filter(startDate__gte=datetime.datetime.today())
+
+    if request.GET.get('utenUndergruppe'):
+        request.queryset = request.queryset.exclude(kategori=Hendelse.UNDERGRUPPE)
 
     request.iCalLink = 'http://' + request.get_host() + addHash(reverse('iCal', args=[kor, request.user.medlem.pk]))
 
@@ -404,7 +463,7 @@ def meldFravær(request, medlemPK, hendelsePK):
 
     if request.method == 'POST':
         if oppmøteForm.is_valid():
-            logAuthorAndSave(oppmøteForm, request.user.medlem)
+            oppmøteForm.save()
             return redirectToInstance(request)
 
     return render(request, 'mytxs/instance.html', {
@@ -453,7 +512,6 @@ def egenFøring(request, hendelsePK):
     ))
     
     request.instance.save() # Ikke fjern meg!
-    logAuthorInstance(request.instance, request.user.medlem)
 
     messages.info(request, f'Oppmøte ført med {request.instance.fravær} minutter forsentkomming!')
     
@@ -491,9 +549,10 @@ def fraværSide(request, side, underside=None):
     
     if side == 'statistikk':
         medlemmer = request.queryset.annotateKarantenekor(kor=underside).annotateStemmegruppe(kor=underside)\
-            .annotateKor(annotationNavn="småkorNavn", korAlternativ=consts.bareSmåkorNavn, aktiv=True)
-        
-        class fraværGruppe:
+            .annotateKor(annotationNavn="aktivtSmåkorNavn", korAlternativ=consts.bareSmåkorNavn, aktiv=True)\
+            .annotateKor(annotationNavn="småkorNavn", korAlternativ=consts.bareSmåkorNavn, aktiv=False)
+
+        class FraværGruppe:
             def __init__(self, navn):
                 self._navn = navn
                 self.medlemmer = []
@@ -511,19 +570,24 @@ def fraværSide(request, side, underside=None):
                 return sum([m.ugyldigFravær for m in self.medlemmer])/len(self.medlemmer)
         
             @property
+            def umeldtFravær(self):
+                return sum([m.umeldtFravær for m in self.medlemmer])/len(self.medlemmer)
+        
+            @property
             def hendelseVarighet(self):
                 return sum([m.hendelseVarighet for m in self.medlemmer])/len(self.medlemmer)
         
         fraværGrupper = {}
 
         for stemmegruppe in Kor.objects.get(navn=underside).stemmegrupper():
-            fraværGrupper[stemmegruppe] = fraværGruppe(stemmegruppe)
+            fraværGrupper[stemmegruppe] = FraværGruppe(stemmegruppe)
 
         for karantenekor in medlemmer.values_list('karantenekor', flat=True).order_by('karantenekor'):
-            fraværGrupper[karantenekor] = fraværGruppe('K'+str(karantenekor-2000 if karantenekor >= 2000 else karantenekor))
+            fraværGrupper[karantenekor] = FraværGruppe('K'+str(karantenekor-2000 if karantenekor >= 2000 else karantenekor))
 
         for småkorNavn in consts.småkorForStorkor.get(underside, []):
-            fraværGrupper[småkorNavn] = fraværGruppe(småkorNavn)
+            fraværGrupper[småkorNavn] = FraværGruppe(småkorNavn)
+            fraværGrupper['Eks ' + småkorNavn] = FraværGruppe('Eks ' + småkorNavn)
 
         for medlem in medlemmer:
             fraværGrupper[medlem.karantenekor].medlemmer.append(medlem)
@@ -531,8 +595,10 @@ def fraværSide(request, side, underside=None):
             if medlem.stemmegruppe != None:
                 fraværGrupper[medlem.stemmegruppe].medlemmer.append(medlem)
             
-            if medlem.småkorNavn in fraværGrupper:
-                fraværGrupper[medlem.småkorNavn].medlemmer.append(medlem)
+            if medlem.aktivtSmåkorNavn in fraværGrupper:
+                fraværGrupper[medlem.aktivtSmåkorNavn].medlemmer.append(medlem)
+            elif medlem.småkorNavn and 'Eks ' + medlem.småkorNavn in fraværGrupper:
+                fraværGrupper['Eks ' + medlem.småkorNavn].medlemmer.append(medlem)
         
         request.queryset = list(filter(lambda fg: fg.medlemmer, fraværGrupper.values()))
 
@@ -541,7 +607,7 @@ def fraværSide(request, side, underside=None):
 
 @login_required
 def fraværSemesterplan(request, kor, medlemPK):
-    if not request.user.medlem.tilganger.filter(navn='fravær', kor__navn=kor).exists():
+    if not request.user.medlem.tilganger.filter(navn=consts.Tilgang.fravær, kor__navn=kor).exists():
         messages.error(request, f'Du har ikke tilgang til {request.path}')
         return redirect('login')
     
@@ -575,7 +641,7 @@ def hendelseListe(request):
 
     if request.method == 'POST':
         if nyHendelseForm.is_valid():
-            logAuthorAndSave(nyHendelseForm, request.user.medlem)
+            nyHendelseForm.save()
             messages.info(request, f'{nyHendelseForm.instance} opprettet!')
             return redirect(nyHendelseForm.instance)
 
@@ -605,7 +671,6 @@ def hendelse(request, hendelsePK):
                 if oppmøte.fravær == None:
                     oppmøte.fravær = int(max((min(request.instance.slutt, datetime.datetime.now()) - request.instance.start).total_seconds() / 60, 0))
                     oppmøte.save()
-                    logAuthorInstance(oppmøte, request.user.medlem)
                 request.GET = request.GET.copy()
                 request.GET['medlem'] = request.GET['førFraværFor']
                 del request.GET['førFraværFor']
@@ -620,7 +685,7 @@ def hendelse(request, hendelsePK):
             )
 
             if request.method == 'POST' and endreFraværForm.is_valid():
-                logAuthorAndSave(endreFraværForm, request.user.medlem)
+                endreFraværForm.save()
                 return redirectToInstance(request)
         
         return render(request, 'mytxs/fraværModus.html', {
@@ -635,7 +700,6 @@ def hendelse(request, hendelsePK):
         if request.instance.sluttDate:
             request.instance.sluttDate += datetime.timedelta(weeks=1)
         request.instance.save()
-        logAuthorInstance(request.instance, request.user.medlem)
 
         request.GET = request.GET.copy()
         del request.GET['dupliser']
@@ -674,9 +738,9 @@ def hendelse(request, hendelsePK):
     if request.method == 'POST':
         # Rekkefølgen her e viktig for at bruker skal kunne slette oppmøter nødvendig for å flytte hendelse på en submit:)
         if oppmøteFormset and oppmøteFormset.is_valid():
-            logAuthorAndSave(oppmøteFormset, request.user.medlem)
+            oppmøteFormset.save()
         if hendelseForm.is_valid():
-            logAuthorAndSave(hendelseForm, request.user.medlem)
+            hendelseForm.save()
             if hendelseForm.cleaned_data['DELETE']:
                 messages.info(request, f'{hendelseForm.instance} slettet')
                 return redirect('hendelse')
@@ -687,7 +751,7 @@ def hendelse(request, hendelsePK):
     if request.instance.sluttTime != None and abs(datetime.datetime.now() - request.instance.start).total_seconds() / 60 <= 30:
         request.egenFøringLink = consts.qrCodeLinkPrefix + 'http://' + request.get_host() + addHash(reverse('egenFøring', args=[request.instance.pk]))
     
-    if request.user.medlem.tilganger.filter(navn='eksport', kor=request.instance.kor).exists():
+    if request.user.medlem.tilganger.filter(navn=consts.Tilgang.eksport, kor=request.instance.kor).exists():
         request.eksportLenke = reverse('eksport', args=[request.instance.kor.navn]) + '?' + ''.join(map(lambda m: f'm={m}&', request.instance.oppmøter.filter(ankomst=Oppmøte.KOMMER).values_list('medlem', flat=True)))[:-1]
 
     return render(request, 'mytxs/hendelse.html', {
@@ -699,12 +763,12 @@ def hendelse(request, hendelsePK):
 @harTilgang
 def lenker(request):
     request.queryset = Lenke.objects.distinct().filter(
-        Q(kor__in=request.user.medlem.aktiveKor) | Q(kor__navn='Sangern'), 
+        Q(kor__in=request.user.medlem.aktiveKor) | Q(kor__navn=consts.Kor.Sangern), 
         synlig=True
     )
 
     # Om man ikke har tilgang til å redigere noen lenker, bare render her uten formsettet
-    if not request.user.medlem.tilganger.filter(navn='lenke').exists():
+    if not request.user.medlem.tilganger.filter(navn=consts.Tilgang.lenke).exists():
         return render(request, 'mytxs/lenker.html', {
             'heading': 'Lenker',
         })
@@ -712,13 +776,13 @@ def lenker(request):
     LenkerFormset = modelformset_factory(Lenke, exclude=[], can_delete=True, can_delete_extra=False, extra=1)
 
     lenkerFormset = LenkerFormset(postIfPost(request, 'lenker'), prefix='lenker', 
-        queryset=Lenke.objects.filter(kor__tilganger__in=request.user.medlem.tilganger.filter(navn='lenke')))
+        queryset=Lenke.objects.filter(kor__tilganger__in=request.user.medlem.tilganger.filter(navn=consts.Tilgang.lenke)))
 
     disableFormMedlem(request.user.medlem, lenkerFormset)
 
     if request.method == 'POST':
         if lenkerFormset.is_valid():
-            logAuthorAndSave(lenkerFormset, request.user.medlem)
+            lenkerFormset.save()
             return redirect(request.get_full_path())
 
     return render(request, 'mytxs/lenker.html', {
@@ -748,7 +812,7 @@ def vervListe(request):
 
     if request.method == 'POST':
         if nyttVervForm.is_valid():
-            logAuthorAndSave(nyttVervForm, request.user.medlem)
+            nyttVervForm.save()
             messages.info(request, f'{nyttVervForm.instance} opprettet!')
             return redirect(nyttVervForm.instance)
     
@@ -782,12 +846,12 @@ def verv(request, kor, vervNavn):
 
     if request.method == 'POST':
         if vervForm.is_valid():
-            logAuthorAndSave(vervForm, request.user.medlem)
+            vervForm.save()
             if vervForm.cleaned_data['DELETE']:
                 messages.info(request, f'{vervForm.instance} slettet')
                 return redirect('verv')
         if vervInnehavelseFormset.is_valid():
-            logAuthorAndSave(vervInnehavelseFormset, request.user.medlem)
+            vervInnehavelseFormset.save()
         
         if vervForm.is_valid() and vervInnehavelseFormset.is_valid():
             return redirectToInstance(request)
@@ -812,7 +876,7 @@ def dekorasjonListe(request):
 
     if request.method == 'POST':
         if nyDekorasjonForm.is_valid():
-            logAuthorAndSave(nyDekorasjonForm, request.user.medlem)
+            nyDekorasjonForm.save()
             messages.info(request, f'{nyDekorasjonForm.instance} opprettet!')
             return redirect(nyDekorasjonForm.instance)
 
@@ -842,12 +906,12 @@ def dekorasjon(request, kor, dekorasjonNavn):
 
     if request.method == 'POST':
         if dekorasjonForm.is_valid():
-            logAuthorAndSave(dekorasjonForm, request.user.medlem)
+            dekorasjonForm.save()
             if dekorasjonForm.cleaned_data['DELETE']:
                 messages.info(request, f'{dekorasjonForm.instance} slettet')
                 return redirect('dekorasjon')
         if dekorasjonInnehavelseFormset.is_valid():
-            logAuthorAndSave(dekorasjonInnehavelseFormset, request.user.medlem)
+            dekorasjonInnehavelseFormset.save()
 
         if dekorasjonForm.is_valid() and dekorasjonInnehavelseFormset.is_valid():
             return redirectToInstance(request)
@@ -863,7 +927,7 @@ def tilgangSide(request, side=None):
     if side == 'oversikt':
         tilgangVerv = Verv.objects.filter(
             qBool(request.GET.get('ikkeBruktIKode'), falseOption=Q(tilganger__bruktIKode=True)),
-            tilganger__kor__tilganger__in=request.user.medlem.tilganger.filter(navn='tilgang')
+            tilganger__kor__tilganger__in=request.user.medlem.tilganger.filter(navn=consts.Tilgang.tilgang)
         ).distinct().prefetch_related(
             'kor',
             Prefetch('tilganger', queryset=Tilgang.objects.filter(
@@ -886,7 +950,7 @@ def tilgangSide(request, side=None):
 
     if request.method == 'POST':
         if nyTilgangForm.is_valid():
-            logAuthorAndSave(nyTilgangForm, request.user.medlem)
+            nyTilgangForm.save()
             messages.info(request, f'{nyTilgangForm.instance} opprettet!')
             return redirect(nyTilgangForm.instance)
 
@@ -910,7 +974,7 @@ def tilgang(request, kor, tilgangNavn):
 
     if request.method == 'POST':
         if tilgangForm.is_valid():
-            logAuthorAndSave(tilgangForm, request.user.medlem)
+            tilgangForm.save()
             if tilgangForm.cleaned_data['DELETE']:
                 messages.info(request, f'{tilgangForm.instance} slettet')
                 return redirect('tilgang')
@@ -935,7 +999,7 @@ def turneListe(request):
 
     if request.method == 'POST':
         if nyTurneForm.is_valid():
-            logAuthorAndSave(nyTurneForm, request.user.medlem)
+            nyTurneForm.save()
             messages.info(request, f'{nyTurneForm.instance} opprettet!')
             return redirect(nyTurneForm.instance)
 
@@ -959,7 +1023,7 @@ def turne(request, kor, år, turneNavn):
 
     if request.method == 'POST':
         if turneForm.is_valid():
-            logAuthorAndSave(turneForm, request.user.medlem)
+            turneForm.save()
             if turneForm.cleaned_data['DELETE']:
                 messages.info(request, f'{turneForm.instance} slettet')
                 return redirect('turne')
@@ -1015,16 +1079,18 @@ def eksport(request, kor):
         if 'stemmegruppe' in fields:
             medlemmer = medlemmer.annotateStemmegruppe(kor=kor, understemmegruppe=True, includeDirr=True)
 
-        csv = [['Navn'] + fields]
+        response = downloadFile('MyTXS-eksport.csv', content_type='text/csv')
+        writer = csv.writer(response)
+
+        writer.writerow(['Navn'] + fields)
         for medlem in medlemmer:
-            line = []
+            row = []
             for field in ['fulltNavn'] + fields:
                 if field == 'matpreferanse':
-                    value = ', '.join(list(map(lambda t: t[1], filter(lambda t: t[0] in intToBitList(getattr(medlem, field)), enumerate(consts.matpreferanseOptions)))))
+                    row.append(', '.join(list(map(lambda t: t[1], filter(lambda t: t[0] in intToBitList(getattr(medlem, field)), enumerate(consts.matpreferanseOptions))))))
                 else:
-                    value = str(getattr(medlem, field))
-                line.append(value)
-            csv.append(line)
+                    row.append(getattr(medlem, field))
+            writer.writerow(row)
 
         mail.mail_admins(subject='Eksport!', message='''\
 Eksport siden har blitt brukt av %s.\n
@@ -1032,14 +1098,14 @@ De hentet ut informasjon om følgende medlemmer: %s\n
 For disse medlemmene hentet de ut: %s\n
 ''' % (str(request.user.medlem), '\n- '.join(['']+list(map(lambda m: str(m), medlemmer))), '\n- '.join(['']+list(fields))))
 
-        return downloadCSV('MyTXS-eksport.csv', csv)
+        return response
 
     if 'fraværEksport' in request.GET:
         hendelser = Hendelse.objects.filter(inneværendeSemester('startDate')).filter(
             kategori=Hendelse.OBLIG,
             kor__navn=kor,
             sluttTime__isnull=False # Dette betyr at hendelsen har en varighet
-        )
+        ).annotateDirigentTilstede()
 
         medlemmer = Medlem.objects.filter(
             oppmøter__hendelse__in=hendelser
@@ -1049,32 +1115,40 @@ For disse medlemmene hentet de ut: %s\n
             ).order_by('hendelse'))
         )
 
-        csv = [[*',name,address,zip,city,emailAddress,phoneNumber,gender,yearOfBirth,'.split(','), *['' for h in hendelser]]]
-        csv.append([*'date,,,,,,,,,Dato'.split(','), *[h.start.strftime('%d.%m.%Y') for h in hendelser]])
-        csv.append([*'time,,,,,,,,,Starttid'.split(','), *[h.start.strftime('%H:%M') for h in hendelser]])
-        csv.append([*'type,,,,,,,,,Hvordan er samlingen gjennomført?'.split(','), *['F' for h in hendelser]])
-        csv.append([*'hoursWithoutTeacher,,,,,,,,,Timer uten lærer'.split(','), *[0 for h in hendelser]])
-        csv.append([*'hours,Navn,Adresse,Postnummer,Poststed,Epostadresse,Telefon,Kjønn,Fødselsår,Timer med lærer'.split(','), *[str(round(h.varighet/60, 2)).replace('.', ',') for h in hendelser]])
+        response = downloadFile('MyTXS-eksport.csv', content_type='text/csv')
+        writer = csv.writer(response)
+
+        writer.writerow([*',name,address,zip,city,emailAddress,phoneNumber,gender,yearOfBirth,'.split(','), *['' for h in hendelser]])
+        writer.writerow([*'date,,,,,,,,,Dato'.split(','), *[h.start.strftime('%d.%m.%Y') for h in hendelser]])
+        writer.writerow([*'time,,,,,,,,,Starttid'.split(','), *[h.start.strftime('%H:%M') for h in hendelser]])
+        writer.writerow([*'type,,,,,,,,,Hvordan er samlingen gjennomført?'.split(','), *['F' for h in hendelser]])
+        writer.writerow([*'hoursWithoutTeacher,,,,,,,,,Timer uten lærer'.split(','), *[(str(round(h.varighet/60, 2)).replace('.', ',') if not h.dirigentTilstede else 0) for h in hendelser]])
+        writer.writerow([*'hours,Navn,Adresse,Postnummer,Poststed,Epostadresse,Telefon,Kjønn,Fødselsår,Timer med lærer'.split(','), *[(str(round(h.varighet/60, 2)).replace('.', ',') if h.dirigentTilstede else 0) for h in hendelser]])
         
         for i, medlem in enumerate(medlemmer):
-            line = [i, medlem.navn, medlem.boAdresse, '', '', medlem.epost, medlem.tlf, 'K' if medlem.storkorNavn() == 'TKS' else 'M', medlem.fødselsdato.year if medlem.fødselsdato else '', '']
+            postNummer, postSted = '', ''
+            if medlem.boAdresse.split(',')[1:] and len(medlem.boAdresse.split(',')[1].split()) > 1:
+                postNummer = medlem.boAdresse.split(',')[1].split()[0]
+                postSted = medlem.boAdresse.split(',')[1].split()[1]
+
+            row = [i, medlem.navn, medlem.boAdresse.split(',')[0], postNummer, postSted, medlem.epost, medlem.tlf, 'K' if medlem.storkorNavn() == consts.Kor.TKS else 'M', medlem.fødselsdato.year if medlem.fødselsdato else '', '']
 
             # Må ta høyde for at permisjon kan medføre færre oppmøter enn hendelser
             oppmøteIndex=0
             for hendelse in hendelser:
                 if oppmøteIndex == len(medlem.oppmøter.all()):
-                    line.append('')
+                    row.append('')
                 elif medlem.oppmøter.all()[oppmøteIndex].hendelse_id == hendelse.id:
-                    line.append('X' if medlem.oppmøter.all()[oppmøteIndex].fravær != None else '')
+                    row.append('X' if medlem.oppmøter.all()[oppmøteIndex].fravær != None else '')
                     oppmøteIndex += 1
                 else:
-                    line.append('')
+                    row.append('')
 
-            csv.append(line)
+            writer.writerow(row)
         
         mail.mail_admins(subject='Fravær Eksport!', message=f'Eksport siden sin fravær funksjon har blitt brukt av {str(request.user.medlem)}.')
 
-        return downloadCSV('MyTXS-fremmøte.csv', csv)
+        return response
 
     return render(request, 'mytxs/eksport.html', {
         'eksportForm': eksportForm,

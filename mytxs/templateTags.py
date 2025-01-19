@@ -143,22 +143,27 @@ def addSubNavigation(context):
 
 
 @register.filter
-def divideAndShowPercent(num1, num2):
+def divideToPercent(num1, num2):
     if num2 == 0:
-        return '0%'
-    return f'{round(num1/num2*100, 1)}%'
+        return '0'
+    return f'{round(num1/num2*100, 1)}'
 
 
 @register.filter
-def showFravær(medlem, gyldig=None):
+def showFravær(medlem, fraværNavn):
     'Hjelpefunksjon som tar et medlem og vise gyldig eller ugyldig fravær formatert som "minutt (prosent)"'
-    if gyldig == True:
-        fravær = medlem.gyldigFravær
-    elif gyldig == False:
-        fravær = medlem.ugyldigFravær
-    elif gyldig == None:
-        fravær = medlem.gyldigFravær + medlem.ugyldigFravær
-    return mark_safe(f'{round(fravær)} ({divideAndShowPercent(fravær, medlem.hendelseVarighet)})')
+    fraværNavnUtenProsent = fraværNavn.replace('%', '')
+    if fraværNavnUtenProsent == 'sum':
+        fravær = medlem.umeldtFravær + medlem.gyldigFravær + medlem.ugyldigFravær
+    elif fraværNavnUtenProsent == 'altUgyldigFravær':
+        fravær = medlem.umeldtFravær + medlem.ugyldigFravær
+    else:
+        fravær = getattr(medlem, fraværNavnUtenProsent)
+
+    if '%' in fraværNavn:
+        return mark_safe(divideToPercent(fravær, medlem.hendelseVarighet))
+
+    return mark_safe(f'{round(fravær)} ({divideToPercent(fravær, medlem.hendelseVarighet)}%)')
 
 
 @register.simple_tag(takes_context=True)

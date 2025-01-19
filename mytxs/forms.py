@@ -8,7 +8,7 @@ from mytxs import consts
 from mytxs.fields import BitmapMultipleChoiceField, MyDateFormField
 from mytxs.models import Hendelse, Kor, Medlem, MedlemQuerySet, Verv, Oppmøte
 from mytxs.utils.formUtils import postIfPost, toolTip
-from mytxs.utils.modelUtils import getPathToKor, korLookup, qBool, refreshQueryset, stemmegruppeVerv, vervInnehavelseAktiv
+from mytxs.utils.modelUtils import getPathToKor, stemmegruppeVerv, vervInnehavelseAktiv
 
 
 class KorFilterForm(forms.Form):
@@ -101,7 +101,7 @@ class MedlemFilterForm(NavnKorFilterForm):
         super().__init__(*args, **kwargs)
 
         # Bare vis notisInnhold søkefeltet dersom de har medlemsdata tilgangen
-        if not request or not request.user.medlem.tilganger.filter(navn='medlemsdata').exists():
+        if not request or not request.user.medlem.tilganger.filter(navn=consts.Tilgang.medlemsdata).exists():
             self.fields = {k: v for k, v in self.fields.items() if k != 'notisInnhold'}
 
     def applyFilter(self, queryset):
@@ -287,14 +287,14 @@ def addInnstillingerForm(request):
     # Den store majoritet av brukere har ikke tilgang til noe, derfor filtrere vi på det først. 
     if not request.user.is_superuser and faktiskeTilganger.exists():
         instillingerFields.extend(['disableTilganger', 'bareAktive'])
-        if faktiskeTilganger.filter(navn='tversAvKor').exists():
+        if faktiskeTilganger.filter(navn=consts.Tilgang.tversAvKor).exists():
             instillingerFields.extend(['tversAvKor'])
 
     OptionForm = subForm(InnstillingerForm, fields=None if request.user.is_superuser else instillingerFields)
     
     request.optionForm = OptionForm(postIfPost(request, 'optionForm'), initial=request.user.medlem.innstillinger, prefix='optionForm')
 
-    if not faktiskeTilganger.filter(navn='fravær').exists():
+    if not faktiskeTilganger.filter(navn=consts.Tilgang.fravær).exists():
         # Fjerk alternativ for fraværEpost dersom de ikke har tilgangen
         request.optionForm.fields['epost'].choices = [c for c in request.optionForm.fields['epost'].choices if c[0] != 1]
     

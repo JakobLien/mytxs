@@ -25,6 +25,8 @@ urlpatterns = [
 
     path("__debug__/", include("debug_toolbar.urls")),
 
+    path('uploads/<path:path>', views.serve, name='serve'),
+
     path('', views.login, name='login'),
     path('logout', views.logout, name='logout'),
     path('endreLogin', views.endreLogin, name='endreLogin'),
@@ -53,7 +55,7 @@ urlpatterns = [
     path('hendelse/<int:hendelsePK>', views.hendelse, name='hendelse'),
 
     path('lenker', views.lenker, name='lenker'),
-    path('to/<kor:kor>/<str:lenkeNavn>', views.lenkeRedirect, name='lenkeRedirect'),
+    path('to/<kor:kor>/<path:lenkeNavn>', views.lenkeRedirect, name='lenkeRedirect'),
 
     path('dekorasjon', views.dekorasjonListe, name='dekorasjon'),
     path('dekorasjon/<kor:kor>/<path:dekorasjonNavn>', views.dekorasjon, name='dekorasjon'),

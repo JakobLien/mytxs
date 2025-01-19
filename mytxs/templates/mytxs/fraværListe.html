@@ -7,17 +7,19 @@
 <table class="text-left">
     <tr class="border-b border-black">
         <th class="w-52">Hvem</th>
-        <th class="w-40">Gyldig fravær</th>
+        <th class="w-40">Umeldt fravær</th>
         <th class="w-40">Ugyldig fravær</th>
+        <th class="w-40">Gyldig fravær</th>
         <th class="w-40">Totalt fravær</th>
         {% if request.queryset.0.pk %}<th class="w-40">Semesterplan</th>{% endif %}
     </tr>
     {% for medlem in request.queryset %}
     <tr class="border-b border-black">
         <td>{{ medlem.navn }}</td>
-        <td>{{ medlem|showFravær:True }}</td>
-        <td>{{ medlem|showFravær:False }}</td>
-        <td>{{ medlem|showFravær:None }}</td>
+        <td style="background-color: hsl(calc(120 - ({{ medlem|showFravær:'umeldtFravær%' }} * 1.2)), 65%, 50%);">{{ medlem|showFravær:'umeldtFravær' }}</td>
+        <td style="background-color: hsl(calc(120 - ({{ medlem|showFravær:'ugyldigFravær%' }} * 1.2)), 65%, 50%);">{{ medlem|showFravær:'ugyldigFravær' }}</td>
+        <td style="background-color: hsl(calc(120 - ({{ medlem|showFravær:'gyldigFravær%' }} * 1.2)), 65%, 50%);">{{ medlem|showFravær:'gyldigFravær' }}</td>
+        <td style="background-color: hsl(calc(120 - ({{ medlem|showFravær:'sum%' }} * 1.2)), 65%, 50%);">{{ medlem|showFravær:'sum' }}</td>
         {% if medlem.pk %}<td><a href="{% url 'fraværSemesterplan' request.resolver_match.kwargs.underside medlem.pk %}?gammelt=True">Se semesterplan</a></td>{% endif %}
     </tr>
     {% endfor %}

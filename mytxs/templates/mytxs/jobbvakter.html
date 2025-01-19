@@ -1,0 +1,60 @@
+{% extends "mytxs/base.html" %}
+{% load mytxsTags %}
+
+{% block content %}
+
+{% toggleURLparam 'jobbvakter' 'jobbvakter' %}
+
+<table class="text-left">
+    <tr class="[&>*]:w-52 border-b border-black">
+        <th>Hva</th>
+        <th>Når</th>
+        <th>Medlemmer</th>
+        <th>Oppmeldt</th>
+    </tr>
+    {% for hendelse in request.queryset %}
+    <tr class="border-b border-black">
+        <td>
+            {{hendelse.navn}}
+
+            {% if user.medlem|tilgangExists:consts.Tilgang.semesterplan %} 
+            <a class="text-sm" href="{% url 'hendelse' hendelse.pk %}">Rediger</a> 
+            {% endif %}
+        </td>
+        <td>
+            {{ hendelse.startDate|date:'D j. M' }}
+            {% if hendelse.startTime %}
+            {{ hendelse.startTime }}
+            {% endif %}
+
+            {% if hendelse.slutt %}
+            -
+            {% if hendelse.slutt.date|default:hendelse.slutt != hendelse.startDate %}
+            <br>{{ hendelse.slutt|date:'D j. M' }}
+            {% endif %}
+            {% if hendelse.sluttTime %}
+            {{ hendelse.sluttTime }}
+            {% endif %}
+            {% endif %}
+        </td>
+        <td>
+            {% for oppmøte in hendelse.oppmøter.all %}
+            {% if oppmøte.medlem == user.medlem %}
+            <div class="font-bold">{{ oppmøte.medlem }}</div>
+            {% else %}
+            <div>{{ oppmøte.medlem }}</div>
+            {% endif %}
+            {% endfor %}
+        </td>
+        <td>
+            {% if not hendelse.full or hendelse.påmeldt %}
+            <a href="{% setURLParams toggle=hendelse.pk %}">
+                {% if hendelse.påmeldt %}Avmeld{% else %}Påmeld{% endif %}
+            </a>
+            {% elif hendelse.full %}Fullt{% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+{% endblock %}

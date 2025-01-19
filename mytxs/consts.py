@@ -1,6 +1,14 @@
 # Fil for å definere constans som går igjen over hele siden
 
-alleKorNavn = ['TSS', 'TKS', 'Pirum', 'Knauskoret', 'Candiss', 'Sangern']
+class Kor:
+    TSS = 'TSS'
+    TKS = 'TKS'
+    Pirum = 'Pirum'
+    Knauskoret = 'Knauskoret'
+    Candiss = 'Candiss'
+    Sangern = 'Sangern'
+
+alleKorNavn = [Kor.TSS, Kor.TKS, Kor.Pirum, Kor.Knauskoret, Kor.Candiss, Kor.Sangern]
 alleKorTittel = [
     'Trondhjems Studentersangforening',
     'Trondhjems Kvinnelige Studentersangforening',
@@ -12,18 +20,48 @@ alleKorTittel = [
 alleKorStemmeFordeling = ['TB', 'SA', 'TB', 'SATB', 'SA', '']
 
 # Subsets av alleKorNavn
-bareKorNavn = ['TSS', 'TKS', 'Pirum', 'Knauskoret', 'Candiss']
-bareStorkorNavn = ['TSS', 'TKS']
-bareSmåkorNavn = ['Pirum', 'Knauskoret', 'Candiss']
+bareKorNavn = alleKorNavn[:5]
+bareStorkorNavn = alleKorNavn[:2]
+bareSmåkorNavn = alleKorNavn[2:5]
 småkorForStorkor = {
-    'TSS': ['Pirum', 'Knauskoret'],
-    'TKS': ['Candiss', 'Knauskoret']
+    Kor.TSS: [Kor.Pirum, Kor.Knauskoret],
+    Kor.TKS: [Kor.Candiss, Kor.Knauskoret]
 }
 
-bareKorNavnTKSRekkefølge = ['TKS', 'TSS', 'Candiss', 'Knauskoret', 'Pirum']
+bareKorNavnTKSRekkefølge = [Kor.TKS, Kor.TSS, Kor.Candiss, Kor.Knauskoret, Kor.Pirum]
 
-tilganger = ['dekorasjon', 'dekorasjonInnehavelse', 'verv', 'vervInnehavelse', 'tilgang', 'semesterplan', 'fravær', 'lenke', 'turne', 'tversAvKor', 'eksport', 'sjekkhefteSynlig']
+class Tilgang:
+    medlemsdata = 'medlemsdata'
+    dekorasjon = 'dekorasjon'
+    dekorasjonInnehavelse = 'dekorasjonInnehavelse'
+    verv = 'verv'
+    vervInnehavelse = 'vervInnehavelse'
+    tilgang = 'tilgang'
+    semesterplan = 'semesterplan'
+    fravær = 'fravær'
+    lenke = 'lenke'
+    turne = 'turne'
+    tversAvKor = 'tversAvKor'
+    eksport = 'eksport'
+    sjekkhefteSynlig = 'sjekkhefteSynlig'
+
+tilgangTilKorNavn = {
+    Tilgang.medlemsdata: bareStorkorNavn,
+    Tilgang.dekorasjon: alleKorNavn, 
+    Tilgang.dekorasjonInnehavelse: alleKorNavn, 
+    Tilgang.verv: alleKorNavn, 
+    Tilgang.vervInnehavelse: alleKorNavn, 
+    Tilgang.tilgang: alleKorNavn, 
+    Tilgang.semesterplan: alleKorNavn, 
+    Tilgang.fravær: alleKorNavn, 
+    Tilgang.lenke: alleKorNavn, 
+    Tilgang.turne: bareKorNavn, 
+    Tilgang.tversAvKor: alleKorNavn, 
+    Tilgang.eksport: bareKorNavn, 
+    Tilgang.sjekkhefteSynlig: bareKorNavn, 
+}
 tilgangBeskrivelser = [
+    'For å kunne endre på medlemsdataene til de i ditt storkor.',
     'For å opprette og slette dekorasjoner, samt endre på eksisterende dekorasjoner.',
     'For å opprette og slette dekorasjonInnehavelser, altså hvem som fikk hvilken dekorasjon når.',
     'For å opprette og slette verv, samt endre på eksisterende verv.',
@@ -38,12 +76,7 @@ tilgangBeskrivelser = [
     'Gjør at all dataen i sjekkheftet er synlig for deg.'
 ]
 
-storkorTilganger = ['medlemsdata']
-storkorTilgangBeskrivelser = [
-    'For å kunne endre på medlemsdataene til de i ditt storkor.'
-]
-
-alleTilganger = tilganger + storkorTilganger
+alleTilganger = list(tilgangTilKorNavn.keys())
 
 # Hold denne lista i en rekkefølge vi ønske å slett de i, for seed --clear sin del:)
 loggedModelNames = [
@@ -68,16 +101,16 @@ otherModels = ['Kor']
 allModelNames = [*loggedModelNames, *loggModelNames, *otherModels]
 
 modelTilTilgangNavn = {
-    'VervInnehavelse': 'vervInnehavelse',
-    'Verv': 'verv',
-    'DekorasjonInnehavelse': 'dekorasjonInnehavelse',
-    'Dekorasjon': 'dekorasjon',
-    'Medlem': 'medlemsdata',
-    'Tilgang': 'tilgang',
-    'Turne': 'turne',
-    'Oppmøte': 'fravær',
-    'Hendelse': 'semesterplan',
-    'Lenke': 'lenke'
+    'VervInnehavelse': Tilgang.vervInnehavelse,
+    'Verv': Tilgang.verv,
+    'DekorasjonInnehavelse': Tilgang.dekorasjonInnehavelse,
+    'Dekorasjon': Tilgang.dekorasjon,
+    'Medlem': Tilgang.medlemsdata,
+    'Tilgang': Tilgang.tilgang,
+    'Turne': Tilgang.turne,
+    'Oppmøte': Tilgang.fravær,
+    'Hendelse': Tilgang.semesterplan,
+    'Lenke': Tilgang.lenke,
 }
 'Mappe fra model til navn på tilgang'
 
@@ -100,7 +133,7 @@ hovedStemmegrupper = ['1S', '2S', '1A', '2A', '1T', '2T', '1B', '2B']
 
 # Denne brukes blant annet på hendelse siden for fraværsføring, 
 # bare hiv på en url på slutten så får du en qr kode som redirecte dit:)
-qrCodeLinkPrefix = 'https://zxing.org/w/chart?cht=qr&chs=350x350&chld=L&choe=UTF-8&chl='
+qrCodeLinkPrefix = 'https://api.qrserver.com/v1/create-qr-code/?size=600x600&qzone=2&data='
 
 # BITMAP FIELDS
 # Følgende fields brukes med BitmapMultipleChoiceField, så ALDRI (!!!) endre på rekkefølgen 
@@ -138,4 +171,5 @@ def constsContextProcessor(request):
     # Dette gjør at alt defintert i denne fila er tilgjengelig i templates, som consts.variabelnavn
     # Grunnen til at vi ikke formaterer hele filen som en stor dictionary, er at man i python får mer
     # hjelp til å skrive rett importnavn, sammenlignet med oppsalg i en dict. 
-    return {'consts': {k: v for k, v in globals().items() if (not k.startswith('_') and not callable(v))}}
+    # isinstance(v, type) e om det e en klasse, for å inkluder dem også, for klasser e callable. 
+    return {'consts': {k: v for k, v in globals().items() if (not k.startswith('_') and (not callable(v) or isinstance(v, type)))}}

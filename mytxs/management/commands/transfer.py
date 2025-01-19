@@ -16,6 +16,7 @@ from django.core.files import File
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand, CommandError
 
+from mytxs import consts
 from mytxs.models import Dekorasjon, DekorasjonInnehavelse, Kor, Medlem, Turne, Verv, VervInnehavelse
 from mytxs.utils.modelUtils import stemmegruppeVerv
 
@@ -84,11 +85,11 @@ def transferByJWT(jwt):
 
     medlemsnummer = json.loads(base64.b64decode(jwt.split('.')[1]+'==', altchars='-_'))['sub']
 
-    if medlemsnummer.startswith('TSS'):
+    if medlemsnummer.startswith(consts.Kor.TSS):
         medlemDict = http.request("GET", f"https://mytss.mannskor.no/api/medlem/{medlemsnummer[3:]}?jwt={jwt}", headers={
             "Authorization": f"Bearer {os.environ['API_KEY']}"
         }).json()
-    elif medlemsnummer.startswith('TKS'):
+    elif medlemsnummer.startswith(consts.Kor.TKS):
         medlemDict = http.request("GET", f"https://mitks.mannskor.no/api/medlem/{medlemsnummer[3:]}?jwt={jwt}", headers={
             "Authorization": f"Bearer {os.environ['API_KEY']}"
         }).json()
@@ -192,7 +193,7 @@ def insertMedlem(medlemDict):
         )
     elif (stemmeGruppeInt := int(medlemDict['medlemsnummer'][7:9]) // 20) < 4 and not feilMedlemsnummer(medlemDict):
         # Ellers, gjett på stemmegruppen deres basert på medlemsnummer, om medlemsnummeret ikke er før korets grunneggelse
-        if kor.navn == 'TSS':
+        if kor.navn == consts.Kor.TSS:
             stemmeGruppeInt += 4
         
         stemmegruppe = Verv.objects.get(
@@ -331,16 +332,16 @@ def insertMedlem(medlemDict):
             # Dette dekker ikke PC(TKS) og Kruser(TSS/TKS), men disse vil jeg sterkt råde korlederne om
             # at vi sletter, siden å være ferdig i et småkor ikke er et verv, det er bare dataduplisering. 
             småkorKeywordToKor = {
-                'pirum': 'Pirum',
-                'knaus': 'Knauskoret',
-                'candiss': 'Candiss'
+                'pirum': consts.Kor.Pirum,
+                'knaus': consts.Kor.Knauskoret,
+                'candiss': consts.Kor.Candiss
             }
 
             # Sjekk om det e et småkorverv
             for keyword, småkor in småkorKeywordToKor.items():
                 if keyword in vervDict['verv'].lower():
                     # Dersom det e medlemskapsvervet, gi de ukjentStemmegruppe vervet
-                    if vervDict['verv'] in ['Pirum', 'Knauskoret', 'Candiss']:
+                    if vervDict['verv'] in [consts.Kor.Pirum, consts.Kor.Knauskoret, consts.Kor.Candiss]:
                         vervDict['verv'] = 'ukjentStemmegruppe'
 
                     # Dersom det e dirigentvervet, gi de dirigent vervet
@@ -358,7 +359,7 @@ def insertMedlem(medlemDict):
             if vervDict['verv'] in ['Barens økonomisjef', 'Hybelansvarlig', 'Barrevisor', 'Bardeputy', 'Barsjef']:
                 verv, created = Verv.objects.get_or_create(
                     navn=vervDict['verv'],
-                    kor=Kor.objects.get(navn='Sangern')
+                    kor=Kor.objects.get(navn=consts.Kor.Sangern)
                 )
 
             # Opprett vervet som vanlig i medlemmets kor ellers
@@ -425,8 +426,8 @@ def feilMedlemsnummer(medlemDict):
     Det er hundrevis av TKSere med "feil medlemsnummer", som har år før 1930. Se bort fra disse
     Er også en par TSSere med "feil medlemsnummer", som har år før 1910. 
     '''
-    return (medlemDict['medlemsnummer'][:3] == 'TKS' and int(medlemDict['medlemsnummer'][3:7]) < 1930) or \
-           (medlemDict['medlemsnummer'][:3] == 'TSS' and int(medlemDict['medlemsnummer'][3:7]) < 1910)
+    return (medlemDict['medlemsnummer'][:3] == consts.Kor.TKS and int(medlemDict['medlemsnummer'][3:7]) < 1930) or \
+           (medlemDict['medlemsnummer'][:3] == consts.Kor.TSS and int(medlemDict['medlemsnummer'][3:7]) < 1910)
 
 
 def parseSluttet(sluttet):

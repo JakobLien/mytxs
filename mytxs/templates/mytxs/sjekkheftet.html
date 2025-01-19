@@ -7,7 +7,7 @@
 
 {% block sjekkheftetContent %}
 
-{% if grupperinger|length > 1%}
+{% if grupperinger|length > 1 %}
 <div id="sjekkheftetNavigator" class="my-2 flex flex-row flex-wrap justify-between w-[56rem]">
     {% for gruppenavn, gruppe in grupperinger.items %}
     {% if gruppenavn|lower != 'dirigent' %}
@@ -47,7 +47,7 @@
             {{ medlem.navn }}
             {% endif %}
 
-            {% if user.medlem|tilgangExists:'medlemsdata' %} <a class="text-sm" href="{% url 'medlem' medlem.pk %}">Rediger</a> {% endif %}
+            {% if user.medlem|tilgangExists:consts.Tilgang.medlemsdata %} <a class="text-sm" href="{% url 'medlem' medlem.pk %}">Rediger</a> {% endif %}
         </li>
 
         {% if medlem.karantenekor %}
@@ -56,7 +56,7 @@
         {% else %}
         <li>Karantenekor: {{ medlem.karantenekor }}</li>
         {% endif %}
-        {% endif%}
+        {% endif %}
         
         {% if medlem.public__fødselsdato %}
         <li>Fødselsdato: {{ medlem.public__fødselsdato }}</li>
@@ -107,10 +107,12 @@
 
 {% endfor %}
 
+{% block vcard %}
 <br><a href="{% setURLParams vcard='true' %}">Last ned vCard for alle på siden</a>
 <span title="For å laste ned alle på iphone, trykk del knappen på popupen, og åpne i kontakter. 
 Da får du opp en liste av vcards der du kan importere alle.">(?)</span>
+{% endblock %}
 
-{% endblock%}
+{% endblock %}
 
 {% endblock %}

@@ -1,9 +1,10 @@
 import datetime
 import os
-import threading
 from time import sleep
 
+from mytxs import consts
 from mytxs.utils.downloadUtils import getVeventFromHendelse
+from mytxs.utils.threadUtils import thread
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -57,8 +58,8 @@ class GoogleCalendarManager:
             # creds = flow.run_local_server(port=0)
 
             with open(tokenPath, "w") as token:
-                print('Wrote new google calendar token!')
                 token.write(creds.to_json())
+                # print('Wrote new google calendar token!')
         self.service = build("calendar", "v3", credentials=creds)
 
     @exponentialBackoff
@@ -178,29 +179,16 @@ def getHendelseBody(veventDict):
     return body
 
 
-def thread(func):
-    def _decorator(*args, **kwargs):
-        t = threading.Thread(
-            target=func, 
-            args=args, 
-            kwargs=kwargs,
-            daemon=True
-        )
-        t.start()
-        return t
-    return _decorator
-
-
 @thread
 def getOrCreateAndShareCalendar(korNavn, medlem, gmail):
     gCalManager = GoogleCalendarManager(requestCountDown=200)
-    
-    calendarId = gCalManager.getCalendarIDs(korNavn, [medlem]).get(medlem)
 
-    gCalManager.shareCalendar(calendarId, gmail)
+    calendarId = gCalManager.getCalendarIDs(korNavn, [medlem]).get(medlem)
 
     if not calendarId:
         calendarId = gCalManager.createCalendar(f'{korNavn} semesterplan', f'{korNavn}-{medlem.pk}')
+
+        gCalManager.shareCalendar(calendarId, gmail)
 
         for hendelse in medlem.getHendelser(korNavn):
             gCalManager.createEvent(
@@ -214,9 +202,9 @@ def updateGoogleCalendar(hendelse, changed=False, oldMedlemmer=[], newMedlemmer=
     'Oppdatere Google Calendar gitt liste av gamle og nye medlemmer. hendelsePK til bruk ved sletting.'
     gCalManager = GoogleCalendarManager(requestCountDown=200)
     
-    # Sangern hendelser kan vær i begge storkor sine kalendere
-    if hendelse.kor.navn == 'Sangern':
-        medlemCalendars = gCalManager.getCalendarIDs('TSS', oldMedlemmer+newMedlemmer) | gCalManager.getCalendarIDs('TKS', oldMedlemmer+newMedlemmer)
+    # Sangern hendelser er i begge storkor kalendere
+    if hendelse.kor.navn == consts.Kor.Sangern:
+        medlemCalendars = gCalManager.getCalendarIDs(consts.Kor.TSS, oldMedlemmer+newMedlemmer) | gCalManager.getCalendarIDs(consts.Kor.TKS, oldMedlemmer+newMedlemmer)
     else:
         medlemCalendars = gCalManager.getCalendarIDs(hendelse.kor.navn, oldMedlemmer+newMedlemmer)
     
