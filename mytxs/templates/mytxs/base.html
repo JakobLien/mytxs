@@ -8,7 +8,14 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" href={% static 'mytxs/styles.css' %}>
-    
+
+    <!-- Preconnect to Google Fonts for faster loading -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <!-- Include Outfit and Noto Sans fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100..900;1,100..900&family=Outfit:wght@100..900&display=swap" rel="stylesheet">
+
     <script src="https://unpkg.com/htmx.org@1.9.12" integrity="sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2XoQrxeTUQyRjrOnlCoYta87iKBWq3EsdM2" crossorigin="anonymous"></script>
 
     <script src="{% static 'mytxs/formSafety.js' %}" defer></script>
@@ -18,145 +25,170 @@
     {% block jsHead %} {% endblock %}
 </head>
 
-<body class="bg-customPurple h-screen">
+<body class="bg-txsGray100 h-screen font-noto">
     {% block messages %}
     {% if messages %}
-    <div class="fixed inset-x-0 top-4 text-center z-10" onclick="this.classList.add('hidden');">
+    <div class="fixed cursor-pointer inset-x-0 top-4 text-center z-10" onclick="this.classList.add('hidden');">
         {% for message in messages %}
-        <span class="{% if 'error' in message.tags %}bg-red-400{% else %}bg-green-400{% endif %} rounded-md p-2">
+        <span class="{% if 'error' in message.tags %}bg-red-400{% else %}bg-green-400{% endif %} cursor-pointer rounded-md p-2">
             {{ message.tags|capfirst }}: {{ message }}
         </span> <br>
         {% endfor %}
     </div>
     {% endif %}
     {% endblock %}
+    <div id="menu-overlay" class="hidden fixed inset-0 bg-black bg-opacity-50 z-20" 
+            onclick="document.getElementById('sidebar').classList.add('hidden');
+                this.classList.add('hidden');">
+    </div>
 
     {% block body %}
 
-    <div class="flex flex-row [&>*]:flex-none space-x-6 m-4">
-        <div class="bg-gray-800 border border-yellow-300 w-24 text-white text-xs 
-            text-center flex flex-col [&>*]:py-2 [&>*>*]:mx-auto [&>*>p]:font-bold">
+    <div class="grid md:grid-cols-[14rem_1fr] h-screen overflow-y-auto">
+        <div id="sidebar" class="hidden absolute z-30 pt-20 md:pt-0 md:relative md:block bg-txsPurple500 text-white w-56 h-screen [&>*]:flex [&>*]:gap-5 [&>*]:px-5 [&>*]:py-4 [&>*]:items-center">
             {% block sidebar %}
 
             {% if user.medlem %}
-            <a href="{{ user.medlem.get_absolute_url }}">
-                <img src="{% static 'mytxs/bok.png' %}">
-                <p>Rediger Medlems-registerdata</p>
+            <a class="hover:bg-txsBlack" href="{{ user.medlem.get_absolute_url }}">
+                <img class="w-6 flex justify-center" src="{% static 'mytxs/imgs/Book.svg' %}">
+                <p>Rediger medlems-registerdata</p>
             </a>
             {% endif %}
 
             {% linkIfAccess sjekkheftet %}
-                <img src="{% static 'mytxs/sjekkheftet.png' %}" border="0">
+                <img class="w-6 flex justify-center" src="{% static 'mytxs/imgs/Heart.svg' %}">
                 <p>Sjekkheftet</p>
             {% endLinkIfAccess %}
 
             {% linkIfAccess semesterplan %}
-            <svg class="w-1/2 fill-gray-400" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 29.237 29.237" xml:space="preserve">
-                <g>
-                    <g>
-                        <path d="M7.685,24.819H8.28v-2.131h3.688v2.131h0.596v-2.131h3.862v2.131h0.597v-2.131h4.109v2.131h0.595    v-2.131h3.417v-0.594h-3.417v-3.861h3.417v-0.596h-3.417v-3.519h3.417v-0.594h-3.417v-2.377h-0.595v2.377h-4.109v-2.377h-0.597    v2.377h-3.862v-2.377h-0.596v2.377H8.279v-2.377H7.685v2.377H3.747v0.594h3.938v3.519H3.747v0.596h3.938v3.861H3.747v0.594h3.938    V24.819z M12.563,22.094v-3.861h3.862v3.861H12.563z M21.132,22.094h-4.109v-3.861h4.109V22.094z M21.132,14.118v3.519h-4.109    v-3.519C17.023,14.119,21.132,14.119,21.132,14.118z M16.426,14.118v3.519h-3.862v-3.519    C12.564,14.119,16.426,14.119,16.426,14.118z M8.279,14.118h3.688v3.519H8.279V14.118z M8.279,18.233h3.688v3.861H8.279V18.233z"/>
-                        <path d="M29.207,2.504l-4.129,0.004L24.475,2.51v2.448c0,0.653-0.534,1.187-1.188,1.187h-1.388    c-0.656,0-1.188-0.533-1.188-1.187V2.514l-1.583,0.002v2.442c0,0.653-0.535,1.187-1.191,1.187h-1.388    c-0.655,0-1.188-0.533-1.188-1.187V2.517l-1.682,0.004v2.438c0,0.653-0.534,1.187-1.189,1.187h-1.389    c-0.653,0-1.188-0.533-1.188-1.187V2.525H8.181v2.434c0,0.653-0.533,1.187-1.188,1.187H5.605c-0.656,0-1.189-0.533-1.189-1.187    V2.53L0,2.534v26.153h2.09h25.06l2.087-0.006L29.207,2.504z M27.15,26.606H2.09V9.897h25.06V26.606z"/>
-                        <path d="M5.605,5.303h1.388c0.163,0,0.296-0.133,0.296-0.297v-4.16c0-0.165-0.133-0.297-0.296-0.297H5.605    c-0.165,0-0.298,0.132-0.298,0.297v4.16C5.307,5.17,5.44,5.303,5.605,5.303z"/>
-                        <path d="M11.101,5.303h1.389c0.164,0,0.297-0.133,0.297-0.297v-4.16c-0.001-0.165-0.134-0.297-0.298-0.297    H11.1c-0.163,0-0.296,0.132-0.296,0.297v4.16C10.805,5.17,10.938,5.303,11.101,5.303z"/>
-                        <path d="M16.549,5.303h1.388c0.166,0,0.299-0.133,0.299-0.297v-4.16c-0.001-0.165-0.133-0.297-0.299-0.297    h-1.388c-0.164,0-0.297,0.132-0.297,0.297v4.16C16.252,5.17,16.385,5.303,16.549,5.303z"/>
-                        <path d="M21.899,5.303h1.388c0.164,0,0.296-0.133,0.296-0.297v-4.16c0-0.165-0.132-0.297-0.296-0.297    h-1.388c-0.164,0-0.297,0.132-0.297,0.297v4.16C21.603,5.17,21.735,5.303,21.899,5.303z"/>
-                    </g>
-                </g>
-            </svg>
+            <img class="w-6 flex justify-center" src="{% static 'mytxs/imgs/Cal.svg' %}">
             <p>Semesterplan</p>
             {% endLinkIfAccess %}
 
             {% linkIfAccess lenker %}
-            <svg class="w-2/3 stroke-gray-400 fill-transparent" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <g id="Interface / Link">
-                    <path id="Vector" d="M9.1718 14.8288L14.8287 9.17192M7.05086 11.293L5.63664 12.7072C4.07455 14.2693 4.07409 16.8022 5.63619 18.3643C7.19829 19.9264 9.7317 19.9259 11.2938 18.3638L12.7065 16.9498M11.2929 7.05L12.7071 5.63579C14.2692 4.07369 16.8016 4.07397 18.3637 5.63607C19.9258 7.19816 19.9257 9.73085 18.3636 11.2929L16.9501 12.7071" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </g>
-            </svg>
+            <img class="w-6 flex justify-center" src="{% static 'mytxs/imgs/Links.svg' %}">
             <p>Lenker</p>
             {% endLinkIfAccess%}
 
             {% linkIfAccess admin %}
-            <svg class="w-2/3 fill-transparent stroke-gray-400 stroke-1" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M21 9L9.59309 9C9.59309 9 8.5 7 6 7C3.5 7 2 8.79086 2 11C2 13.2091 3.5 15 6 15C8.5 15 9.59309 13 9.59309 13L15 13L15 17L19 17L19 13L21 13L21 9Z" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M6 12.5C5.17157 12.5 4.5 11.8284 4.5 11C4.5 10.1716 5.17157 9.5 6 9.5C6.82843 9.5 7.5 10.1716 7.5 11C7.5 11.8284 6.82843 12.5 6 12.5Z"/>
-            </svg>
+            <img class="w-6 flex justify-center" src="{% static 'mytxs/imgs/Key.svg' %}">
             <p>Admin funksjoner</p>
             {% endLinkIfAccess %}
 
             {% if user.medlem.gammeltMedlemsnummer %}
-            <a href="{% if 'TKS' in user.medlem.gammeltMedlemsnummer %}http://mitks.mannskor.no/index.php{% else %}http://mytss.mannskor.no/index.php{% endif %}" target="_blank">
-                <img src="{% static 'mytxs/news.png' %}" border="0">
+            <a class="hover:bg-txsBlack" href="{% if 'TKS' in user.medlem.gammeltMedlemsnummer %}http://mitks.mannskor.no/index.php{% else %}http://mytss.mannskor.no/index.php{% endif %}" target="_blank">
+                <img class="w-6 flex justify-center" src="{% static 'mytxs/imgs/Old.svg' %}">
                 <p>Gamle {% if 'TKS' in user.medlem.gammeltMedlemsnummer %}MiTKS{% else %}MyTSS{% endif %}</p>
             </a>
             {% endif %}
 
-            <a href="{% url 'om' %}">
-                <svg class="fill-gray-400" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M339.626667 788.48c-0.948148 0-1.896296-0.094815-3.887407-0.948148-12.61037-5.878519-15.265185-14.317037-15.265185-18.204444L320.474074 667.306667l-40.011852 0c-31.099259 0-45.605926-14.601481-45.605926-46.648889L234.856296 291.65037c0-32.047407 13.558519-46.648889 45.605926-46.648889l463.075556 0c31.099259 0 45.605926 14.601481 45.605926 46.648889l0 328.154074c0 32.047407-13.558519 46.648889-45.605926 46.648889L449.422222 666.453333 346.453333 785.540741C344.746667 787.247407 342.565926 788.48 339.626667 788.48L339.626667 788.48zM277.617778 279.608889c-5.499259 0-7.205926 1.327407-7.205926 8.248889l0 331.946667c0 6.731852 7.395556 12.98963 16.687407 12.98963l53.57037 0c5.783704 0 9.671111 3.887407 9.671111 9.671111l0 88.367407 88.367407-96.047407c1.896296-1.896296 4.835556-2.939259 6.826667-2.939259l302.838519 0c4.456296 0 7.205926-1.042963 7.205926-8.248889L755.579259 287.857778c0-6.352593-4.171852-8.248889-7.205926-8.248889L277.617778 279.608889 277.617778 279.608889z"  /><path d="M348.634074 404.859259l326.637037 0c10.42963 0 18.962963-8.533333 18.962963-18.962963s-8.533333-18.962963-18.962963-18.962963L348.634074 366.933333c-10.42963 0-18.962963 8.533333-18.962963 18.962963S338.204444 404.859259 348.634074 404.859259z"  /><path d="M675.365926 493.037037 348.634074 493.037037c-10.42963 0-18.962963 8.533333-18.962963 18.962963s8.533333 18.962963 18.962963 18.962963l326.637037 0c10.42963 0 18.962963-8.533333 18.962963-18.962963S685.795556 493.037037 675.365926 493.037037z"  />
-                    <p>Feedback og om prosjektet</p>
-                </svg>
+            <a class="hover:bg-txsBlack"  href="{% url 'om' %}">
+                <img class="w-6 flex justify-center" src="{% static 'mytxs/imgs/Speech.svg' %}">
+                <p>Feedback og om prosjektet</p>
             </a>
 
-            <a href="{% url 'endreLogin' %}">
-                <img src="{% static 'mytxs/lock.png' %}" border="0">
+            <a class="hover:bg-txsBlack"  href="{% url 'endreLogin' %}">
+                <img class="w-6 flex justify-center" src="{% static 'mytxs/imgs/Lock.svg' %}">
                 <p>Endre brukernavn/ passord</p>
             </a>
 
-            <a href="{% url 'logout' %}">
-                <svg class="w-3/5 fill-gray-400" viewBox="-2 0 19 19" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M7.498 17.1a7.128 7.128 0 0 1-.98-.068 7.455 7.455 0 0 1-1.795-.483 7.26 7.26 0 0 1-3.028-2.332A7.188 7.188 0 0 1 .73 12.52a7.304 7.304 0 0 1 .972-7.128 7.221 7.221 0 0 1 1.387-1.385 1.03 1.03 0 0 1 1.247 1.638 5.176 5.176 0 0 0-.993.989 5.313 5.313 0 0 0-.678 1.181 5.23 5.23 0 0 0-.348 1.292 5.22 5.22 0 0 0 .326 2.653 5.139 5.139 0 0 0 .69 1.212 5.205 5.205 0 0 0 .992.996 5.257 5.257 0 0 0 1.178.677 5.37 5.37 0 0 0 1.297.35 5.075 5.075 0 0 0 1.332.008 5.406 5.406 0 0 0 1.32-.343 5.289 5.289 0 0 0 2.211-1.682 5.18 5.18 0 0 0 1.02-2.465 5.2 5.2 0 0 0 .01-1.336 5.315 5.315 0 0 0-.343-1.318 5.195 5.195 0 0 0-.695-1.222 5.134 5.134 0 0 0-.987-.989 1.03 1.03 0 1 1 1.24-1.643 7.186 7.186 0 0 1 1.384 1.386 7.259 7.259 0 0 1 .97 1.706 7.413 7.413 0 0 1 .473 1.827 7.296 7.296 0 0 1-4.522 7.65 7.476 7.476 0 0 1-1.825.471 7.203 7.203 0 0 1-.89.056zM7.5 9.613a1.03 1.03 0 0 1-1.03-1.029V2.522a1.03 1.03 0 0 1 2.06 0v6.062a1.03 1.03 0 0 1-1.03 1.03z"/>
-                </svg>
+            <a class="hover:bg-txsBlack"  href="{% url 'logout' %}">
+                <img class="w-6 flex justify-center" src="{% static 'mytxs/imgs/Door.svg' %}">
                 <p>Logg ut</p>
             </a>
 
             {% endblock %}
         </div>
         
-        <div class="flex flex-col space-y-4">
-            <div id="topbar" class="bg-white border-black border-2 px-2">
-                {% block topbar %}
-                <div class="flex justify-between">
-                    <b>Hei {{ user.medlem.navn }}!</b>
-                    <span class="ml-10">Det synges for lite!</span>
-                    <span class="ml-10">Dette er din {{ user.medlem.innlogginger }}. innlogging</span>
-                    <span class="ml-10">Du logget inn {{ user.last_login|date:"G:i d.m.Y" }}</span>
+        <div class="overflow-y-auto scroll-content pb-16">
+            <div class="flex flex-col w-full">
+                <div id="topbar" class="bg-txsWhite border-b-txsGray300 border-b-2 p-4 sticky top-0 z-10 md:relative w-full">
+                    {% block topbar %}
+                    <div class="flex flex-wrap justify-between">
+                        <img id="menu-toggle" class="block md:hidden" src="{% static 'mytxs/icons/menu.svg' %}" onclick="document.getElementById('sidebar').classList.toggle('hidden'); document.getElementById('menu-overlay').classList.toggle('hidden');">
+                        <div class="flex flex-col text-right md:text-left">
+                            <h3 class="font-medium">Hei {{ user.medlem.navn }}!</p>
+                            <p>Dette er din {{ user.medlem.innlogginger }}. innlogging</p>
+                        </div>
+                        <h3 class="font-medium self-center hidden md:block">Det synges for lite!</p>
+                    </div>
+                    {% endblock %}
                 </div>
-                {% endblock %}
+
+                <div id="content" class="m-4">
+                    {% block heading %}
+                    <h1 class="mb-1">
+                        {% if heading %}
+                        {{ heading }}
+                        {% elif request.instance %}
+                        {{ request.instance|capfirst }}
+
+                        {% if user.medlem.tilganger %}
+                        {% addLoggLink request.instance %}
+                        {% endif %}
+
+                        {% endif %}
+                    </h1>
+                    {% addSubNavigation %}
+                    {% endblock %}
+
+                    {% block content %} [Default Content] {% endblock %}
+                </div>
             </div>
-
-            <div id="content">
-                {% block heading %}
-                <h1 class="text-2xl">
-                    {% if heading %}
-                    {{ heading }}
-                    {% elif request.instance %}
-                    {{ request.instance|capfirst }}
-
-                    {% if user.medlem.tilganger %}
-                    {% addLoggLink request.instance %}
-                    {% endif %}
-
-                    {% endif %}
-                </h1>
-                {% addSubNavigation %}
-                {% endblock %}
-
-                {% block content %} [Default Content] {% endblock %}
+            <div id="scroll-to-top" 
+                class="hidden fixed bottom-6 left-6 md:left-60 bg-txsPurple200/[.8] p-3 rounded-full cursor-pointer z-50 shadow-lg"
+                onclick="scrollToTop()">
+                <img id="arrow_up" src="{% static 'mytxs/icons/arrow_up.svg' %}">
             </div>
         </div>
     </div>
 
+    
+
     {% endblock %}
 
     {% if request.optionForm %}
-    <div class="fixed right-6 bottom-6 p-2 rounded-md bg-customPurple border-2 border-red-700 group">
-        <div class="block text-xl" onclick='this.nextElementSibling.classList.toggle("hidden")'>Innstillinger</div>
-        <form class="hidden managedForm" action="{{ request.get_full_path }}" method="post">
+
+    <div id="settings-overlay" class="hidden cursor-pointer fixed inset-0 z-9" 
+        onclick="document.getElementById('settings-form').classList.add('hidden');
+            document.getElementById('settings-icon').classList.toggle('hidden');
+            this.classList.add('hidden');">
+    </div>
+
+    <div class="fixed right-6 bottom-6 p-2 group bg-txsGray200">
+        <img id="settings-icon" 
+            class="cursor-pointer h-8" 
+            src="{% static 'mytxs/icons/settings.svg' %}" 
+            onclick="document.getElementById('settings-form').classList.toggle('hidden'); 
+                document.getElementById('settings-overlay').classList.toggle('hidden'); 
+                this.classList.add('hidden');">
+        <form id="settings-form" class="hidden managedForm" action="{{ request.get_full_path }}" method="post">
+        <div class="block text-xl">Innstillinger</div>
             {% csrf_token %}
             {{ request.optionForm.as_p }}
             <input type="submit" value="Lagre">
         </form>
     </div>
     {% endif %}
+
+    <script>
+        const mainContent = document.querySelector('.scroll-content');
+        const scrollToTopButton = document.getElementById('scroll-to-top');
+
+        mainContent.addEventListener('scroll', () => {
+            if (mainContent.scrollTop > 300) {
+                scrollToTopButton.classList.remove('hidden');
+            } else {
+                scrollToTopButton.classList.add('hidden');
+            }
+        });
+
+        function scrollToTop() {
+            mainContent.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        }
+    </script>
 </body>
 </html>

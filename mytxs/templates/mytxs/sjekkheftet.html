@@ -1,5 +1,6 @@
 {% extends "mytxs/base.html" %}
 {% load mytxsTags %}
+{% load static %}
 
 {% block content %}
 
@@ -8,11 +9,42 @@
 {% block sjekkheftetContent %}
 
 {% if grupperinger|length > 1%}
-<div id="sjekkheftetNavigator" class="my-2 flex flex-row flex-wrap justify-between w-[56rem]">
+{% for gruppenavn, gruppe in grupperinger.items %}
+    {% if gruppenavn|lower != 'dirigent' %}
+    <div class="md:hidden flex flex-row justify-between bg-txsWhite px-2 my-2 cursor-pointer"
+        onclick="toggleGroup('{{ gruppenavn|slugify }}')">
+        <h2>{{ gruppenavn|capfirst }}</h2>
+        <img id="arrow_icon" class="arrow-icon" src="{% static 'mytxs/icons/arrow_down.svg' %}">
+    </div>
+    <div id="{{ gruppenavn|slugify }}" class="hidden p-2 -mt-2 bg-txsWhite">
+        {% for medlem in gruppe %}
+        <a class="text-sm" href="#m_{{ medlem.pk }}">{{ medlem.navn }}</a><br>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endfor %}
+
+    <script>
+        function toggleGroup(groupId) {
+            const groupMembers = document.getElementById(groupId);
+            const arrowIcon = groupMembers.previousElementSibling.querySelector('.arrow-icon');
+        
+            if (groupMembers.classList.contains('hidden')) {
+                groupMembers.classList.remove('hidden');
+                arrowIcon.classList.add('rotate-180');
+            } else {
+                groupMembers.classList.add('hidden');
+                arrowIcon.classList.remove('rotate-180');
+            }
+        }
+    </script>
+
+
+<div id="sjekkheftetNavigator" class="hidden py-2 md:flex bg-txsWhite space-x-4 flex-row flex-wrap justify-between px-10">
     {% for gruppenavn, gruppe in grupperinger.items %}
     {% if gruppenavn|lower != 'dirigent' %}
-    <div class="w-[14rem]">
-        <h2 class="text-3xl">{{ gruppenavn|capfirst }}</h2>
+    <div class="max-w-56">
+        <h2>{{ gruppenavn|capfirst }}</h2>
 
         {% for medlem in gruppe %}
         <a class="text-sm" href="#m_{{ medlem.pk }}">{{ medlem.navn }}</a><br>
@@ -28,19 +60,19 @@
 {% for gruppenavn, gruppe in grupperinger.items %}
 
 {% if gruppenavn %}
-<h2 class="text-3xl">{{ gruppenavn|capfirst }}: </h2>
+<h2>{{ gruppenavn|capfirst }}</h2>
 {% endif %}
 
 {% for medlem in gruppe %}
-<div id="m_{{ medlem.pk }}" class="flex flex-row space-x-2 w-[56rem] p-2 backdrop-brightness-110 rounded-xl">
+<div id="m_{{ medlem.pk }}" class="flex flex-col md:flex-row space-y-2 md:space-x-2 w-full p-2 bg-txsWhite border-dotted border-txsPurple200 border-2">
     {% if medlem.bilde %}
-    <img src="{{ medlem.bilde.url }}" class="h-44 aspect-[139/169] object-cover align-top border-2 border-black">
+    <img src="{{ medlem.bilde.url }}" class="h-44 w-max aspect-[139/169] object-contain align-top border-2 border-txsGray300">
     {% else %}
-    <div class="h-44 aspect-[139/169] object-cover align-top border-2 border-black"></div>
+    <div class="h-44 w-max aspect-[139/169] object-contain align-top border-2 border-txsGray300"></div>
     {% endif %}
 
     <ul>
-        <li class="text-2xl">
+        <li class="text-xl">
             {% if request.resolver_match.kwargs.side not in consts.bareStorkorNavn and medlem.storkorNavn %}
             <a href="{% url 'sjekkheftet' medlem.storkorNavn %}#m_{{medlem.pk}}">{{ medlem.navn }}</a>
             {% else %}
@@ -52,33 +84,33 @@
 
         {% if medlem.karantenekor %}
         {% if request.resolver_match.kwargs.side in consts.bareSmåkorNavn %}
-        <li>Tatt opp: {{ medlem.karantenekor }}</li>
+        <li class="text-sm">Tatt opp: {{ medlem.karantenekor }}</li>
         {% else %}
-        <li>Karantenekor: {{ medlem.karantenekor }}</li>
+        <li class="text-sm">Karantenekor: {{ medlem.karantenekor }}</li>
         {% endif %}
         {% endif%}
         
         {% if medlem.public__fødselsdato %}
-        <li>Fødselsdato: {{ medlem.public__fødselsdato }}</li>
+        <li class="text-sm">Fødselsdato: {{ medlem.public__fødselsdato }}</li>
         {% endif %}
         {% if medlem.public__epost %}
-        <li>Epost: <a href="mailto:{{ medlem.public__epost }}">{{ medlem.public__epost }}</a></li>
+        <li class="text-sm">Epost: <a href="mailto:{{ medlem.public__epost }}">{{ medlem.public__epost }}</a></li>
         {% endif %}
         {% if medlem.public__tlf %}
-        <li>Telefon: <a href="tel:{{ medlem.public__tlf|cut:' ' }}">{{ medlem.public__tlf }}</a></li>
+        <li class="text-sm">Telefon: <a href="tel:{{ medlem.public__tlf|cut:' ' }}">{{ medlem.public__tlf }}</a></li>
         {% endif %}
         {% if medlem.public__studieEllerJobb %}
-        <li>Studie eller jobb: {{ medlem.public__studieEllerJobb }}</li>
+        <li class="text-sm">Studie eller jobb: {{ medlem.public__studieEllerJobb }}</li>
         {% endif %}
         {% if medlem.public__boAdresse %}
-        <li>Bostedsadresse: <a href="https://maps.google.com/?q={{ medlem.public__boAdresse }}">{{ medlem.public__boAdresse }}</a></li>
+        <li class="text-sm">Bostedsadresse: <a href="https://maps.google.com/?q={{ medlem.public__boAdresse }}">{{ medlem.public__boAdresse }}</a></li>
         {% endif %}
         {% if medlem.public__foreldreAdresse %}
-        <li>Foreldreadresse: <a href="https://maps.google.com/?q={{ medlem.public__foreldreAdresse }}">{{ medlem.public__foreldreAdresse }}</a></li>
+        <li class="text-sm">Foreldreadresse: <a href="https://maps.google.com/?q={{ medlem.public__foreldreAdresse }}">{{ medlem.public__foreldreAdresse }}</a></li>
         {% endif %}
 
         {% if medlem.vervInnehavelser.all %}
-        <li>Verv: 
+        <li class="text-sm">Verv: 
             {% for vervInnehavelse in medlem.vervInnehavelser.all %}
             <span>{{ vervInnehavelse.verv }}</span>
             {% endfor %}
@@ -86,7 +118,7 @@
         {% endif %}
 
         {% if medlem.dekorasjonInnehavelser.all %}
-        <li>Dekorasjoner: 
+        <li class="text-sm">Dekorasjoner: 
             {% for dekorasjonInnehavelse in medlem.dekorasjonInnehavelser.all %}
             <span> {{ dekorasjonInnehavelse.dekorasjon }}</span>
             {% endfor %}
@@ -94,7 +126,7 @@
         {% endif %}
 
         {% if medlem.småkor %}
-        <li>Småkor: <span>{{medlem.småkor}}</span></li>
+        <li class="text-sm">Småkor: <span>{{medlem.småkor}}</span></li>
         {% endif %}
     </ul>
 </div>

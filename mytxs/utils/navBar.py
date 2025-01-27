@@ -70,13 +70,16 @@ class navBarNode():
         if self.parent and self.parent.key != None:
             returnStr = self.parent.buildNavigation(activeChild=self)
 
+        returnStr += '<div class="mb-2 w-auto overflow-x-auto -mx-4 px-4 overflow-y-hidden whitespace-nowrap relative">'
         for child in self.children.values():
             if child == activeChild:
-                returnStr += f'<a class="text-3xl" href="{child.url}">{capfirst(child.key)}</a> '
+                returnStr += f'<a class="font-semibold bg-txsPurple200 px-1 py-0.5 text-txsWhite" href="{child.url}">{capfirst(child.key)}</a> '
             else:
-                returnStr += f'<a href="{child.url}">{capfirst(child.key)}</a> '
+                returnStr += f'<a class="bg-txsGray300 px-1 py-0.5 mb-6" href="{child.url}">{capfirst(child.key)}</a> '
         if self.children:
-            returnStr += '<br>'
+            returnStr += '</div>'
+
+
         return returnStr
 
 

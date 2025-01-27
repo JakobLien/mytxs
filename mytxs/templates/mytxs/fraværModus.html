@@ -9,7 +9,7 @@
 
 <div id="fraværModusHX" hx-select="#fraværModusHX" hx-target="this" hx-swap="outerHTML">
     {% if endreFraværForm %}
-    <h2 class="text-2xl">Fravær for {{ endreFraværForm.instance.medlem.navn }}</h2>
+    <h2>Fravær for {{ endreFraværForm.instance.medlem.navn }}</h2>
     <form hx-post="{{ request.get_full_path }}">
         {% csrf_token %}
         {{ endreFraværForm }}
@@ -23,7 +23,7 @@
     {% if request.GET.medMøtt or oppmøte.fravær == None %}
 
     {% ifchanged oppmøte.stemmegruppe %}
-    <h2 class="text-2xl max-w-sm target:backdrop-brightness-100" id="{{ oppmøte.stemmegruppe }}">{{ oppmøte.stemmegruppe }}</h2>
+    <h2 class="max-w-sm target:backdrop-brightness-100" id="{{ oppmøte.stemmegruppe }}">{{ oppmøte.stemmegruppe }}</h2>
     {% endifchanged %}
 
     {% if oppmøte.fravær == None %}

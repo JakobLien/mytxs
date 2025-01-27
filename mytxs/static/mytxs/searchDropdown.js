@@ -26,7 +26,7 @@ for(const select of document.querySelectorAll('select')){
         input.classList.add('opacity-40');
     }
 
-    div.classList.add('absolute', 'z-10', 'left-0', 'hidden', 'peer-focus:block', 'hover:block', 'm-0', 
+    div.classList.add('absolute', 'left-0', 'hidden', 'peer-focus:block', 'hover:block', 'm-0', 
         'bg-white', 'border-black', 'border',
         'max-h-52', 'overflow-scroll', 'min-w-full',
         '[&>*]:mx-1', '[&>*]:mr-3', '[&>*]:text-sm');

@@ -2,14 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Make links look like links */
+/* Make links look like links 
 a {
    @apply underline
-}
+}*/
 
 /* Om elementet er target (har id verdi for #[id] i urlen) øke vi brightness så det blir highlighta */
 * {
     @apply target:backdrop-brightness-125
+}
+
+p, a {
+    @apply text-sm font-noto
+}
+
+h1 {
+    @apply text-2xl font-outfit md:text-3xl
+}
+
+h2 {
+    @apply text-xl font-outfit md:text-2xl
+}
+
+h3 {
+    @apply text-lg font-outfit md:text-xl
 }
 
 /* FORMS */
@@ -56,7 +72,7 @@ textarea {
 }
 
 :not(p) > textarea {
-    @apply w-20 h-5 transition-all duration-300 focus:w-80 focus:h-40 focus:fixed focus:z-20 focus:left-1/2 focus:top-1/2 focus:-ml-40 focus:-mt-40 focus:shadow-2xl
+    @apply w-20 h-5 transition-all duration-300 focus:w-80 focus:h-40 focus:fixed focus:left-1/2 focus:top-1/2 focus:-ml-40 focus:-mt-40 focus:shadow-2xl
 }
 
 p > textarea {

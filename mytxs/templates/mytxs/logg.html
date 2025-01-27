@@ -35,7 +35,7 @@
 <pre class="bg-white p-4 w-fit my-4">{{ request.instance.formatValue }}</pre>
 
 {% if request.instance.getReverseRelated %}
-<h2 class="text-xl">Logger som refererer til denne loggen: </h2>
+<h3>Logger som refererer til denne loggen: </h2>
 <ul>
     {% paginateList request.instance.getReverseRelated 'reverseRelated' %}
     {% for related in reverseRelatedPage %}
@@ -47,7 +47,7 @@
 
 {% if request.instance.getM2MRelated %}
 {% for m2mName, M2Ms in request.instance.getM2MRelated.items %}
-<h2 class="text-xl">{{ m2mName }} M2M relasjoner</h2>
+<h3>{{ m2mName }} M2M relasjoner</h2>
 <ul>
 
 {% paginateList M2Ms 'm2mRelated' %}

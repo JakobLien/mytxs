@@ -9,14 +9,14 @@ med hvilken data som ble hentet ut og for hvem, for å hindre misbruk av denne f
 Persondata er sensitivt og skal behandles med respekt, så bare hent ut det du faktisk trenger. 
 </p><br>
 
-<h2 class="text-2xl">Eksport av spesifikk data</h2>
+<h2>Eksport av spesifikk data</h2>
 <form action="{{ request.path }}" method="get">
     {{ eksportForm.as_p }}
     <input type="submit" value="Velg">
 </form>
 {% if visCSVLenke %}{% toggleURLparam 'eksport' 'Last ned csv med medlemsdata' %}{% endif %}
 
-<br><br><h2 class="text-2xl">Eksport av semesterets fravær til musikkens studieforbund</h2>
+<br><br><h2>Eksport av semesterets fravær til musikkens studieforbund</h2>
 {% toggleURLparam 'fraværEksport' 'Last ned fravær formatert til musikkens studieforbund' %}
 
 {% endblock %}

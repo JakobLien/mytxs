@@ -237,7 +237,7 @@ class linkIfAccessNode(template.Node):
 
     def render(self, context):
         if node := context['request'].user.medlem.navBar[self.navBarPath]:
-            return mark_safe(f'<a href="{node.url}">' + self.nodelist.render(context) + '</a>')
+            return mark_safe(f'<a class="hover:bg-txsBlack"  href="{node.url}">' + self.nodelist.render(context) + '</a>')
         return ''
 
 

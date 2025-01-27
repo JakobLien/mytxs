@@ -32,7 +32,7 @@
 {% if newForm and newForm|formIsEnabled %}
 
 {% if newForm.prefix %}
-<h2 class="text-xl mt-4">{{ newForm.prefix|capfirst }}</h2>
+<h3 class="mt-4">{{ newForm.prefix|capfirst }}</h2>
 {% endif %}
 
 <form action="{{ request.get_full_path }}" method="post" class="creationForm">
