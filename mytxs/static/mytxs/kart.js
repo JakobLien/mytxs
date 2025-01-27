@@ -1,32 +1,33 @@
 if(document.currentScript.dataset.json){
     const medlemMapData = JSON.parse(document.currentScript.dataset.json);
+    const markerMapping = {};
 
     const map = L.map('map').setView([63.42256257910649, 10.395544839649341], 13);
-    L.tileLayer('https://opencache.statkart.no/gatekeeper/gk/gk.open_gmaps?layers=norges_grunnkart&zoom={z}&x={x}&y={y}', {
-        attribution: '<a href="http://www.kartverket.no/">Kartverket</a>'
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '<a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(map);
 
-    async function getCord(adresse){
-        const cord = await fetch('https://ws.geonorge.no/adresser/v1/sok?sok='+adresse).then(
-            response => response.json(),
-        );
-        if(cord.adresser.length == 0){return false};
-        return cord.adresser[0].representasjonspunkt;
+    function strCord(cord){
+        return cord['lat'] + '' + cord['lon'];
     }
 
-    async function addAdressToMap(medlem, adresse){
-        const cord = await getCord(adresse);
-        if(!cord){return};
-        const marker = L.marker([cord.lat, cord.lon]).addTo(map);
-        marker.bindPopup(`<a href="/sjekkheftet/${medlem.storkorNavn}#m_${medlem.pk}">${medlem.navn}</a>`);
-    }
-    
-    for(const medlem of medlemMapData){
-        if(medlem.boAdresse){
-            addAdressToMap(medlem, medlem.boAdresse);
+    function addAdressToMap(medlem, cord, suffix=''){
+        if(markerMapping[strCord(cord)]){
+            const marker = markerMapping[strCord(cord)];
+            marker.bindPopup(marker._popup._content + '<br>' + `<a href="/sjekkheftet/${medlem.storkorNavn}#m_${medlem.pk}">${medlem.navn}${suffix}</a>`);
+        }else{
+            const marker = L.marker([cord.lat, cord.lon]).addTo(map);
+            marker.bindPopup(`<a href="/sjekkheftet/${medlem.storkorNavn}#m_${medlem.pk}">${medlem.navn}${suffix}</a>`);
+            markerMapping[strCord(cord)] = marker;
         }
-        if(medlem.foreldreAdresse){
-            addAdressToMap(medlem, medlem.foreldreAdresse);
+    }
+
+    for(const medlem of medlemMapData){
+        if(medlem.boCord){
+            addAdressToMap(medlem, medlem.boCord);
+        }
+        if(medlem.foreldreCord){
+            addAdressToMap(medlem, medlem.foreldreCord, suffix=' (hjemme)');
         }
     }
 }

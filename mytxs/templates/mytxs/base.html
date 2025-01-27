@@ -68,7 +68,7 @@
             {% linkIfAccess lenker %}
             <img class="w-6 flex justify-center" src="{% static 'mytxs/imgs/Links.svg' %}">
             <p>Lenker</p>
-            {% endLinkIfAccess%}
+            {% endLinkIfAccess %}
 
             {% linkIfAccess admin %}
             <img class="w-6 flex justify-center" src="{% static 'mytxs/imgs/Key.svg' %}">
@@ -76,9 +76,9 @@
             {% endLinkIfAccess %}
 
             {% if user.medlem.gammeltMedlemsnummer %}
-            <a class="hover:bg-txsBlack" href="{% if 'TKS' in user.medlem.gammeltMedlemsnummer %}http://mitks.mannskor.no/index.php{% else %}http://mytss.mannskor.no/index.php{% endif %}" target="_blank">
+            <a class="hover:bg-txsBlack" href="{% if consts.Kor.TKS in user.medlem.gammeltMedlemsnummer %}http://mitks.mannskor.no/index.php{% else %}http://mytss.mannskor.no/index.php{% endif %}" target="_blank">
                 <img class="w-6 flex justify-center" src="{% static 'mytxs/imgs/Old.svg' %}">
-                <p>Gamle {% if 'TKS' in user.medlem.gammeltMedlemsnummer %}MiTKS{% else %}MyTSS{% endif %}</p>
+                <p>Gamle {% if consts.Kor.TKS  in user.medlem.gammeltMedlemsnummer %}MiTKS{% else %}MyTSS{% endif %}</p>
             </a>
             {% endif %}
 

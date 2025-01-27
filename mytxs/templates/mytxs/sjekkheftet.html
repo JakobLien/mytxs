@@ -8,7 +8,7 @@
 
 {% block sjekkheftetContent %}
 
-{% if grupperinger|length > 1%}
+{% if grupperinger|length > 1 %}
 {% for gruppenavn, gruppe in grupperinger.items %}
     {% if gruppenavn|lower != 'dirigent' %}
     <div class="md:hidden flex flex-row justify-between bg-txsWhite px-2 my-2 cursor-pointer"
@@ -79,7 +79,7 @@
             {{ medlem.navn }}
             {% endif %}
 
-            {% if user.medlem|tilgangExists:'medlemsdata' %} <a class="text-sm" href="{% url 'medlem' medlem.pk %}">Rediger</a> {% endif %}
+            {% if user.medlem|tilgangExists:consts.Tilgang.medlemsdata %} <a class="text-sm" href="{% url 'medlem' medlem.pk %}">Rediger</a> {% endif %}
         </li>
 
         {% if medlem.karantenekor %}
@@ -88,7 +88,7 @@
         {% else %}
         <li class="text-sm">Karantenekor: {{ medlem.karantenekor }}</li>
         {% endif %}
-        {% endif%}
+        {% endif %}
         
         {% if medlem.public__fødselsdato %}
         <li class="text-sm">Fødselsdato: {{ medlem.public__fødselsdato }}</li>
@@ -135,10 +135,12 @@
 
 {% endfor %}
 
+{% block vcard %}
 <br><a href="{% setURLParams vcard='true' %}">Last ned vCard for alle på siden</a>
 <span title="For å laste ned alle på iphone, trykk del knappen på popupen, og åpne i kontakter. 
 Da får du opp en liste av vcards der du kan importere alle.">(?)</span>
+{% endblock %}
 
-{% endblock%}
+{% endblock %}
 
 {% endblock %}

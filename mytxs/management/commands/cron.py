@@ -5,10 +5,12 @@ from django.core.management.base import BaseCommand
 from django.db.models import Q, F, IntegerField
 from django.db.models.functions import Cast
 
+from mytxs import consts
 from mytxs.management.commands.fixGoogleCalendar import fixGoogleCalendar
 from mytxs.models import Hendelse, Medlem, Oppmøte
 from mytxs.utils.googleCalendar import GoogleCalendarManager
 from mytxs.utils.modelUtils import vervInnehavelseAktiv
+from mytxs.utils.threadUtils import mailException
 
 # Til info har ITK satt det opp slik at om cron jobben printe nå som helst, 
 # eller om den raise et exception, så vil den send epost med output te meg:)
@@ -16,6 +18,7 @@ from mytxs.utils.modelUtils import vervInnehavelseAktiv
 class Command(BaseCommand):
     help = 'Dette kjøre en gong hvert minutt på serveren, slik får vi cron jobs'
 
+    @mailException
     def handle(self, *args, **options):
         now = datetime.datetime.now()
 
@@ -44,7 +47,7 @@ def fraværEpost(now):
             ~Q(epost=''),
             vervInnehavelseAktiv(),
             vervInnehavelser__verv__kor=hendelse.kor,
-            vervInnehavelser__verv__tilganger__navn='fravær',
+            vervInnehavelser__verv__tilganger__navn=consts.Tilgang.fravær,
             fraværEpost=0
         ).values_list('epost', flat=True)
 

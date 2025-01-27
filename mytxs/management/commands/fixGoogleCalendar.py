@@ -53,7 +53,7 @@ def fixGoogleCalendar(gCalManager=None):
             localEvents.remove(localEvent)
 
             if diffEvents(localEvent, gCalEvent):
-                print('Updating event:', localEvent['extendedProperties']['private']['UID'])
+                print('Updating', localEvent['extendedProperties']['private']['UID'], 'for', medlem, '\n', localEvent, '\n', gCalEvent)
                 gCalManager.updateEvent(
                     calendar['id'],
                     localEvent
@@ -61,7 +61,7 @@ def fixGoogleCalendar(gCalManager=None):
 
         # Hendelser som bare er lokalt
         for localEvent in localEvents:
-            print('Creating missing event:', localEvent['extendedProperties']['private']['UID'])
+            print('Creating', localEvent['extendedProperties']['private']['UID'], 'for', medlem)
             gCalManager.createEvent(
                 calendar['id'],
                 localEvent
@@ -69,7 +69,7 @@ def fixGoogleCalendar(gCalManager=None):
 
         # Hendelser som bare er remote
         for event in onlyRemote:
-            print('Deleting old event:', event['extendedProperties']['private']['UID'])
+            print('Deleting', localEvent['extendedProperties']['private']['UID'], 'for', medlem)
             gCalManager.deleteEvent(
                 calendar['id'],
                 event['extendedProperties']['private']['UID']

@@ -7,6 +7,7 @@ from django.db.models.signals import post_delete, post_save, m2m_changed
 from mytxs import consts
 from mytxs.models import Logg, LoggM2M, Medlem
 from mytxs.utils.modelUtils import strToModels
+from mytxs.utils.threadUtils import THREAD_LOCAL
 
 from itertools import chain
 
@@ -112,6 +113,8 @@ def recieverWithModels(signal, senders=strToModels(consts.loggedModelNames)):
 
 @recieverWithModels(post_save)
 def log_post_save(sender, instance, created, **kwargs):
+    author = getattr(getattr(getattr(THREAD_LOCAL, 'request', None), 'user', None), 'medlem', None)
+
     if created:
         # This is creation
         Logg.objects.create(
@@ -120,6 +123,7 @@ def log_post_save(sender, instance, created, **kwargs):
             change=Logg.CREATE,
             value=to_dict(instance),
             strRep=str(instance),
+            author=author,
             kor=instance.kor
         )
     else:
@@ -134,12 +138,15 @@ def log_post_save(sender, instance, created, **kwargs):
             change=Logg.UPDATE,
             value=to_dict(instance),
             strRep=str(instance),
+            author=author,
             kor=instance.kor
         )
 
 
 @recieverWithModels(post_delete)
 def log_post_delete(sender, instance, **kwargs):
+    author = getattr(getattr(getattr(THREAD_LOCAL, 'request', None), 'user', None), 'medlem', None)
+
     # This is deletion
     Logg.objects.create(
         model=sender.__name__,
@@ -147,6 +154,7 @@ def log_post_delete(sender, instance, **kwargs):
         change=Logg.DELETE,
         value=to_dict(instance),
         strRep=str(instance),
+        author=author,
         kor=instance.kor
     )
 
@@ -159,6 +167,8 @@ def makeM2MLogg(sender, action, fromPK, toPK):
     - fromPK: The pk of the source model
     - toPK: The pk of the target model
     '''
+    author = getattr(getattr(getattr(THREAD_LOCAL, 'request', None), 'user', None), 'medlem', None)
+
     [fromModelName, fieldName] = sender._meta.object_name.split('_')
 
     fromModel = apps.get_model('mytxs', fromModelName)
@@ -168,7 +178,8 @@ def makeM2MLogg(sender, action, fromPK, toPK):
         m2mName=sender._meta.object_name,
         fromLogg=Logg.objects.getLoggForModelPK(fromModel, fromPK),
         toLogg=Logg.objects.getLoggForModelPK(toModel, toPK),
-        change=LoggM2M.CREATE if action == 'post_add' else LoggM2M.DELETE
+        change=LoggM2M.CREATE if action == 'post_add' else LoggM2M.DELETE,
+        author=author
     )
 
 
@@ -182,7 +193,7 @@ for model in strToModels(consts.loggedModelNames):
 
 @recieverWithModels(m2m_changed, senders=m2mFields)
 def log_m2m_changed(sender, instance, action, reverse, model, pk_set, **kwargs):
-    if action in ('post_add', 'post_remove', 'post_clear'):
+    if action in ('post_add', 'post_remove'):
         for key in pk_set:
             if not reverse:
                 makeM2MLogg(sender, action, instance.pk, key)

@@ -103,9 +103,24 @@ Vi har 2 modeller for logging:
 - Logg som inneholder pk, model, tidspunkt, author osv, og et jsonfelt som er en json representasjon av objektet. I jsonfeltet representeres foreign key felt som pk av den nyeste loggen av det relaterte objektet, som er det som muliggjør navigering mellom ulike logger. 
 - LoggM2M som representerer mange til mange relasjoner mellom objekter. 
 
-Når noe skal lagres brukes nesten alltid [logAuthorAndSave](mytxs/utils/logAuthorUtils.py), som tar et form, lagrer, og når loggen er opprettet automatisk av [logSignals.py](mytxs/signals/logSignals.py) hiver denne på hvilken forfatter det var. Hvilken forfatter det var er praktisk umulig å få tak i i logSignals på en ryddig måte, så derfor får vi bare med det når endringen er gjort via views. Endringer gjort av admin eller seed.py har følgelig ikke author, men de har logger, siden signals kommer det uansett. Merk også at logger opprettes kun når noe av loggen faktisk har endret seg, for å unngå unødvendige logger ala "Bob endret ingenting på dette tidspunktet". 
+[logSignals.py](mytxs/signals/logSignals.py) er ansvarlig for å generere logg objektene for ting som skjer, signal basert. Her får vi inn forfatteren av endirngen via THREAD_LOCAL, se [Threading](#threading). Merk også at logger opprettes kun når noe av loggen faktisk har endret seg, for å unngå unødvendige logger ala "Bob endret ingenting på dette tidspunktet". 
 
 Grunnen til at vi ikke har LoggM2M som del av Logg er fordi m2m relasjoner kan endres på begge sider, og om vi lagre verv -> tilgang informasjonen på vervet som en liste, hvilket er mulig, blir det veldig mange logger av at man endrer fra tilgang siden, og mindre oversiktlig hva som faktisk ble endret. Slik det er nå kan man med stor sikkerhet si at "dersom vi har en logg på den modellen, er det den modellen sitt modelform som ble endret" (Det er også kodemessig enklere å gjøre det som en separat tabel.)
+
+
+### Threading
+I [threadUtils.py](mytxs/utils/viewUtils.py) defineres det 2 nyttige decorators (til å sette foran funksjoner):
+- mailException brukes både med threading og med [cron jobs](mytxs/management/commands/cron.py), for å generere en epost til settings.ADMINS når noe går galt, da Django bare håndterer dette innad håndtering av requests. 
+- thread er en relativt sammensatt funksjon, som skal håndtere kodens behov for å gjøre ting utenfor request syklusen, mest av performance grunner. Samtidig ønske vi ikkje at fleir threads ska jobb med databasen samtidig, da det kan lede til feil. Derfor legg vi heller inn threads som kommer av et request inn i THREAD_LOCAL.threadQueue. Så kommer [ThreadingMiddleware](mytxs/middleware.py) og starter disse threadsa en etter en, **etter** requesten er svart på. Dette gir oss god performance (fra brukerens perspektiv sida servern svare fortar) og gjør threading lett å jobb med for oss. 
+    - Dersom THREAD_LOCAL.threadQueue ikkje er definert (fordi vi ikkje jobber med et request no), vil threaden heller startes direkte. 
+    - I testing ønske vi ikkje å thread, ettersom django prøve å slett test_databasen så fort vi e ferdig, og det da fortsatt kan vær aktive threads som held database connections. Derfor kjøre vi det heller bare sekvensielt da. 
+
+THREAD_LOCAL importeres her og der, og vil være thread spesifikt. Siden Django i utgangspunktet er single-threaded er dette en fin måte å lagre data uten å måtta send det rundt som argument overalt, se [stackoverflow](https://stackoverflow.com/a/64216681/6709450). I middleware sett vi request objektet og en tom threadQueue liste på objektet, så om disse finnes jobbe vi med en request. 
+
+Her vil e også kom med en oppfordring: Det e lett å tenk at økt performance bare e bra, men threading på denne måten e et mektig verktøy som ikkje skal brukes om det ikkje e nødvendig. Ting å tenke på e da:
+- Sida threaden kjøre etter responsen e generert kjem den neste responsen til å kunna vær feil/utdatert. For ting som relaterte objekts dbCache e dette et godt offer, fordi fiksing av dem kan ta mange titalls sekund, f.eks. ved endring av et medlems navn som så må oppdatere \_\_str\_\_ til hundrevis av oppmøter. 
+- Sida testan e satt opp slik no at i testa kjøre "threads" underveis mens i prod kjøre threads etter requesten, prøv å unngå å thread kode som kan gi forskjellig resultat basert på rekkefølgen av det som skal threades, og resten av request håndteringa. 
+- Python og Django e generelt veldig rask, så det er få steder dette er et problem. 
 
 
 ### Semesterplan og fravær
