@@ -6,7 +6,7 @@
 {% block beforeForms %}{% endblock %}
 
 {% if forms or formsets %}
-<form action="{{ request.get_full_path }}" method="post" class="managedForm" {% fixFileField forms formsets %}>
+<form class="bg-txsWhite border border-txsGray300 p-4" action="{{ request.get_full_path }}" method="post" class="managedForm" {% fixFileField forms formsets %}>
     {% csrf_token %}
     {% endif %}
 

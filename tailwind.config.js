@@ -16,6 +16,7 @@ module.exports = {
                 txsGray400: '#B0B0BB',
                 txsBlack: '#0F0F22',
                 txsPurple200: '#8787D4',
+                txsPurple300: '#6F6FAF',
                 txsPurple400: '#5A5A8D',
                 txsPurple500: '#34344A',
                 txsGreen500: '#028140',

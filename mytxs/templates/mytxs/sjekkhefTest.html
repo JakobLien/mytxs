@@ -14,7 +14,7 @@ på <a href="?fulltNavn"> fulle navn</a>.</p>
 <div class="mt-4">
     {% for medlem in request.queryset %}
     <div>
-        <img src="{{ medlem.bilde.url }}" class="h-44 aspect-[139/169] object-cover align-top border-2 border-black inline-block">
+        <img src="{{ medlem.bilde.url }}" class="h-44 aspect-[139/169] object-cover align-top inline-block">
         <input type="text">
         <input class="hidden" type="text" disabled
             {% if 'fulltNavn' in request.GET %}value="{{ medlem.navn }}"
