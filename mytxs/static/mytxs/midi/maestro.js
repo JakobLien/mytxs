@@ -7,6 +7,7 @@ import { playerVolume, playerBalance, playerSilence, playerSilenceAll, playerSle
 
 let playerIndex = 0;
 let playerTime = 0;
+let playerBar = 0;
 
 let pendingReset = false;
 
@@ -120,7 +121,7 @@ function timeToBar(allEvents, highIndex, time) {
 function maestroSetState(index, time, bar) {
     playerIndex = index;
     playerTime = time;
-    uiSetProgress(time, bar);
+    playerBar = bar;
 }
 
 function maestroSetStateFromIndex(allEvents, index) {
@@ -157,6 +158,7 @@ async function maestroReset() {
 
     playerIndex = 0;
     playerTime = 0;
+    playerBar = 0;
 
     tempo = PLAYER.TEMPO.DEFAULT;
     trackMuted.clear();
@@ -319,6 +321,11 @@ async function maestroPlay(allEvents) {
             if (eventPlayable(trackMuted, soloTrack, e)) {
                 playerPlayEvent(e);
             }
+
+            // Update UI when events are played
+            // Add EPS to bar to avoid e.g. 5.999999 being truncated to 5
+            uiSetProgress(playerTime, playerBar + EPS);
+
             // Update player state
             if (playerIndex + 1 >= allEvents.length) {
                 maestroSetStateFromIndex(allEvents, 0);
