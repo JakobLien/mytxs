@@ -55,32 +55,37 @@ function eventPlayable(trackMuted, soloTrack, event) {
     }
 }
 
-function startingIndexFromTime(allEvents, time) {
-    let low = 0;
-    let high = allEvents.length;
-    while (high > low + 1) {
-        const mid = Math.trunc((low + high)/2); // Fast integer division
-        if (allEvents[mid].timestamp >= time) {
-            high = mid;
-        } else {
-            low = mid;
+// Binary search for index of the first event with element[attr] >= value. Returns last index if none exist
+// Assumes that array elements are sorted with respect to the value of attr
+function startingIndexFromAttribute(array, attr, value) {
+    if (array.length == 0) {
+        return -1;
+    } else if (array[0][attr] >= value) { // All events have element[attr] >= value
+        return 0;
+    } else if (array[array.length - 1][attr] < value) { // No events have element[attr] >= value
+        return array.length - 1;
+    } else {
+        // Binary search for first index with element[attr] >= value
+        let low = 0;
+        let high = array.length;
+        while (high > low + 1) {
+            const mid = Math.trunc((low + high)/2); // Fast integer division
+            if (array[mid][attr] >= value) {
+                high = mid;
+            } else {
+                low = mid;
+            }
         }
+        return high;
     }
-    return high < allEvents.length ? high : low;
+}
+
+function startingIndexFromTime(allEvents, time) {
+    return startingIndexFromAttribute(allEvents, 'timestamp', time);
 }
 
 function startingIndexFromBar(allEvents, bar) {
-    let low = 0;
-    let high = allEvents.length;
-    while (high > low + 1) {
-        const mid = Math.trunc((low + high)/2); // Fast integer division
-        if (allEvents[mid].bar >= bar) {
-            high = mid;
-        } else {
-            low = mid;
-        }
-    }
-    return high < allEvents.length ? high : low;
+    return startingIndexFromAttribute(allEvents, 'bar', bar);
 }
 
 async function maestroReset() {
