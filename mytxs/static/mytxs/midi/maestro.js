@@ -1,4 +1,4 @@
-import { MIDI, PLAYER } from './constants.js';
+import { MIDI, PLAYER, EPS } from './constants.js';
 import {MidiParser} from './midi-parser.js'; 
 import Mutex from './mutex.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
@@ -88,6 +88,59 @@ function startingIndexFromBar(allEvents, bar) {
     return startingIndexFromAttribute(allEvents, 'bar', bar);
 }
 
+function interpolateBetweenElements(array, high, xAttr, yAttr, x) {
+    if (high == 0) {
+        return array[0][yAttr];
+    }
+    const low = high - 1;
+
+    const x0 = array[low][xAttr];
+    const x1 = array[high][xAttr];
+    const y0 = array[low][yAttr];
+    const y1 = array[high][yAttr];
+
+    const dy = y1 - y0;
+    const dx = x1 - x0;
+
+    if (dx < EPS) {
+        return y0;
+    }
+
+    return y0 + (x - x0)* dy / dx;
+}
+
+function barToTime(allEvents, highIndex, bar) {
+    return interpolateBetweenElements(allEvents, highIndex, 'bar', 'timestamp', bar);
+}
+
+function timeToBar(allEvents, highIndex, time) {
+    return interpolateBetweenElements(allEvents, highIndex, 'timestamp', 'bar', time);
+}
+
+function maestroSetState(index, time, bar) {
+    playerIndex = index;
+    playerTime = time;
+    uiSetProgress(time, bar);
+}
+
+function maestroSetStateFromIndex(allEvents, index) {
+    const time = allEvents[index].timestamp;
+    const bar = allEvents[index].bar;
+    maestroSetState(index, time, bar);
+}
+
+function maestroSetStateFromTime(allEvents, time) {
+    const index = startingIndexFromTime(allEvents, time);
+    const bar = timeToBar(allEvents, index, time);
+    maestroSetState(index, time, bar);
+}
+
+function maestroSetStateFromBar(allEvents, bar) {
+    const index = startingIndexFromBar(allEvents, bar);
+    const time = barToTime(allEvents, index, bar);
+    maestroSetState(index, time, bar);
+}
+
 async function maestroReset() {
     // Send message to player
     pendingReset = true;
@@ -102,6 +155,13 @@ async function maestroReset() {
 
     playerReset();
 
+    playerIndex = 0;
+    playerTime = 0;
+
+    tempo = PLAYER.TEMPO.DEFAULT;
+    trackMuted.clear();
+    soloTrack = null;
+    loopActive = false;
     loopStart = null;
     loopEnd = null;
 
@@ -147,21 +207,15 @@ function maestroSetup(obj, allEvents) {
 
     const progressCallback = async e => {
         playerSilenceAll();
-        const jumpTime = e.target.value;
         const unlock = await mutex.lock();
-        playerIndex = startingIndexFromTime(allEvents, jumpTime);
-        playerTime = jumpTime; // Better than allEvents[playerIndex].timestamp, because this allows jumps to the middle of long notes
-        uiSetProgress(playerTime, allEvents[playerIndex].bar);
+        maestroSetStateFromTime(allEvents, e.target.value);
         unlock();
     };
 
     const barNumberCallback = async e => {
         playerSilenceAll();
-        const jumpBar = e.target.value;
         const unlock = await mutex.lock();
-        playerIndex = startingIndexFromBar(allEvents, jumpBar);
-        playerTime = allEvents[playerIndex].timestamp;
-        uiSetProgress(playerTime, allEvents[playerIndex].bar);
+        maestroSetStateFromBar(allEvents, e.target.value);
         unlock();
     };
 
@@ -246,49 +300,49 @@ function maestroSetup(obj, allEvents) {
 
 async function maestroPlay(allEvents) {
     while (!pendingReset) {
-        playerTime = 0;
-        playerIndex = 0;
-        uiSetProgress(0, 0);
-        while (playerIndex < allEvents.length) {
-            // Events are remaining - sleep until what is probably 
-            // the next event (unless user changes playerTime)
-            const dt = allEvents[playerIndex].timestamp - playerTime;
-            if (dt > 0) {
-                await playerSleep(dt/1000/tempo);
-            }
-
-            // Check if user paused or requested reset during sleep
-            if (pendingReset) {
-                playerSilenceAll();
-                break;
-            } else if (paused) {
-                playerSilenceAll();
-                await pausePromise;
-            } 
-
-            // Lock in event
-            const unlock = await mutex.lock();
-            const e = allEvents[playerIndex];
-            if (loopActive && e.bar >= loopEnd) {
-                // Jump to start of loop
-                playerSilenceAll();
-                playerIndex = startingIndexFromBar(allEvents, loopStart);
-                playerTime = allEvents[playerIndex].timestamp;
-                uiSetProgress(playerTime, allEvents[playerIndex].bar);
-            } else {
-                // Consider whether to actually play event
-                if (eventPlayable(trackMuted, soloTrack, e)) {
-                    playerPlayEvent(e);
-                }
-                // Update player state
-                playerTime = e.timestamp;
-                playerIndex += 1;
-                uiSetProgress(playerTime, e.bar);
-            }
-            unlock();
+        // Check if user paused or requested reset during sleep
+        if (paused) {
+            playerSilenceAll();
+            await pausePromise;
         }
+
+        // Lock in event and play
+        const unlock = await mutex.lock();
+        const e = allEvents[playerIndex];
+        const t0 = playerTime;
+        if (loopActive && e.bar >= loopEnd) {
+            // Jump to start of loop
+            playerSilenceAll();
+            maestroSetStateFromBar(allEvents, loopStart);
+        } else {
+            // Consider whether to actually play event
+            if (eventPlayable(trackMuted, soloTrack, e)) {
+                playerPlayEvent(e);
+            }
+            // Update player state
+            if (playerIndex + 1 >= allEvents.length) {
+                maestroSetStateFromIndex(allEvents, 0);
+            } else {
+                maestroSetStateFromIndex(allEvents, playerIndex + 1);
+            }
+        }
+        // The next state is now targeted - note down the time until it occurs
+        // By storing this before unlocking, we avoid long sleeps which may happen
+        // if other threads, the UI for instance, cause a jump in playerTime
+        const t1 = playerTime;
+        const dt = t1 - t0;
+        unlock();
+
+        // Sleep
+        if (dt > 0) {
+            await playerSleep(dt/1000/tempo);
+        }
+
     }
 
+    // Silence player in case the reset was issued before all note off events were sent
+    playerSilenceAll();
+    
     // Resolve promise for new setup to continue
     signalExited();
 }

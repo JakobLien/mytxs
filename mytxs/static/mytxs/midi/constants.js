@@ -1,3 +1,5 @@
+export const EPS = 1e-7;
+
 export const PLAYER = {
     VOLUME: {
         MIN: 0,
