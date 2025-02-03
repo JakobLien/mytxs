@@ -121,7 +121,7 @@ function timeToBar(allEvents, highIndex, time) {
 function maestroSetState(index, time, bar) {
     playerIndex = index;
     playerTime = time;
-    playerBar = bar;
+    playerBar = Math.round(bar * 1e6) / 1e6; // Most likely we are never dealing with bar precision less than 1e-6
 }
 
 function maestroSetStateFromIndex(allEvents, index) {
@@ -208,17 +208,19 @@ function maestroSetup(obj, allEvents) {
     const songBars = Math.floor(allEvents[allEvents.length - 1].bar);
 
     const progressCallback = async e => {
-        playerSilenceAll();
         const unlock = await mutex.lock();
+        playerSilenceAll();
         maestroSetStateFromTime(allEvents, e.target.value);
         unlock();
+        playerWakeUp();
     };
 
     const barNumberCallback = async e => {
-        playerSilenceAll();
         const unlock = await mutex.lock();
+        playerSilenceAll();
         maestroSetStateFromBar(allEvents, e.target.value);
         unlock();
+        playerWakeUp();
     };
 
     const tempoBarCallback = e => tempo = e.target.value;
@@ -308,23 +310,24 @@ async function maestroPlay(allEvents) {
             await pausePromise;
         }
 
-        // Lock in event and play
+        // Update UI
+        uiSetProgress(playerTime, playerBar);
+
+        // Take control over player state and determine whether to play or sleep
         const unlock = await mutex.lock();
-        const e = allEvents[playerIndex];
+        let dt = 0;
         const t0 = playerTime;
-        if (loopActive && e.bar >= loopEnd) {
+        const nextEvent = allEvents[playerIndex];
+        if (loopActive && playerBar >= loopEnd) {
             // Jump to start of loop
             playerSilenceAll();
             maestroSetStateFromBar(allEvents, loopStart);
-        } else {
+        } else if (nextEvent.timestamp <= playerTime) {
+            // We have arrived at the event
             // Consider whether to actually play event
-            if (eventPlayable(trackMuted, soloTrack, e)) {
-                playerPlayEvent(e);
+            if (eventPlayable(trackMuted, soloTrack, nextEvent)) {
+                playerPlayEvent(nextEvent);
             }
-
-            // Update UI when events are played
-            // Add EPS to bar to avoid e.g. 5.999999 being truncated to 5
-            uiSetProgress(playerTime, playerBar + EPS);
 
             // Update player state
             if (playerIndex + 1 >= allEvents.length) {
@@ -332,15 +335,27 @@ async function maestroPlay(allEvents) {
             } else {
                 maestroSetStateFromIndex(allEvents, playerIndex + 1);
             }
+
+            // playerTime has now been updated. Store how long we have to sleep
+            dt = playerTime - t0;
+        } else {
+            // We are not at the event yet
+            // Find the next interesting time point
+            const dtEvent = nextEvent.timestamp - t0;
+            const nextSecond = playerTime + 1000000 - playerTime % 1000000;
+            const dtSecond = nextSecond - t0;
+            const nextBar = Math.ceil(playerBar + EPS);
+            const dtBar = barToTime(allEvents, playerIndex, nextBar) - t0; // This value may be wrong if the tempo changes before we reach nextBar, but then dtEvent will be less than dtBar anyways
+            dt = Math.min(dtEvent, dtSecond, dtBar); // dt must be nonzero here, otherwise we get an infinite loop. Will be nonzero if dtSecond and dtBar are well-behaved
+            const i0 = playerIndex;
+            maestroSetStateFromTime(allEvents, playerTime + dt);
+            playerIndex = i0; // Ensure that we never skip events. TODO Clean this up
         }
-        // The next state is now targeted - note down the time until it occurs
-        // By storing this before unlocking, we avoid long sleeps which may happen
+        // By storing dt before unlocking, we avoid long sleeps which may happen
         // if other threads, the UI for instance, cause a jump in playerTime
-        const t1 = playerTime;
-        const dt = t1 - t0;
         unlock();
 
-        // Sleep
+        // Playerstate will now be ahead of actual time - go to sleep to compensate
         if (dt > 0) {
             await playerSleep(dt/1000/tempo);
         }
