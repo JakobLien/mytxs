@@ -210,7 +210,7 @@ function maestroSetup(obj, allEvents) {
     const progressCallback = async e => {
         const unlock = await mutex.lock();
         playerSilenceAll();
-        maestroSetStateFromTime(allEvents, e.target.value);
+        maestroSetStateFromTime(allEvents, Number(e.target.value));
         unlock();
         playerWakeUp();
     };
@@ -218,12 +218,12 @@ function maestroSetup(obj, allEvents) {
     const barNumberCallback = async e => {
         const unlock = await mutex.lock();
         playerSilenceAll();
-        maestroSetStateFromBar(allEvents, e.target.value);
+        maestroSetStateFromBar(allEvents, Number(e.target.value));
         unlock();
         playerWakeUp();
     };
 
-    const tempoBarCallback = e => tempo = e.target.value;
+    const tempoBarCallback = e => tempo = Number(e.target.value);
 
     const pauseCallback = () => {
         if (paused) {
@@ -258,7 +258,7 @@ function maestroSetup(obj, allEvents) {
     };
     const loopActiveCallback = () => loopActive = !loopActive;
 
-    const instrumentNumberCallback = e => playerProgramAll(e.target.value);
+    const instrumentNumberCallback = e => playerProgramAll(Number(e.target.value));
 
     uiPopulateMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback, loopStartCallback, loopEndCallback, loopActiveCallback, instrumentNumberCallback);
 
@@ -279,8 +279,8 @@ function maestroSetup(obj, allEvents) {
         }
 
         const trackId = track.event[0].trackId;
-        const volumeCallback = e => playerVolume(trackId, e.target.value);
-        const balanceCallback = e => playerBalance(trackId, e.target.value);
+        const volumeCallback = e => playerVolume(trackId, Number(e.target.value));
+        const balanceCallback = e => playerBalance(trackId, Number(e.target.value));
         trackMuted.set(trackId, false);
         const muteCallback = e => {
             const wasMuted = trackMuted.get(trackId);
@@ -333,11 +333,8 @@ async function maestroPlay(allEvents) {
             if (playerIndex + 1 >= allEvents.length) {
                 maestroSetStateFromIndex(allEvents, 0);
             } else {
-                maestroSetStateFromIndex(allEvents, playerIndex + 1);
+                playerIndex = playerIndex + 1; // TODO Clean this up
             }
-
-            // playerTime has now been updated. Store how long we have to sleep
-            dt = playerTime - t0;
         } else {
             // We are not at the event yet
             // Find the next interesting time point
