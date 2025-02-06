@@ -281,7 +281,7 @@ async function maestroPlay(allEvents) {
         let dt = 0;
         const t0 = playerTime;
         const nextEvent = allEvents[playerIndex];
-        if (loopActive && playerBar >= loopEnd) {
+        if (loopActive && (playerBar < loopStart || playerBar >= loopEnd)) {
             // Jump to start of loop
             playerSilenceAll();
             maestroSetStateFromBar(allEvents, loopStart);
