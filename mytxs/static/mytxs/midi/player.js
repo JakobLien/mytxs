@@ -19,10 +19,22 @@ export async function playerInit() {
     midiOutput = outputs[outputIndex];
 }
 
-export function playerPlayEvent(event) {
+export function playerPlayEvent(event, transpose = 0) {
     const message = [(event.type << MIDI.STATUS_MSB_OFFSET) | event.trackId];
-    const data = Array.isArray(event.data) ? event.data : [event.data];
+
+    // Deep copy so modifications to data don't affect the event itself
+    const data = structuredClone(Array.isArray(event.data) ? event.data : [event.data]);
+
+    // Adjust message according to active transpose.
+    // We avoid using pitch bend messages as that would
+    // interfere with actual pitch bend messages
+    if (event.type == MIDI.MESSAGE_TYPE_NOTEON
+     || event.type == MIDI.MESSAGE_TYPE_NOTEOFF) {
+        data[0] += transpose;
+    }
+
     message.push(...data);
+
     try {
         midiOutput.send(message);
     } catch (err) {

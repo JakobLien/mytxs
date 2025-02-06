@@ -31,6 +31,7 @@ let soloTrack = null;
 let loopActive = false;
 let loopStart = null;
 let loopEnd = null;
+let transpose = PLAYER.TRANSPOSE.DEFAULT;
 const mutex = new Mutex();
 
 function eventPlayable(trackMuted, soloTrack, event) {
@@ -215,7 +216,14 @@ function maestroSetup(obj, allEvents) {
 
     const instrumentNumberCallback = e => playerProgramAll(Number(e.target.value));
 
-    uiPopulateMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback, loopStartCallback, loopEndCallback, loopActiveCallback, instrumentNumberCallback);
+    const transposeCallback = async e => {
+        const unlock = await mutex.lock();
+        playerSilenceAll(); // Avoid noteons without corresponding noteoff
+        transpose = Number(e.target.value)
+        unlock();
+    };
+
+    uiPopulateMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback, loopStartCallback, loopEndCallback, loopActiveCallback, instrumentNumberCallback, transposeCallback);
 
     // Create UI for tracks which have noteon events
     for (let i = 0; i < obj.track.length; i++) {
@@ -281,7 +289,7 @@ async function maestroPlay(allEvents) {
             // We have arrived at the event
             // Consider whether to actually play event
             if (eventPlayable(trackMuted, soloTrack, nextEvent)) {
-                playerPlayEvent(nextEvent);
+                playerPlayEvent(nextEvent, transpose);
             }
 
             // Update player state

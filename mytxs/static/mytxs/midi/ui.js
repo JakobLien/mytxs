@@ -1,6 +1,6 @@
 import { MIDI, PLAYER, SCORE } from './constants.js';
 
-export function uiPopulateMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback, loopStartCallback, loopEndCallback, loopActiveCallback, instrumentNumberCallback) {
+export function uiPopulateMasterUi(songDuration, songBars, progressCallback, barNumberCallback, tempoBarCallback, pauseCallback, loopStartCallback, loopEndCallback, loopActiveCallback, instrumentNumberCallback, transposeCallback) {
     const progressSpan = document.getElementById("progressSpan");
     progressSpan.innerText = usToMinSec(0);
 
@@ -49,6 +49,12 @@ export function uiPopulateMasterUi(songDuration, songBars, progressCallback, bar
     instrumentNumber.max = PLAYER.PROGRAM.MAX;
     instrumentNumber.value = PLAYER.PROGRAM.DEFAULT;
     instrumentNumber.oninput = instrumentNumberCallback;
+
+    const transpose = document.getElementById("transpose");
+    transpose.min = PLAYER.TRANSPOSE.MIN;
+    transpose.max = PLAYER.TRANSPOSE.MAX;
+    transpose.value = PLAYER.TRANSPOSE.DEFAULT;
+    transpose.oninput = transposeCallback;
 }
 
 export function uiSetPauseButtonText(text) {

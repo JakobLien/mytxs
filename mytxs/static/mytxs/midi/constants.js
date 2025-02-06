@@ -23,6 +23,11 @@ export const PLAYER = {
         MAX: 127,
         DEFAULT: 0,
     },
+    TRANSPOSE: {
+        MIN: -12,
+        MAX: 12,
+        DEFAULT: 0,
+    },
 };
 
 export const RECORD = {
