@@ -4,7 +4,7 @@ import Mutex from './mutex.js';
 import {tickstampEvents, timestampEvents} from './event_timing.js';
 import {uiPopulateMasterUi, uiCreateTrackUi, uiClearTrackDivs, uiSetProgress, uiSetSongName, uiSetPauseButtonText} from './ui.js';
 import { playerVolume, playerBalance, playerSilence, playerSilenceAll, playerSleep, playerReset, playerInit, playerPlayEvent, playerWakeUp, playerProgramAll } from './player.js';
-import { arrayInterpolate, arrayStartingIndex } from './array_utils.js';
+import { barToTime, startingIndexFromBar, startingIndexFromTime, timeToBar } from './utils.js';
 
 let playerIndex = 0;
 let playerTime = 0;
@@ -56,22 +56,6 @@ function eventPlayable(trackMuted, soloTrack, event) {
         default:
             return true;
     }
-}
-
-function startingIndexFromTime(allEvents, time) {
-    return arrayStartingIndex(allEvents, 'timestamp', time);
-}
-
-function startingIndexFromBar(allEvents, bar) {
-    return arrayStartingIndex(allEvents, 'bar', bar);
-}
-
-function barToTime(allEvents, highIndex, bar) {
-    return arrayInterpolate(allEvents, highIndex, 'bar', 'timestamp', bar);
-}
-
-function timeToBar(allEvents, highIndex, time) {
-    return arrayInterpolate(allEvents, highIndex, 'timestamp', 'bar', time);
 }
 
 function maestroSetState(index, time, bar) {

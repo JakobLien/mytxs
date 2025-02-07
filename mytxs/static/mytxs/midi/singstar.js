@@ -1,4 +1,4 @@
-import { MIDI, PLAYER } from './constants.js';
+import { EPS, MIDI, PLAYER } from './constants.js';
 import {MidiParser} from './midi-parser.js'; 
 import {tickstampEvents, timestampEvents} from './event_timing.js';
 import {uiClearTrackOptions, uiPopulateSingstarUi, uiSetHighscore, uiSetProgress, uiSetScore, uiSetSongName, uiSetStartButtonText} from './ui.js';
@@ -6,6 +6,7 @@ import { freqGetSpectrum, freqStartRecording } from './freq.js';
 import { scoreGet } from './score.js';
 import { canvasClear, canvasDrawSpectrum, canvasDrawTargets, canvasInit } from './canvas.js';
 import { playerSilenceAll, playerSleep, playerReset, playerPlayEvent, playerInit, playerWakeUp } from './player.js';
+import { barToTime, startingIndexFromTime, timeToBar } from './utils.js';
 
 let highscore = 0;
 const tempo = PLAYER.TEMPO.DEFAULT;
@@ -158,6 +159,7 @@ async function playSingstar(allEvents) {
         // Prepare session
         let playerIndex = 0;
         let playerTime = 0;
+        let playerBar = 0;
         let score = 0;
 
         uiSetProgress(0, 0);
@@ -165,42 +167,60 @@ async function playSingstar(allEvents) {
 
         // Run session
         while (playerIndex < allEvents.length) {
-            // Events are remaining - sleep until next
-            const e = allEvents[playerIndex];
-            const dt = e.timestamp - playerTime;
-            if (dt > 0) {
-                await playerSleep(dt/1000/tempo);
-            }
-
             // Stop session if stop button was pressed during sleep
             if (stopRequested || pendingReset) {
                 playerSilenceAll();
                 break;
             } 
 
-            // Decide whether to actually play event
-            if (eventPlayable(e)) {
-                try {
-                    const trackTones = activeTones.get(e.trackId);
-                    if (e.type == MIDI.MESSAGE_TYPE_NOTEON) {
-                        trackTones.add(e.data[0]);
-                    } else if (e.type == MIDI.MESSAGE_TYPE_NOTEOFF) {
-                        if (e.trackId == singstarIndex) {
-                            score += scoreGet(trackTones);
+            const nextEvent = allEvents[playerIndex];
+            // Check if we have arrived at event
+            if (nextEvent.timestamp <= playerTime) {
+                // We have arrived at event. Decide whether to actually play it
+                if (eventPlayable(nextEvent)) {
+                    try {
+                        const trackTones = activeTones.get(nextEvent.trackId);
+                        if (nextEvent.type == MIDI.MESSAGE_TYPE_NOTEON) {
+                            trackTones.add(nextEvent.data[0]);
+                        } else if (nextEvent.type == MIDI.MESSAGE_TYPE_NOTEOFF) {
+                            if (nextEvent.trackId == singstarIndex) {
+                                // Update and display score
+                                score += scoreGet(trackTones);
+                                uiSetScore(score);
+                            }
+                            trackTones.delete(nextEvent.data[0]);
                         }
-                        trackTones.delete(e.data[0]);
+                    } catch (err) {
+                        console.error(err, nextEvent);
                     }
-                } catch (err) {
-                    console.error(err, e);
+                    playerPlayEvent(nextEvent);
                 }
-                playerPlayEvent(e);
-            }
 
-            // Update player state
-            playerTime = e.timestamp;
-            playerIndex += 1;
-            uiSetProgress(playerTime, e.bar);
-            uiSetScore(score);
+                // Update player state
+                playerIndex += 1;
+                // playerBar and playerTime should already be correct
+
+            } else {
+                // We have not reached the event yet
+                const dtEvent = nextEvent.timestamp - playerTime;
+                const nextSecond = playerTime + 1000000 - playerTime % 1000000;
+                const dtSecond = nextSecond - playerTime;
+                const nextBar = Math.ceil(playerBar + EPS);
+                const dtBar = barToTime(allEvents, playerIndex, nextBar) - playerTime; // This value may be wrong if the tempo changes before we reach nextBar, but then dtEvent will be less than dtBar anyways
+                const dt = Math.min(dtEvent, dtSecond, dtBar); // dt must be nonzero here, otherwise we get an infinite loop. Will be nonzero if dtSecond and dtBar are well-behaved
+                if (dt > 0) {
+                    await playerSleep(dt/1000/tempo);
+                }
+
+                // Update player state
+                playerTime += dt;
+                const index = startingIndexFromTime(allEvents, playerTime); // Only for bar interpolation, playerIndex should remain the same as we have not reached the event yet
+                const bar = timeToBar(allEvents, index, playerTime);
+                playerBar = Math.round(bar * 1e6) / 1e6; // Most likely we are never dealing with bar precision less than 1e-6
+
+                // Update UI
+                uiSetProgress(playerTime, playerBar);
+            }
         }
 
         // Post-processing of session
