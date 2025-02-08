@@ -7,11 +7,17 @@
 
 <p>Et konfigurerbart øvingsverktøy</p>
 
-<input id="fileInput" type="file"/>
+<input id="fileInput" type="file"
+    class="file:rounded-md file:border-none"/>
 
 <h1 id="songNameHeader"></h1>
 
-<div id="uiDiv">
+<div id="uiDiv"
+    class="[&_input[type='number']]:rounded-md [&_select]:rounded-md">
+
+    <button id="pauseButton">Play</button>
+
+    <br>
 
     <span id="progressSpan">0:00</span>
     <span id="durationSpan"> / 0:00</span>
@@ -20,23 +26,32 @@
     <label id="barLabel" for="barNumber">Bar</label>
     <input id="barNumber" type="number">
 
-    <label id="tempoLabel" for="tempoBar">Tempo</label>
-    <input id="tempoBar" type="range">
-
-    <button id="pauseButton">Play</button>
+    <br>
 
     <label id="loopLabel">Looping</label> <!-- for would be ambiguous -->
     <input id="loopStartNumber" type="number">
     <input id="loopEndNumber" type="number">
     <input id="loopActive" type="checkbox">
 
+    <br>
+
     <label id="instrumentLabel" for="instrumentNumber">Instrument</label>
     <input id="instrumentNumber" type="number">
+
+    <br>
 
     <label id="transposeLabel" for="transpose">Transpose</label>
     <input id="transpose" type="number">
 
-    <div id="trackUiDivs"></div>
+    <br>
+
+    <label id="tempoLabel" for="tempoBar">Tempo</label>
+    <input id="tempoBar" type="range">
+
+    <br>
+
+    <div id="trackUiDivs"
+        class="[&_*]:m-1"></div>
 
 </div>
 

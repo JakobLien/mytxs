@@ -106,6 +106,12 @@ export function uiCreateTrackUi(label, volumeCallback, balanceCallback, muteCall
     const trackUiDiv = document.createElement("div");
     trackUiDiv.innerText = label;
 
+    const soloButton = document.createElement("input");
+    soloButton.type = "radio";
+    soloButton.name = "soloButton";
+    soloButton.onclick = soloCallback;
+    trackUiDiv.appendChild(soloButton);
+
     const volumeLabel = document.createElement("label");
     volumeLabel.innerText = "Volume";
     trackUiDiv.appendChild(volumeLabel);
@@ -134,12 +140,6 @@ export function uiCreateTrackUi(label, volumeCallback, balanceCallback, muteCall
     muteButton.innerText = "Mute";
     muteButton.onclick = muteCallback;
     trackUiDiv.appendChild(muteButton);
-
-    const soloButton = document.createElement("input");
-    soloButton.type = "radio";
-    soloButton.name = "soloButton";
-    soloButton.onclick = soloCallback;
-    trackUiDiv.appendChild(soloButton);
 
     const trackUiDivs = document.getElementById("trackUiDivs");
     trackUiDivs.appendChild(trackUiDiv);
