@@ -27,3 +27,4 @@ rsa==4.9
 sqlparse==0.4.4
 uritemplate==4.1.1
 urllib3==2.0.7
+pytest>=8.3.0
