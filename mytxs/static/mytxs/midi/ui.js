@@ -113,7 +113,7 @@ export function uiCreateTrackUi(label, volumeCallback, balanceCallback, muteCall
     trackUiDiv.appendChild(soloButton);
 
     const volumeLabel = document.createElement("label");
-    volumeLabel.innerText = "Volume";
+    volumeLabel.innerText = "Volum";
     trackUiDiv.appendChild(volumeLabel);
 
     const volumeSlider = document.createElement("input");
@@ -125,7 +125,7 @@ export function uiCreateTrackUi(label, volumeCallback, balanceCallback, muteCall
     trackUiDiv.appendChild(volumeSlider);
 
     const balanceLabel = document.createElement("label");
-    balanceLabel.innerText = "Balance";
+    balanceLabel.innerText = "Balanse";
     trackUiDiv.appendChild(balanceLabel);
 
     const balanceSlider = document.createElement("input");
@@ -137,7 +137,7 @@ export function uiCreateTrackUi(label, volumeCallback, balanceCallback, muteCall
     trackUiDiv.appendChild(balanceSlider);
 
     const muteButton = document.createElement("button");
-    muteButton.innerText = "Mute";
+    muteButton.innerText = "Demp";
     muteButton.onclick = muteCallback;
     trackUiDiv.appendChild(muteButton);
 

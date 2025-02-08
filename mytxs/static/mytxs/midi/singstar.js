@@ -153,7 +153,7 @@ async function playSingstar(allEvents) {
 
         await startPromise;
 
-        uiSetStartButtonText("Stop");
+        uiSetStartButtonText("Stopp");
         stopped = false;
 
         // Prepare session

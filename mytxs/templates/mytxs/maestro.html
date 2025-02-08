@@ -5,8 +5,6 @@
 
 <script type="module" src="{% static 'mytxs/midi/maestro.js' %}" defer></script>
 
-<p>Et konfigurerbart øvingsverktøy</p>
-
 <input id="fileInput" type="file"
     class="file:rounded-md file:border-none"/>
 
@@ -15,7 +13,7 @@
 <div id="uiDiv"
     class="[&_input[type='number']]:rounded-md [&_select]:rounded-md">
 
-    <button id="pauseButton">Play</button>
+    <button id="pauseButton">Spill</button>
 
     <br>
 
@@ -23,7 +21,7 @@
     <span id="durationSpan"> / 0:00</span>
     <input id="progressBar" type="range">
 
-    <label id="barLabel" for="barNumber">Bar</label>
+    <label id="barLabel" for="barNumber">Takt</label>
     <input id="barNumber" type="number">
 
     <br>
@@ -40,7 +38,7 @@
 
     <br>
 
-    <label id="transposeLabel" for="transpose">Transpose</label>
+    <label id="transposeLabel" for="transpose">Transponering</label>
     <input id="transpose" type="number">
 
     <br>

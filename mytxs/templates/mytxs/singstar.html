@@ -5,8 +5,6 @@
 
 <script type="module" src="{% static 'mytxs/midi/singstar.js' %}" defer></script>
 
-<p>Stemmefil-singstar</p>
-
 <input id="fileInput" type="file"
     class="file:rounded-md file:border-none"/>
 
@@ -28,17 +26,17 @@
     <span id="durationSpan"> / 0:00</span>
     <input id="progressBar" type="range" readonly>
 
-    <label id="barLabel" for="barNumber">Bar</label>
+    <label id="barLabel" for="barNumber">Takt</label>
     <input id="barNumber" type="number" readonly>
 
     <br>
 
-    <label id="scoreLabel" for="scoreSpan">Score: </label>
+    <label id="scoreLabel" for="scoreSpan">Poengsum: </label>
     <span id="scoreSpan">0.00</span>
 
     <br>
 
-    <label id="highscoreLabel" for="highscoreSpan">Highscore: </label>
+    <label id="highscoreLabel" for="highscoreSpan">Rekord: </label>
     <span id="highscoreSpan">0.00</span>
 
 </div>

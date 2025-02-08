@@ -173,7 +173,7 @@ function maestroSetup(obj, allEvents) {
         } else {
             pausePromise = createPausePromise();
             paused = true;
-            uiSetPauseButtonText("Play");
+            uiSetPauseButtonText("Spill");
             playerWakeUp(); // For main thread to quickly react to pausing
         }
     };
@@ -222,7 +222,7 @@ function maestroSetup(obj, allEvents) {
         if (String(trackName).match(pattern) !== null) {
             track.label = trackName;
         } else { 
-            track.label = "Track " + i;
+            track.label = "Spor " + i;
         }
 
         const trackId = track.event[0].trackId;
@@ -234,7 +234,7 @@ function maestroSetup(obj, allEvents) {
             if (!wasMuted) {
                 playerSilence(trackId);
             }
-            e.target.innerText = wasMuted ? "Mute" : "Unmute";
+            e.target.innerText = wasMuted ? "Demp" : "Dempet";
             trackMuted.set(trackId, !wasMuted);
         };
         const soloCallback = e => {
