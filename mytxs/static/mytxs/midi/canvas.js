@@ -1,4 +1,4 @@
-import { freqFromTone, freqToClosestBin } from "./freq.js";
+import { freqFromTone, freqToClosestBin, MAX_MAGNITUDE } from "./freq.js";
 import { CANVAS } from "./constants.js";
 
 let canvas;
@@ -18,7 +18,7 @@ export function canvasClear() {
 export function canvasDrawSpectrum(spectrum) {
     const barWidth = canvas.width / displayBins;
     for (let i = 0; i < displayBins; i++) {
-        const barHeight = spectrum[i];
+        const barHeight = spectrum[i] / MAX_MAGNITUDE * canvas.height;
         ctx.fillStyle = `rgb(${barHeight + CANVAS.BASE_COLOR.R}, ${CANVAS.BASE_COLOR.G}, ${CANVAS.BASE_COLOR.B})`; // Color bars based on magnitude
         ctx.fillRect(i * barWidth, canvas.height - barHeight, barWidth, barHeight);
     }

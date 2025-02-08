@@ -2,6 +2,8 @@
 
 import { BASE_TONE, RECORD } from './constants.js';
 
+export const MAX_MAGNITUDE = 255;
+
 let spectrum;
 let numBins;
 let fs;
