@@ -12,6 +12,9 @@ class Command(BaseCommand):
     Medlemmer som kun har undervalør, tildeles ikke overvalør, naturligvis.
     Dersom noen medlemmer har både undervalør og overvalør fra før, men startdato for undervalør er senere enn overvalørs startdato (altså ugyldig), settes startdato for undervalør til overvalør sin startdato.
     Hvis undervalørPk allerede har en overvalør eller overvalørPk har en undervalør, gjøres ingenting.
+
+    OBS! Hvis du skal lage mange overordninger på rad, f.eks. Bronse -> Sølv -> Gull, bør du starte "øverst", altså opprette Sølv -> Gull før Bronse -> Sølv.
+    Hvorfor? Hvis ikke risikerer du at automatisk tildeling av Sølv under opprettelsen av Sølv -> Gull feiler fordi noen mangler Bronse (og dermed ikke er verdig Sølv). Gjør du dette i motsatt rekkefølge vet ikke databasen enda at Bronse er underordnet Sølv, og kommandoen går gjennom.
     '''
 
     def add_arguments(self, parser):
