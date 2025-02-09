@@ -1130,6 +1130,7 @@ def validateDekorasjonInnehavelse(instance):
             )
         elif instance.start < undervalør.start:
             raise ValidationError(
+                # Av en eller annen grunn klager testene på at __str__ returner NoneType hvis man bruker str(instance) eller instance
                 _(f'Dekorasjonsinnehavelsen {instance.__str__()} kan ikke ha startdato før {undervalør.dekorasjon} ({undervalør.start})'),
                 code='dekorasjonInnehavelseUgyldigDato'
             )
@@ -1138,6 +1139,7 @@ def validateDekorasjonInnehavelse(instance):
         overvalør = instance.dekorasjon.overvalør.dekorasjonInnehavelser.filter(medlem__id=instance.medlem.id).first()
         if overvalør is not None and instance.start > overvalør.start:
             raise ValidationError(
+                # Av en eller annen grunn klager testene på at __str__ returner NoneType hvis man bruker str(instance) eller instance
                 _(f'Dekorasjonsinnehavelsen {instance.__str__()} kan ikke ha startdato etter {overvalør.dekorasjon} ({overvalør.start})'),
                 code='dekorasjonInnehavelseUgyldigDato'
             )
