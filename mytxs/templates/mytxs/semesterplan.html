@@ -4,20 +4,20 @@
 {% block content %}
 
 {% if request.iCalLink %}
-<a href="{{ request.iCalLink }}">Kalenderfeed lenke</a>
-
+<div class="flex md:justify-between md:items-center flex-col md:flex-row md:gap-0 gap-2">
 {% if shareCalendarForm %}
 <form action="{{ request.get_full_path }}" method="post" class="creationForm inline-block">
-{% csrf_token %}
-{{ shareCalendarForm.non_field_errors }}
-{% for field in shareCalendarForm.visible_fields %}
-{{ field.errors }} {{ field.label_tag }} {{ field }} {{ field.help_text|safe }}
-{% endfor %}
-{% for field in shareCalendarForm.hidden_fields %}{{ field }}{% endfor %}
-<input type="submit" value="Inviter">
+    {% csrf_token %}
+    {{ shareCalendarForm.non_field_errors }}
+    {% for field in shareCalendarForm.visible_fields %}
+    {{ field.errors }} {{ field.label_tag }} {{ field }} {{ field.help_text|safe }}
+    {% endfor %}
+    {% for field in shareCalendarForm.hidden_fields %}{{ field }}{% endfor %}
+    <input type="submit" value="Inviter">
 </form>
 {% endif %}
-
+<a class="underline text-txsBlue500" href="{{ request.iCalLink }}">Kalenderfeed lenke</a>
+</div>
 <br>
 {% endif %}
 

@@ -30,17 +30,26 @@ h3 {
 
 /* FORMS */
 
- /* Make buttons and submit look like buttons */
-input[type=submit] {
-    @apply bg-txsPurple400 border-2 border-txsPurple400 hover:bg-txsPurple300 hover:border-txsPurple300 active:bg-txsPurple500 active:border-txsPurple500 cursor-pointer text-txsWhite px-3 !py-1
+form > p {
+    @apply mb-2
 }
+
+ /* Button og submit button styling */
+input[type=submit] {
+    @apply bg-txsPurple400 border-2 border-txsPurple400 cursor-pointer text-txsWhite px-3 !py-1
+    hover:enabled:bg-txsPurple300 hover:enabled:border-txsPurple300 
+    active:enabled:bg-txsPurple500 active:enabled:border-txsPurple500
+}
+
 input[type=button] {
-    @apply bg-transparent border-2 rounded-full border-txsPurple400 text-txsPurple400 hover:bg-txsPurple400 hover:text-txsWhite active:bg-txsPurple500 active:border-txsPurple500 active:text-txsWhite cursor-pointer  px-3 !py-1
+    @apply bg-transparent border-2 rounded-full border-txsPurple300 text-txsPurple300 cursor-pointer  px-3 !py-1
+    hover:enabled:bg-txsPurple300 hover:enabled:text-txsWhite 
+    active:enabled:bg-txsPurple500 active:enabled:border-txsPurple500 active:enabled:text-txsWhite 
 }
 
 /* Generell input styling */
-input[type=text], input[type=email], input[type=date], select, textarea {
-    @apply my-1 !text-sm py-2 pl-3 border !border-txsGray300 
+input[type=text], input[type=email], input[type=date], input[type=password], select, textarea {
+    @apply !text-sm py-2 pl-3 border !border-txsGray300 
 }
 
 /* Få input og textarea til å vises annerledes når dem e disabled. 
@@ -52,6 +61,19 @@ input, textarea {
 /* Gjør number inputs kortere (7 siffer bredt i firefox) */
 input[type=number] {
     @apply w-28
+}
+
+/* Styling av checkbox */
+input[type=checkbox] {
+    @apply border-txsGray400
+}
+
+input[type=checkbox]:checked {
+    @apply bg-txsPurple400 hover:bg-txsPurple400 active:bg-txsPurple400
+}
+
+input[type=checkbox]:focus:checked {
+    @apply bg-txsPurple400
 }
 
 /* Gjør at select markerer checked elementer */
@@ -82,7 +104,7 @@ p > textarea {
     @apply w-80 h-40
 }
 
-/* Gjør at hover ikke triggere på labels, e wack for dropdowns */
+/* Gjør at hover ikke triggere på labels, e wack for dropdowns. Pluss ekstra styling */
 label {
-    pointer-events:none;
+    @apply pointer-events-none block text-xs
 }

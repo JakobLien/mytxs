@@ -8,24 +8,33 @@
 {% block sjekkheftetContent %}
 
 <p>Her kan du teste deg på hvor godt du kan 20 tilfeldige navn fra sjekkheftet.<br>
-Det går i utgangspunktet på <a href="?">fornavn</a>, men du kan fint også prøve deg
-på <a href="?fulltNavn"> fulle navn</a>.</p>
+Det går i utgangspunktet på <a class="underline text-txsBlue500" href="?">fornavn</a>, men du kan fint også prøve deg
+på <a class="underline text-txsBlue500" href="?fulltNavn"> fulle navn</a>.</p>
 
-<div class="mt-4">
-    {% for medlem in request.queryset %}
-    <div>
-        <img src="{{ medlem.bilde.url }}" class="h-44 aspect-[139/169] object-cover align-top inline-block">
-        <input type="text">
-        <input class="hidden" type="text" disabled
-            {% if 'fulltNavn' in request.GET %}value="{{ medlem.navn }}"
-            {% else %}value="{{ medlem.fornavn }}"{% endif %}
-        >
+<div class="mt-8">
+    <div class="grid grid-cols-1 md:grid-cols-4">
+        {% for medlem in request.queryset %}
+        <div class="grid grid-cols-1 justify-items-center gap-2">
+            <img src="{{ medlem.bilde.url }}" class="h-44 aspect-[139/169] object-cover align-top inline-block">
+            <input type="text">
+            <input class="hidden" type="text" disabled
+                {% if 'fulltNavn' in request.GET %}value="{{ medlem.navn }}"
+                {% else %}value="{{ medlem.fornavn }}"{% endif %}
+            >
+        </div>
+        {% endfor %}
     </div>
-    {% endfor %}
+    <div class="grid grid-cols-1 place-items-center mt-4 justify-center">
+        <input class="place-self-center mb-4" type="button" value="Sjekk svar" onclick="evaluateSjekkhefTest(this)">
+        <div>
 
-    <input type="button" value="Sjekk svar" onclick="evaluateSjekkhefTest(this)">
-    <input class="hidden" type="button" value="Vis fasit" onclick="sjekkhefTestFasit(this)">
-    <b id="sjekkhefTestScore"></b>
+            <p class="grid grid-cols-1" id="sjekkhefTestScore"></p>
+            <div class="hidden" id="fasit">
+                <label for="vis_fasit">Vis fasit</label>
+                <input type="checkbox" id="vis_fasit" onchange="sjekkhefTestFasit()">
+            </div>
+        </div>
+    </div>
 </div>
 
 {% endblock %}

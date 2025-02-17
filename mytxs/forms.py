@@ -13,7 +13,12 @@ from mytxs.utils.modelUtils import getPathToKor, stemmegruppeVerv, vervInnehavel
 
 class KorFilterForm(forms.Form):
     'Generisk FilterForm som filtrerre på kor'
-    kor = forms.ModelChoiceField(required=False, queryset=Kor.objects.filter(navn__in=consts.alleKorNavn))
+    kor = forms.ModelChoiceField(required=False, queryset=Kor.objects.filter(navn__in=consts.alleKorNavn), label_suffix='')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.label_suffix = ''
 
     def applyFilter(self, queryset):
         'Filtrere et queryset basert på KorFilterForm'
@@ -69,9 +74,9 @@ class VervFilterForm(NavnKorFilterForm):
 
 
 class HendelseFilterForm(NavnKorFilterForm):
-    start = MyDateFormField(required=False)
-    slutt = MyDateFormField(required=False)
-    kategori = forms.ChoiceField(choices=BLANK_CHOICE_DASH + list(Hendelse.KATEGORI_CHOICES), required=False)
+    start = MyDateFormField(required=False, label_suffix='')
+    slutt = MyDateFormField(required=False, label_suffix='')
+    kategori = forms.ChoiceField(choices=BLANK_CHOICE_DASH + list(Hendelse.KATEGORI_CHOICES), required=False, label_suffix='')
     
     def applyFilter(self, queryset):
         queryset = super().applyFilter(queryset)
