@@ -321,6 +321,8 @@ class MedlemQuerySet(models.QuerySet):
             ).prefetch_related('verv__kor')),
             Prefetch('dekorasjonInnehavelser', queryset=DekorasjonInnehavelse.objects.none() if kor == None else DekorasjonInnehavelse.objects.filter(
                 dekorasjon__kor__navn__in=[kor.navn, consts.Kor.Sangern] if kor.navn in consts.bareStorkorNavn else [kor.navn]
+            ).exclude(
+                dekorasjon__overvalør__dekorasjonInnehavelser__medlem__id=F('medlem__id')
             ).prefetch_related('dekorasjon__kor')),
         )
 
@@ -998,6 +1000,21 @@ class Dekorasjon(DbCacheModel):
         on_delete=models.DO_NOTHING,
         null=True
     )
+    overvalør = models.OneToOneField(
+        "self",
+        related_name='undervalør',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+
+    def generateUploadTo(self, fileName):
+        path = 'dekorasjonsikoner/'
+        format = f'{self.pk}.{fileName.split(".")[-1]}'
+        fullPath = os.path.join(path, format)
+        return fullPath
+
+    ikon = models.ImageField(upload_to=generateUploadTo, null=True, blank=True)
 
     def get_absolute_url(self):
         return reverse(consts.Tilgang.dekorasjon, args=[self.kor.navn, self.navn])
@@ -1010,6 +1027,56 @@ class Dekorasjon(DbCacheModel):
         unique_together = ('navn', 'kor')
         ordering = ['kor', 'navn']
         verbose_name_plural = 'dekorasjoner'
+
+    def clean(self, *args, **kwargs):
+        validateDekorasjon(self)
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        if self.pk and self.ikon and self.ikon != Dekorasjon.objects.get(pk=self.pk).ikon:
+            self.ikon = cropImage(self.ikon, self.ikon.name, 40, 40)
+        super().save(*args, **kwargs)
+
+
+def validateDekorasjon(instance):
+
+    def validateUlikOvervalør(dekorasjon):
+        if dekorasjon.overvalør.id == dekorasjon.id:
+            raise ValidationError(
+                _(f'{dekorasjon} kan ikke ha seg selv som overvalør'),
+                code='overvalørUgyldig',
+            )
+
+    def validateOvervalørStart(dekorasjon):
+        ugyldigInnehavelse = dekorasjon.dekorasjonInnehavelser \
+            .filter(medlem__dekorasjonInnehavelser__dekorasjon=dekorasjon.overvalør) \
+            .annotate(overvalørStart=F('medlem__dekorasjonInnehavelser__start')) \
+            .filter(overvalørStart__lt=F('start')).first()
+        if ugyldigInnehavelse is not None:
+            raise ValidationError(
+                _(f'{ugyldigInnehavelse.medlem} kan ikke ha fått dekorasjonen {ugyldigInnehavelse.dekorasjon} ({ugyldigInnehavelse.start}) etter {ugyldigInnehavelse.dekorasjon.overvalør} ({ugyldigInnehavelse.overvalørStart})'),
+                code='dekorasjonInnehavelseUgyldigDato'
+            )
+
+    def validateUndervalørInnehas(dekorasjon):
+        ugyldigMedlem = Medlem.objects \
+            .filter(dekorasjonInnehavelser__dekorasjon=dekorasjon) \
+            .exclude(dekorasjonInnehavelser__dekorasjon=dekorasjon.undervalør) \
+            .first()
+        if ugyldigMedlem is not None:
+            raise ValidationError(
+                _(f'{ugyldigMedlem} mangler undervaløren {dekorasjon.undervalør}, som kreves for å få {dekorasjon}'),
+                code='undervalørMangler'
+            )
+
+    if hasattr(instance, 'undervalør'):
+        validateUlikOvervalør(instance.undervalør)
+        validateUndervalørInnehas(instance)
+        validateOvervalørStart(instance.undervalør)
+    elif instance.overvalør is not None:
+        validateUlikOvervalør(instance)
+        validateUndervalørInnehas(instance.overvalør)
+        validateOvervalørStart(instance)
 
 
 class DekorasjonInnehavelse(DbCacheModel):
@@ -1039,6 +1106,43 @@ class DekorasjonInnehavelse(DbCacheModel):
         unique_together = ('medlem', 'dekorasjon', 'start')
         ordering = ['-start', '-pk']
         verbose_name_plural = 'dekorasjoninnehavelser'
+
+    def clean(self, *args, **kwargs):
+        validateDekorasjonInnehavelse(self)
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
+
+def validateDekorasjonInnehavelse(instance):
+    '''
+    Sjekke om medlemmet innehar eventuell undervalør, og sjekke om startdato
+    er kompatibel med eventuell undervalør og overvalør.
+    '''
+    kanHaUndervalør = hasattr(instance.dekorasjon, 'undervalør')
+    if kanHaUndervalør:
+        undervalør = instance.dekorasjon.undervalør.dekorasjonInnehavelser.filter(medlem__id=instance.medlem.id).first()
+        if undervalør is None:
+            raise ValidationError(
+                _(f'Dekorasjonen {instance.dekorasjon} krever {instance.dekorasjon.undervalør}'),
+                code='undervalørMangler'
+            )
+        elif instance.start < undervalør.start:
+            raise ValidationError(
+                # Av en eller annen grunn klager testene på at __str__ returner NoneType hvis man bruker str(instance) eller instance
+                _(f'Dekorasjonsinnehavelsen {instance.__str__()} kan ikke ha startdato før {undervalør.dekorasjon} ({undervalør.start})'),
+                code='dekorasjonInnehavelseUgyldigDato'
+            )
+    kanHaOvervalør = instance.dekorasjon.overvalør is not None
+    if kanHaOvervalør:
+        overvalør = instance.dekorasjon.overvalør.dekorasjonInnehavelser.filter(medlem__id=instance.medlem.id).first()
+        if overvalør is not None and instance.start > overvalør.start:
+            raise ValidationError(
+                # Av en eller annen grunn klager testene på at __str__ returner NoneType hvis man bruker str(instance) eller instance
+                _(f'Dekorasjonsinnehavelsen {instance.__str__()} kan ikke ha startdato etter {overvalør.dekorasjon} ({overvalør.start})'),
+                code='dekorasjonInnehavelseUgyldigDato'
+            )
 
 
 class Turne(DbCacheModel):
