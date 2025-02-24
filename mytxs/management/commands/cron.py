@@ -52,10 +52,10 @@ def fraværEpost(now):
         ).values_list('epost', flat=True)
 
         # Stemmefordeling table
-        content = '<table><tr><th>Stemmefordeling</th><th>Kommer</th><th>Kanskje</th><th>Ikke</th></tr>'
+        content = 'Stemmegruppe: Kommer, Kommer kanskje, Kommer ikke'
         for stemmegruppe, oppmøteAntall in hendelse.getStemmeFordeling().items():
-            content += f'<tr><td>{stemmegruppe}</td><td>{oppmøteAntall[0]}</td><td>{oppmøteAntall[1]}</td><td>{oppmøteAntall[2]}</td></tr>'
-        content += '</table>\n\n'
+            content += f'\n{stemmegruppe}: {oppmøteAntall[0]}, {oppmøteAntall[1]}, {oppmøteAntall[2]}'
+        content += '\n\n'
 
         # Individuelle fraværsmeldinger
         for oppmøte in Oppmøte.objects.filter(

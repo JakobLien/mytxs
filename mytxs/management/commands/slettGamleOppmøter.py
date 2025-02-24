@@ -13,7 +13,6 @@ class Command(BaseCommand):
             Exists(Medlem.objects.filter(
                 vervInnehavelseAktiv(),
                 stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
-                vervInnehavelser__verv__kor__pk=OuterRef('hendelse__kor'),
                 oppmøter=OuterRef('pk')
             ))
         )

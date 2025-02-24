@@ -68,7 +68,7 @@ def addDeleteUserCheckbox(MedlemModelForm):
     return NewForm
 
 
-def addHendelseMedlemmer(HendelseForm, queryset=None, enableQueryset=None):
+def addHendelseMedlemmer(HendelseForm):
     'Legg til medlemmer felt på et Undergruppe Hendelse form'
     class NewForm(HendelseForm):
         medlemmer = MyModelMultipleChoiceField(required=False, queryset=Medlem.objects.none())
@@ -76,15 +76,13 @@ def addHendelseMedlemmer(HendelseForm, queryset=None, enableQueryset=None):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
 
-            self.fields['medlemmer'].queryset = self.instance.oppmøteMedlemmer | (
-                queryset.distinct() if queryset else Medlem.objects.filter(
-                    vervInnehavelseAktiv(dato=self.instance.startDate), 
-                    stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
-                    vervInnehavelser__verv__kor__navn__in=consts.bareStorkorNavn if self.instance.kor.navn == consts.Kor.Sangern else [self.instance.kor.navn]
-                ).distinct()
-            )
+            self.fields['medlemmer'].queryset = Medlem.objects.filter(
+                vervInnehavelseAktiv(dato=self.instance.startDate), 
+                stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
+                vervInnehavelser__verv__kor__navn__in=consts.bareStorkorNavn if self.instance.kor.navn == consts.Kor.Sangern else [self.instance.kor.navn]
+            ).distinct()
 
-            self.fields['medlemmer'].initial = self.instance.oppmøteMedlemmer
+            self.fields['medlemmer'].initial = Medlem.objects.filter(oppmøter__hendelse=self.instance)
 
             self.fields['medlemmer'].setEnableQueryset(
                 enableQueryset=self.fields['medlemmer'].queryset.exclude(
@@ -93,13 +91,13 @@ def addHendelseMedlemmer(HendelseForm, queryset=None, enableQueryset=None):
                         vervInnehavelser__verv__tilganger__navn__in=self.instance.prefiksArray,
                         vervInnehavelser__verv__tilganger__kor=self.instance.kor
                     )
-                ).filter(pk__in=enableQueryset.values_list('pk', flat=True) if enableQueryset else Medlem.objects.all().values_list('pk', flat=True)),
+                ),
                 initialValue=self.fields['medlemmer'].initial
             )
 
         def save(self, *args, **kwargs):
             if self.is_valid():
-                self.instance._oppmøteMedlemmer = self.cleaned_data['medlemmer']
+                self.instance.genererOppmøter(undergruppeMedlemmer=self.cleaned_data['medlemmer'])
             super().save(*args, **kwargs)
 
     return NewForm
