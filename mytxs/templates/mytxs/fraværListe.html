@@ -2,6 +2,18 @@
 {% load mytxsTags %}
 
 {% block content %}
+<style>
+    :root { --percent: 0; } /* default verdi */
+    
+    .percentColor {
+        background-color: rgb(
+            255,
+            calc(255 - 200 * pow(var(--percent) / 100, 0.2)),
+            calc(255 - 200 * pow(var(--percent) / 100, 0.2))
+        );
+    }
+</style>
+
 {% toggleURLparam 'heleSemesteret' 'for hele semesteret' %}
 
 <table class="text-left">
@@ -16,10 +28,10 @@
     {% for medlem in request.queryset %}
     <tr class="border-b border-black">
         <td>{{ medlem.navn }}</td>
-        <td style="background-color: hsl(calc(120 - ({{ medlem|showFravær:'umeldtFravær%' }} * 1.2)), 65%, 50%);">{{ medlem|showFravær:'umeldtFravær' }}</td>
-        <td style="background-color: hsl(calc(120 - ({{ medlem|showFravær:'ugyldigFravær%' }} * 1.2)), 65%, 50%);">{{ medlem|showFravær:'ugyldigFravær' }}</td>
-        <td style="background-color: hsl(calc(120 - ({{ medlem|showFravær:'gyldigFravær%' }} * 1.2)), 65%, 50%);">{{ medlem|showFravær:'gyldigFravær' }}</td>
-        <td style="background-color: hsl(calc(120 - ({{ medlem|showFravær:'sum%' }} * 1.2)), 65%, 50%);">{{ medlem|showFravær:'sum' }}</td>
+        <td class="percentColor pl-1" style="--percent: {{ medlem|showFravær:'umeldtFravær%' }};">{{ medlem|showFravær:'umeldtFravær' }}</td>
+        <td class="percentColor pl-1" style="--percent: {{ medlem|showFravær:'ugyldigFravær%' }};">{{ medlem|showFravær:'ugyldigFravær' }}</td>
+        <td class="percentColor pl-1" style="--percent: {{ medlem|showFravær:'gyldigFravær%' }};">{{ medlem|showFravær:'gyldigFravær' }}</td>
+        <td class="percentColor pl-1" style="--percent: {{ medlem|showFravær:'sum%' }};">{{ medlem|showFravær:'sum' }}</td>
         {% if medlem.pk %}<td><a href="{% url 'fraværSemesterplan' request.resolver_match.kwargs.underside medlem.pk %}?gammelt=True">Se semesterplan</a></td>{% endif %}
     </tr>
     {% endfor %}

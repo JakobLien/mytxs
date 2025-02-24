@@ -1,6 +1,7 @@
 import datetime
 from urllib.parse import unquote
 
+from django.apps import apps
 from django.db.models import Q
 from django.http import HttpResponse
 from django.urls import reverse
@@ -37,6 +38,10 @@ def dateToICal(date):
 
 def getVeventFromHendelse(hendelse, medlem, hendelsePK=None):
     'Genererer en dictionary med keys og values tilsvarende en iCal hendelse'
+    # Må unngå en circular imports ved at Hendelse.save calle updateGoogleCalendar, som bruke getVeventFromHendelse. 
+    Hendelse = apps.get_model('mytxs', 'Hendelse')
+    Medlem = apps.get_model('mytxs', 'Medlem')
+
     veventDict = {
         'BEGIN': 'VEVENT',
         'UID': f'{hendelse.kor}-{hendelsePK if hendelsePK else hendelse.pk}@mytxs.samfundet.no'
@@ -45,8 +50,8 @@ def getVeventFromHendelse(hendelse, medlem, hendelsePK=None):
     veventDict['SUMMARY'] = hendelse.navnMedPrefiks
 
     veventDict['DESCRIPTION'] = [hendelse.beskrivelse.replace('\r\n', '\\n')] if hendelse.beskrivelse else []
-    if hendelse.kategori == type(hendelse).UNDERGRUPPE:
-        veventDict['DESCRIPTION'].append('De inviterte:\\n- ' + '\\n- '.join([str(m) for m in hendelse.oppmøteMedlemmer]))
+    if hendelse.kategori == Hendelse.UNDERGRUPPE:
+        veventDict['DESCRIPTION'].append('De inviterte:\\n- ' + '\\n- '.join([str(m) for m in Medlem.objects.filter(oppmøter__hendelse=hendelse)]))
     elif hendelse.pk and (oppmøte := hendelse.oppmøter.filter(medlem=medlem).first()) and oppmøte.fraværTekst:
         veventDict['DESCRIPTION'].append(oppmøte.fraværTekst + ': ' + mytxsSettings.ALLOWED_HOSTS[0] + unquote(reverse('meldFravær', args=[medlem.pk, hendelse.pk])))
     veventDict['DESCRIPTION'] = '\\n\\n'.join(veventDict['DESCRIPTION'])

@@ -469,7 +469,7 @@ class Medlem(DbCacheModel):
     @property
     def faktiskeTilganger(self):
         'Returne aktive bruktIKode tilganger, til bruk i addOptionForm som trenger å vite hvilke tilganger du har før innstillinger filtrering'
-        return Tilgang.objects.filter(vervInnehavelseAktiv('verv__vervInnehavelser', utvidetStart=datetime.timedelta(days=60)), verv__vervInnehavelser__medlem=self, bruktIKode=True).distinct()
+        return Tilgang.objects.filter(vervInnehavelseAktiv('verv__vervInnehavelser', utvidetStart=datetime.timedelta(days=60), utvidetSlutt=datetime.timedelta(days=30)), verv__vervInnehavelser__medlem=self, bruktIKode=True).distinct()
 
     @cached_property
     def tilganger(self):
@@ -553,11 +553,9 @@ class Medlem(DbCacheModel):
             navBarNode(fravær, 'søknader', defaultParameters='?gyldig=None&harMelding=on')
 
             fraværOversikt = navBarNode(fravær, 'oversikt', isPage=False)
-            if korMedFraværTilgang := Kor.objects.filter(tilganger__in=self.tilganger.filter(navn=consts.Tilgang.fravær)).values_list('navn', flat=True):
-                fraværOversikt.addChildren(*korMedFraværTilgang)
-
             fraværStatistikk = navBarNode(fravær, 'statistikk', isPage=False)
             if korMedFraværTilgang := Kor.objects.filter(tilganger__in=self.tilganger.filter(navn=consts.Tilgang.fravær)).values_list('navn', flat=True):
+                fraværOversikt.addChildren(*korMedFraværTilgang)
                 fraværStatistikk.addChildren(*korMedFraværTilgang)
 
         if self.tilganger.filter(navn__in=[consts.Tilgang.tversAvKor, consts.Tilgang.vervInnehavelse, consts.Tilgang.verv, consts.Tilgang.tilgang]).exists():
@@ -1204,18 +1202,9 @@ class Hendelse(DbCacheModel):
     @property
     def oppmøteMedlemmer(self):
         'Dette gir deg basert på stemmegruppeverv og permisjon, hvilke medlemmer som burde ha oppmøter for hendelsen'
-        if self.kategori == Hendelse.FRIVILLIG:
+        if self.kategori in [Hendelse.FRIVILLIG, Hendelse.UNDERGRUPPE]:
             return Medlem.objects.none()
         
-        if self.kategori == Hendelse.UNDERGRUPPE:
-            return getattr(self, '_oppmøteMedlemmer', Medlem.objects.filter( # De som er valgt til hendelsen
-                Q(oppmøter__hendelse=self)
-            ).distinct()) | Medlem.objects.filter( # De som er i en tilgangPrefix
-                vervInnehavelseAktiv(dato=self.startDate),
-                vervInnehavelser__verv__tilganger__navn__in=self.prefiksArray,
-                vervInnehavelser__verv__tilganger__kor=self.kor
-            ).distinct()
-
         return Medlem.objects.filter(# Skaff aktive korister...
             vervInnehavelseAktiv(dato=self.startDate),
             stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
@@ -1224,7 +1213,7 @@ class Hendelse(DbCacheModel):
             permisjon=False
         ).distinct() # distinct fordi dirigenten også kan syng i koret
 
-    def genererOppmøter(self, oldSelf=None, softDelete=True):
+    def genererOppmøter(self, undergruppeMedlemmer=None, oldSelf=None, softDelete=True):
         '''
         Legg til og fjerner så hendelsen har oppmøtene den skal ha. 
         Sletter ikke oppmøter som har informasjon assosiert med seg, om ikke softDelete er False.
@@ -1233,17 +1222,33 @@ class Hendelse(DbCacheModel):
             # Ikkje legg til eller slett oppmøter fra tidligere semestre
             return
 
-        if not oldSelf:
-            oldSelf = Hendelse.objects.filter(pk=self.pk).first()
+        if self.kategori == Hendelse.UNDERGRUPPE:
+            if not undergruppeMedlemmer:
+                return
+
+            medlemmer = undergruppeMedlemmer
+            if self.prefiksArray:
+                medlemmer |= Medlem.objects.filter( # Legg på prefix folka
+                    Q(
+                        vervInnehavelseAktiv(dato=self.startDate),
+                        vervInnehavelser__verv__tilganger__navn__in=self.prefiksArray,
+                        vervInnehavelser__verv__tilganger__kor=self.kor
+                    )
+                ).distinct()
+        else:
+            medlemmer = self.oppmøteMedlemmer
 
         # Legg til oppmøter som skal være der
-        for medlem in self.oppmøteMedlemmer.filter(~Q(oppmøter__hendelse=self)):
+        for medlem in medlemmer.filter(~Q(oppmøter__hendelse=self)):
             self.oppmøter.create(medlem=medlem, hendelse=self, ankomst=self.defaultAnkomst)
+
+        if not oldSelf:
+            oldSelf = Hendelse.objects.filter(pk=self.pk).first()
 
         if oldSelf:
             # Slett oppmøter som ikke skal være der (og ikke har noen informasjon assosiert med seg)
             self.oppmøter.filter(
-                ~Q(medlem__in=self.oppmøteMedlemmer),
+                ~Q(medlem__in=medlemmer),
                 qBool(True) if not softDelete else Q(
                     fravær__isnull=True,
                     ankomst=oldSelf.defaultAnkomst,

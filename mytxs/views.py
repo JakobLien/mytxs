@@ -381,9 +381,10 @@ def semesterplan(request, kor):
             if not hendelse:
                 messages.error(request, f'Fant ikke hendelse med pk {hendelsePK}.')
                 return redirect(request.path+'?jobbvakter=True')
-
-            if hendelse.undergruppeAntall and (not hendelse.undergruppeAntall <= hendelse.oppmøter.count() or request.user.medlem in hendelse.oppmøteMedlemmer):
-                if request.user.medlem in hendelse.oppmøteMedlemmer:
+            
+            oppmeldt = Oppmøte.objects.filter(medlem=request.user.medlem, hendelse=hendelse).exists()
+            if hendelse.undergruppeAntall and (not hendelse.undergruppeAntall <= hendelse.oppmøter.count() or oppmeldt):
+                if oppmeldt:
                     Oppmøte.objects.filter(hendelse=hendelse, medlem=request.user.medlem).delete()
                 else:
                     Oppmøte.objects.create(hendelse=hendelse, medlem=request.user.medlem, ankomst=hendelse.defaultAnkomst)
@@ -400,7 +401,7 @@ def semesterplan(request, kor):
         ).prefetch_related('oppmøter__medlem')
 
         for hendelse in request.queryset:
-            # For å gjør det lettar i templaten, og for å gjør det raskt (uten oppmøteMedlemmer query)
+            # For å gjør det lettar i templaten, og for å gjør det raskt (uten fleir queries)
             hendelse.full = hendelse.undergruppeAntall <= hendelse.oppmøter.count()
             hendelse.påmeldt = any([o.medlem == request.user.medlem for o in hendelse.oppmøter.all()])
 
@@ -474,7 +475,7 @@ def meldFravær(request, medlemPK, hendelsePK):
 
 @login_required
 def egenFøring(request, hendelsePK):
-    hendelse = Hendelse.objects.filter(pk=hendelsePK).first()
+    hendelse = Hendelse.objects.filter(pk=hendelsePK, kategori=Hendelse.OBLIG).first()
 
     if not hendelse:
         messages.error(request, 'Hendelse ikke funnet')
@@ -491,12 +492,8 @@ def egenFøring(request, hendelsePK):
     request.instance = Oppmøte.objects.filter(medlem=request.user.medlem, hendelse=hendelse).first()
     
     if not request.instance:
-        if not hendelse.oppmøteMedlemmer.contains(request.user.medlem):
-            messages.error(request, 'Du er ikke blant de som skal føres fravær på')
-            return redirect('semesterplan', kor=hendelse.kor.navn)
-        else:
-            messages.error(request, 'Ditt oppmøte finnes ikke selv om det burde det, meld fra om dette!')
-            return redirect('semesterplan', kor=hendelse.kor.navn)
+        messages.error(request, 'Du er ikke blant de som skal føres fravær på')
+        return redirect('semesterplan', kor=hendelse.kor.navn)
     
     if abs(datetime.datetime.now() - hendelse.start).total_seconds() / 60 > 30 or datetime.datetime.now() > hendelse.slutt:
         messages.error(request, 'For sent eller tidlig å føre fravær selv')
@@ -655,7 +652,7 @@ def hendelseListe(request):
 
 @harTilgang(instanceModel=Hendelse)
 def hendelse(request, hendelsePK):
-    if request.GET.get('fraværModus'):
+    if request.instance.kategori == Hendelse.OBLIG and request.GET.get('fraværModus'):
         request.queryset = MedlemQuerySet.annotateStemmegruppe(
             request.instance.oppmøter,
             kor=request.instance.kor,
@@ -693,6 +690,17 @@ def hendelse(request, hendelsePK):
         })
 
     if request.GET.get('dupliser'):
+        request.GET = request.GET.copy()
+        del request.GET['dupliser']
+
+        if Hendelse.objects.filter(
+            kor=request.instance.kor,
+            navn=request.instance.navn,
+            startDate=request.instance.startDate + datetime.timedelta(weeks=1)
+        ).exists():
+            messages.error(request, 'Kan ikke duplisere hendelsen da det finnes en med samme navn og start dato')
+            return redirectToInstance(request)
+
         # Dupliser hendelsen
         request.instance.pk = None
         request.instance._state.adding = True
@@ -701,8 +709,6 @@ def hendelse(request, hendelsePK):
             request.instance.sluttDate += datetime.timedelta(weeks=1)
         request.instance.save()
 
-        request.GET = request.GET.copy()
-        del request.GET['dupliser']
         return redirectToInstance(request)
 
     HendelseForm = modelform_factory(Hendelse, exclude=['kor'])
@@ -717,18 +723,22 @@ def hendelse(request, hendelsePK):
     disableFormMedlem(request.user.medlem, hendelseForm)
 
     oppmøteFormset = None
-    if request.instance.kategori != Hendelse.UNDERGRUPPE:
+    if request.instance.kategori != Hendelse.UNDERGRUPPE or request.instance.oppmøter.exclude( # Om vi har nån oppmøter med data på seg
+        fravær__isnull=True, ankomst=request.instance.defaultAnkomst, melding=''
+    ).exists():
         OppmøteFormset = inlineformset_factory(Hendelse, Oppmøte, exclude=[], extra=0, can_delete=True, formset=getPaginatedInlineFormSet(request))
-        oppmøteFormset = OppmøteFormset(postIfPost(request, 'oppmøte'), instance=request.instance, prefix='oppmøte')
+        oppmøteFormset = OppmøteFormset(postIfPost(request, 'oppmøte'), instance=request.instance, prefix='oppmøte', \
+            queryset=None if request.instance.kategori != Hendelse.UNDERGRUPPE else request.instance.oppmøter.exclude(
+                fravær__isnull=True, ankomst=request.instance.defaultAnkomst, melding=''
+            )
+        )
 
         if disableFormMedlem(request.user.medlem, oppmøteFormset): 
             disableFields(oppmøteFormset, 'medlem')
             if not request.instance.varighet:
                 disableFields(oppmøteFormset, 'fravær')
 
-            addHelpText(oppmøteFormset, 'DELETE', helpText=\
-                'Dette medlemmet skal ifølge stemmegruppeverv og permisjon ikke være på denne hendelsen. '+
-                'Følgelig hadde oppmøtet vært slettet automatisk om de ikke hadde en fraværsmelding eller en fraværsføring.')        
+            addHelpText(oppmøteFormset, 'DELETE', helpText='Dette oppmøtet ble ikke slettet automatisk pga data, slett det gjerne manuelt.')
             for form in oppmøteFormset.forms:
                 if form.instance.medlem in oppmøteFormset.instance.oppmøteMedlemmer:
                     removeFields(form, 'DELETE')
@@ -748,7 +758,7 @@ def hendelse(request, hendelsePK):
         if hendelseForm.is_valid() and (not oppmøteFormset or oppmøteFormset.is_valid()):
             return redirectToInstance(request)
 
-    if request.instance.sluttTime != None and abs(datetime.datetime.now() - request.instance.start).total_seconds() / 60 <= 30:
+    if request.instance.kategori == Hendelse.OBLIG and request.instance.sluttTime != None and abs(datetime.datetime.now() - request.instance.start).total_seconds() / 60 <= 30:
         request.egenFøringLink = consts.qrCodeLinkPrefix + 'http://' + request.get_host() + addHash(reverse('egenFøring', args=[request.instance.pk]))
     
     if request.user.medlem.tilganger.filter(navn=consts.Tilgang.eksport, kor=request.instance.kor).exists():
@@ -756,7 +766,7 @@ def hendelse(request, hendelsePK):
 
     return render(request, 'mytxs/hendelse.html', {
         'forms': [hendelseForm],
-        'formsets': [oppmøteFormset] if request.instance.kategori != Hendelse.UNDERGRUPPE else [],
+        'formsets': [oppmøteFormset] if oppmøteFormset else [],
     })
 
 
@@ -934,7 +944,7 @@ def tilgangSide(request, side=None):
                 qBool(request.GET.get('ikkeBruktIKode'), falseOption=Q(bruktIKode=True)),
             ).prefetch_related('kor')),
             Prefetch('vervInnehavelser', queryset=VervInnehavelse.objects.filter(
-                vervInnehavelseAktiv('', utvidetStart=datetime.timedelta(days=60)),
+                vervInnehavelseAktiv('', utvidetStart=datetime.timedelta(days=60), utvidetSlutt=datetime.timedelta(days=30)),
             ).prefetch_related('medlem'))
         )
 
