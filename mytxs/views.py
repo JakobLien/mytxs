@@ -12,7 +12,7 @@ from django.core import mail
 from django.db.models import Q, F, IntegerField, Prefetch
 from django.db.models.functions import Cast
 from django.forms import inlineformset_factory, modelform_factory, modelformset_factory
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.http import FileResponse, Http404 
 
@@ -304,6 +304,11 @@ def medlemListe(request):
 
 @harTilgang(instanceModel=Medlem, extendAccess=lambda req: Medlem.objects.filter(pk=req.user.medlem.pk))
 def medlem(request, medlemPK):
+    if request.GET.get('loggInnSom') and request.user.is_superuser:
+        user_to_login_as = get_object_or_404(Medlem, pk=medlemPK).user
+        auth_login(request, user_to_login_as)
+        return redirect(request.path)
+    
     if not request.user.medlem.redigerTilgangQueryset(Medlem).contains(request.instance) and request.user.medlem != request.instance:
         # Om du ikke har redigeringstilgang på medlemmet, skjul dataen demmers
         MedlemsDataForm = modelform_factory(Medlem, fields=['fornavn', 'mellomnavn', 'etternavn'])
