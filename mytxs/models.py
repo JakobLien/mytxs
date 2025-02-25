@@ -1224,7 +1224,7 @@ class Hendelse(DbCacheModel):
             return
 
         if self.kategori == Hendelse.UNDERGRUPPE:
-            if not undergruppeMedlemmer:
+            if undergruppeMedlemmer == None:
                 return
 
             medlemmer = undergruppeMedlemmer
