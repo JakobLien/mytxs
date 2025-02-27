@@ -4,7 +4,7 @@ from time import sleep
 
 from mytxs import consts
 from mytxs.utils.downloadUtils import getVeventFromHendelse
-from mytxs.utils.threadUtils import thread
+from mytxs.utils.threadUtils import NoMailException, thread
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -19,7 +19,7 @@ def exponentialBackoff(func):
         while True:
             if self.requestCountDown != None:
                 if self.requestCountDown <= 0:
-                    raise Exception('Google Calendar exceeded 100 requests.')
+                    raise NoMailException('Google Calendar exceeded 100 requests.')
                 self.requestCountDown -= 1
             try:
                 return func(self, *args, **kwargs)
