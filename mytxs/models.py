@@ -1213,54 +1213,63 @@ class Hendelse(DbCacheModel):
             permisjon=False
         ).distinct() # distinct fordi dirigenten også kan syng i koret
 
+    def addOppmøter(self, medlemmer):
+        'Legg til oppmøtan til disse medlemman'
+        for medlem in medlemmer.filter(~Q(oppmøter__hendelse=self)):
+            self.oppmøter.create(medlem=medlem, hendelse=self, ankomst=self.defaultAnkomst)
+
+    def removeOppmøter(self, medlemmer, oldSelf=None, softDelete=True):
+        'Fjerne oppmøter til medlemman som ikkje e i medlemmer lista.'
+        self.oppmøter.filter(
+            ~Q(medlem__in=medlemmer),
+            qBool(True) if not softDelete else Q(
+                fravær__isnull=True,
+                ankomst=oldSelf.defaultAnkomst,
+                melding=''
+            )
+        ).delete()
+
+    def fiksOppmøteAnkomst(self, oldSelf):
+        'Sett oppmøtan sin ankomst til den nye default ankomsten, dersom de ikke har en melding.'
+        if self.defaultAnkomst != oldSelf.defaultAnkomst:
+            for oppmøte in self.oppmøter.filter(melding=''):
+                oppmøte.ankomst = self.defaultAnkomst
+                oppmøte.save()
+
     def genererOppmøter(self, undergruppeMedlemmer=None, oldSelf=None, softDelete=True):
         '''
         Legg til og fjerner så hendelsen har oppmøtene den skal ha. 
-        Sletter ikke oppmøter som har informasjon assosiert med seg, om ikke softDelete er False.
+        Sletter ikke oppmøter som har informasjon assosiert med seg, om ikke softDelete er False. 
+        Calles fra addHendelseMedlemmer formet med undergruppeMedlemmer, når det e en undergruppe hendelse. 
         '''
         if self.startDate < getHalvårStart():
             # Ikkje legg til eller slett oppmøter fra tidligere semestre
             return
 
-        if self.kategori == Hendelse.UNDERGRUPPE:
-            if undergruppeMedlemmer == None:
-                return
-
-            medlemmer = undergruppeMedlemmer
-            if self.prefiksArray:
-                medlemmer |= Medlem.objects.filter( # Legg på prefix folka
-                    Q(
-                        vervInnehavelseAktiv(dato=self.startDate),
-                        vervInnehavelser__verv__tilganger__navn__in=self.prefiksArray,
-                        vervInnehavelser__verv__tilganger__kor=self.kor
-                    )
-                ).distinct()
-        else:
-            medlemmer = self.oppmøteMedlemmer
-
-        # Legg til oppmøter som skal være der
-        for medlem in medlemmer.filter(~Q(oppmøter__hendelse=self)):
-            self.oppmøter.create(medlem=medlem, hendelse=self, ankomst=self.defaultAnkomst)
-
         if not oldSelf:
             oldSelf = Hendelse.objects.filter(pk=self.pk).first()
 
-        if oldSelf:
-            # Slett oppmøter som ikke skal være der (og ikke har noen informasjon assosiert med seg)
-            self.oppmøter.filter(
-                ~Q(medlem__in=medlemmer),
-                qBool(True) if not softDelete else Q(
-                    fravær__isnull=True,
-                    ankomst=oldSelf.defaultAnkomst,
-                    melding=''
-                )
-            ).delete()
+        if self.kategori != Hendelse.UNDERGRUPPE:
+            self.addOppmøter(self.oppmøteMedlemmer)
+            self.removeOppmøter(self.oppmøteMedlemmer, oldSelf=oldSelf, softDelete=softDelete)
+        else:
+            medlemmer = Medlem.objects.none()
+            if self.prefiksArray:
+                medlemmer |= Medlem.objects.filter(
+                    vervInnehavelseAktiv(dato=self.startDate),
+                    vervInnehavelser__verv__tilganger__navn__in=self.prefiksArray,
+                    vervInnehavelser__verv__tilganger__kor=self.kor
+                ).distinct()
 
-            # Bytt resten av oppmøtene sin ankomst til default ankomsten, dersom de ikke har en medling. 
-            if self.defaultAnkomst != oldSelf.defaultAnkomst:
-                for oppmøte in self.oppmøter.filter(melding=''):
-                    oppmøte.ankomst = self.defaultAnkomst
-                    oppmøte.save()
+            if undergruppeMedlemmer:
+                medlemmer |= undergruppeMedlemmer
+
+            self.addOppmøter(medlemmer)
+            if undergruppeMedlemmer:
+                self.removeOppmøter(medlemmer, oldSelf=oldSelf, softDelete=softDelete)
+
+        if oldSelf:
+            self.fiksOppmøteAnkomst(oldSelf)
 
     def getStemmeFordeling(self):
         '''

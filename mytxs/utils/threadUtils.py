@@ -6,8 +6,11 @@ from mytxs import settings
 from django.core import mail
 from django.views.debug import ExceptionReporter
 
+class NoMailException(Exception):
+    'Et exception som catches av mailException, og ikke generere en epost til admins.'
 
-def mailException(func):
+
+def mailException(func, request=None):
     'Decorator som sende en fint formatert epost te me om det skjer et exception i metoden.'
     def _decorator(*args, **kwargs):
         if settings.DEBUG:
@@ -16,8 +19,10 @@ def mailException(func):
 
         try:
             return func(*args, **kwargs)
+        except NoMailException:
+            pass
         except Exception as exception:
-            reporter = ExceptionReporter(None, type(exception), exception, exception.__traceback__, is_email=True)
+            reporter = ExceptionReporter(request, type(exception), exception, exception.__traceback__, is_email=True)
             mail.mail_admins(
                 subject='Threaded exception', 
                 message=reporter.get_traceback_text(),
@@ -45,7 +50,7 @@ def thread(func=None):
             return func(*args, **kwargs)
 
         thread = threading.Thread(
-            target=mailException(func),
+            target=mailException(func, request=getattr(THREAD_LOCAL, 'request', None)),
             args=args, 
             kwargs=kwargs,
             daemon=True

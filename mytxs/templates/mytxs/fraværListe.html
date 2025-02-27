@@ -6,11 +6,7 @@
     :root { --percent: 0; } /* default verdi */
     
     .percentColor {
-        background-color: rgb(
-            255,
-            calc(255 - 200 * pow(var(--percent) / 100, 0.2)),
-            calc(255 - 200 * pow(var(--percent) / 100, 0.2))
-        );
+        background-color: hsl(0 100 calc(100 - min(var(--percent) / 2 * 3, 50)))
     }
 </style>
 
