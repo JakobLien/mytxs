@@ -31,7 +31,7 @@ jobs:
         sudo systemctl status postgresql
     - name: Configure PostgreSQL
       run: |
-        sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres';"
+        sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgrespassword';"
     - name: Run Tests
       env:
         DJANGO_SECRET: ${{ secrets.DJANGO_SECRET }}
