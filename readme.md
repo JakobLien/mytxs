@@ -5,7 +5,7 @@ Hei, dette er repoet til MyTXS 2.0, den neste versjonen av [MyTSS](https://mytss
 ## Oppsett
 Her er hvordan man setter opp nettsiden enkelt lokalt
 1. Når du er der du vil ha repoet, clone repoet med `git clone https://github.com/JakobLien/mytxs.git`. 
-1. Installer [PostgreSQL](https://www.postgresql.org/download/), for Mac anbefales sterkt [Postgres.app](https://postgresapp.com/). For Ubuntu ser det ut som at libpq-dev også er nødvendig. Husk passordet du satte opp! Hvis det ikke er default, som er `postgrespassword`, så må du legge det til senere i .env-fila beskrevet noen punkter lenger nede. 
+1. Installer [PostgreSQL](https://www.postgresql.org/download/), for Mac anbefales sterkt [Postgres.app](https://postgresapp.com/). For Ubuntu ser det ut som at libpq-dev også er nødvendig. Husk passordet du satte opp! Hvis det ikke er default, som er `postgres`, så må du legge det til senere i .env-fila beskrevet noen punkter lenger nede. 
 1. Opprett et [venv](https://docs.python.org/3/library/venv.html) med navn `venv` gjennom `python -m venv venv`. Venv betyr Virtual Environment, og er at alle pakkene installeres sammen med koden din. Dette gjør det enklere å sikre at man har rett versjon av alle pakker, uavhengig av hva andre ting på maskinen din vil ha. Husk å aktivere venvet før du kjører applikasjonen eller installerer ting, slik som i neste steg. På Mac er dette `source venv/bin/activate`. 
 1. Kjør `python3 -m pip install -r requirements.txt` for å installer alle packages med rett versjon. 
 1. Generer en Django-nøkkel, for eksempel [her](https://djecrety.ir/).
@@ -19,7 +19,7 @@ Dersom du *ikke* brukte defaultpassordet, eller andre postgres-defaults, er du n
         DATABASE_ENGINE    =  django.db.backends.postgresql
         DATABASE_NAME      =  postgres
         DATABASE_USER      =  postgres
-        DATABASE_PASSWORD  =  postgrespassword
+        DATABASE_PASSWORD  =  postgres
         DATABASE_HOST      =  localhost
         DATABASE_PORT      =  5432
 
@@ -36,7 +36,7 @@ Vi kan ikke bruk sqlite til utvikling fordi det mangle [jsonField](https://docs.
     DATABASE_ENGINE=django.db.backends.postgresql
     DATABASE_NAME=postgres
     DATABASE_USER=postgres
-    DATABASE_PASSWORD=postgrespassword
+    DATABASE_PASSWORD=postgres
     DATABASE_HOST=localhost
     DATABASE_PORT=5432
 
