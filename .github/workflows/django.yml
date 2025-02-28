@@ -26,5 +26,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     - name: Run Tests
+      env:
+        DJANGO_SECRET: ${{ secrets.DJANGO_SECRET }}
       run: |
         python manage.py test
