@@ -27,8 +27,8 @@ jobs:
         pip install -r requirements.txt
     - name: Start PostgreSQL service
       run: |
-        systemctl start postgresql
-        systemctl status postgresql
+        sudo systemctl start postgresql
+        sudo systemctl status postgresql
     - name: Run Tests
       env:
         DJANGO_SECRET: ${{ secrets.DJANGO_SECRET }}
