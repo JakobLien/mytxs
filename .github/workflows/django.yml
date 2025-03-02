@@ -6,34 +6,75 @@ on:
   pull_request:
     branches: [ "main", "develop" ]
 
+env:
+  PGHOST: localhost
+  PGPORT: 5432
+  PGUSER: postgres
+  PGPASSWORD: postgrespassword
+  PGDATABASE: postgres
+
 jobs:
   build:
 
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgrespassword
+        ports:
+          - 5432:5432
+
     strategy:
       max-parallel: 4
       matrix:
         python-version: ['3.11.2']
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Installere dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-    - name: Starte PostgreSQL service
-      run: |
-        sudo systemctl start postgresql
-        sudo systemctl status postgresql
-    - name: Konfigurere PostgreSQL
-      run: |
-        sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgrespassword';"
-    - name: Kjøre tester
-      env:
-        DJANGO_SECRET: ${{ secrets.DJANGO_SECRET }}
-      run: |
-        python manage.py test
+      - name: Vente til PostgreSQL er klar
+        run: |
+          until pg_isready; do
+            echo "Venter på PosgreSQL..."
+            sleep 1
+          done
+          echo "PostgreSQL er klar"
+
+      - name: Verifisere PostgreSQL-version
+        env:
+          EXPECTED_PG_VERSION: "PostgreSQL 15"
+        run: |
+          echo "PostgreSQL-versjon i runner:"
+          psql --version
+
+          echo "Bevis på at PostgreSQL ikke kjører i runner:"
+          systemctl status postgresql || true  # Fortsett selv om return code er nonzero
+
+          echo "PostgreSQL-versjon i service container:"
+          PG_VERSION=$(psql -c "SELECT version();")
+          echo -e "$PG_VERSION"
+
+          if [[ $PG_VERSION =~ $EXPECTED_PG_VERSION ]]; then
+            echo "PostgreSQL-versjon er $EXPECTED_PG_VERSION"
+          else
+            echo "PostgreSQL-versjon er ikke $EXPECTED_PG_VERSION"
+            exit 1
+          fi
+
+      - name: Sette opp Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Installere dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Kjøre Django-tester
+        env:
+          DJANGO_SECRET: ${{ secrets.DJANGO_SECRET }}
+        run: python manage.py test
