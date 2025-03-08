@@ -8,7 +8,7 @@ from django.http import HttpResponse
 from django.shortcuts import redirect
 
 from mytxs import consts
-from mytxs.models import Medlem
+from mytxs.models import Dekorasjon, Medlem
 
 # Utils til bruk i og rundt views
 
@@ -132,5 +132,9 @@ def harFilTilgang(medlem, filePath):
         
         if medlem.tilganger.filter(navn=consts.Tilgang.medlemsdata, kor__navn=instance.storkorNavn()):
             return True
+
+    elif type(instance) == Dekorasjon and fieldName == 'ikon':
+        # Dekorasjonsikoner
+        return True
 
     return False

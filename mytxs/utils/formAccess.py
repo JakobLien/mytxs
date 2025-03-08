@@ -156,7 +156,7 @@ def disableFormMedlem(medlem, form):
 
             # Om du ikke har tilgang til selected option, disable feltet
             # Dette for å sikre at queryset ikke varierer mellom ulike forms i formsettet, se lazyDropdown.py
-            if form.instance.pk and not tilgangQueryset.contains(getattr(form.instance, fieldName)):
+            if form.instance.pk and getattr(form.instance, fieldName) is not None and not tilgangQueryset.contains(getattr(form.instance, fieldName)):
                 disableFields(form, fieldName)
             else:
                 field.queryset = tilgangQueryset.distinct()

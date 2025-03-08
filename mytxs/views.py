@@ -14,7 +14,7 @@ from django.db.models.functions import Cast
 from django.forms import inlineformset_factory, modelform_factory, modelformset_factory
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from django.http import FileResponse, Http404 
+from django.http import FileResponse, HttpResponseForbidden, HttpResponseNotFound
 
 from mytxs import consts
 from mytxs.fields import intToBitList
@@ -40,10 +40,12 @@ def serve(request, path):
         return HttpResponseUnauthorized()
     
     if not harFilTilgang(request.user.medlem, path):
-        raise Http404()
+        return HttpResponseForbidden()
 
-    return FileResponse(open('uploads/'+path, 'rb'))
-
+    try:
+        return FileResponse(open('uploads/'+path, 'rb'))
+    except FileNotFoundError:
+        return HttpResponseNotFound()
 
 def login(request):
     if request.user.is_authenticated:
@@ -81,7 +83,7 @@ def registrer(request, medlemPK):
     medlem = Medlem.objects.filter(pk=medlemPK, user=None).first()
 
     if not medlem or not testHash(request):
-        raise Http404('No Medlem matches the given query.')
+        raise HttpResponseNotFound('No Medlem matches the given query.')
 
     userCreationForm = UserCreationForm(request.POST or None)
 
@@ -304,6 +306,10 @@ def medlemListe(request):
 
 @harTilgang(instanceModel=Medlem, extendAccess=lambda req: Medlem.objects.filter(pk=req.user.medlem.pk))
 def medlem(request, medlemPK):
+    if request.GET.get('loggInnSom') and request.user.is_superuser:
+        auth_login(request, request.instance.user)
+        return redirect(request.path)
+    
     if not request.user.medlem.redigerTilgangQueryset(Medlem).contains(request.instance) and request.user.medlem != request.instance:
         # Om du ikke har redigeringstilgang på medlemmet, skjul dataen demmers
         MedlemsDataForm = modelform_factory(Medlem, fields=['fornavn', 'mellomnavn', 'etternavn'])
@@ -805,7 +811,7 @@ def lenker(request):
 def lenkeRedirect(request, kor, lenkeNavn):
     if lenke := Lenke.objects.filter(kor__navn=kor, navn=lenkeNavn, redirect=True).first():
         return redirect(lenke.lenke)
-    raise Http404('No Medlem matches the given query.')
+    raise HttpResponseNotFound('Redirect not found.')
 
 
 @harTilgang(querysetModel=Verv)
@@ -905,7 +911,7 @@ def dekorasjon(request, kor, dekorasjonNavn):
 
     DekorasjonForm = addDeleteCheckbox(DekorasjonForm)
 
-    dekorasjonForm = DekorasjonForm(postIfPost(request, 'dekorasjonForm'), instance=request.instance, prefix='dekorasjonForm')
+    dekorasjonForm = DekorasjonForm(postIfPost(request, 'dekorasjonForm'), filesIfPost(request, 'dekorasjonForm'), instance=request.instance, prefix='dekorasjonForm')
     dekorasjonInnehavelseFormset = DekorasjonInnehavelseFormset(postIfPost(request, 'dekorasjonInnehavelser'), instance=request.instance, prefix='dekorasjonInnehavelser')
 
     disableFormMedlem(request.user.medlem, dekorasjonForm)
