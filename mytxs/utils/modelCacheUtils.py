@@ -108,7 +108,7 @@ def dbCache(actualMethod=None, paths=[]):
         if run:
             self.dbCacheField[actualMethod.__name__] = actualMethod(self)
 
-        return self.dbCacheField.get(actualMethod.__name__)
+        return self.dbCacheField.get(actualMethod.__name__, 'UNSAVED_OBJ_STR' if actualMethod.__name__ == '__str__' else None)
 
     _decorator.dbCached = True
     _decorator.paths = paths
