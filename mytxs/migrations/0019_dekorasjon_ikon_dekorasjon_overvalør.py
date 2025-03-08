@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='dekorasjon',
             name='ikon',
-            field=models.ImageField(blank=True, null=True, upload_to=mytxs.models.Dekorasjon.generateUploadTo),
+            field=models.ImageField(blank=True, null=True, upload_to=mytxs.models.Dekorasjon.ikonUploadTo),
         ),
         migrations.AddField(
             model_name='dekorasjon',
