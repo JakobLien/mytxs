@@ -304,6 +304,10 @@ def medlemListe(request):
 
 @harTilgang(instanceModel=Medlem, extendAccess=lambda req: Medlem.objects.filter(pk=req.user.medlem.pk))
 def medlem(request, medlemPK):
+    if request.GET.get('loggInnSom') and request.user.is_superuser:
+        auth_login(request, request.instance.user)
+        return redirect(request.path)
+    
     if not request.user.medlem.redigerTilgangQueryset(Medlem).contains(request.instance) and request.user.medlem != request.instance:
         # Om du ikke har redigeringstilgang på medlemmet, skjul dataen demmers
         MedlemsDataForm = modelform_factory(Medlem, fields=['fornavn', 'mellomnavn', 'etternavn'])
