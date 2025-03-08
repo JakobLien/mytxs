@@ -14,7 +14,7 @@ from django.db.models.functions import Cast
 from django.forms import inlineformset_factory, modelform_factory, modelformset_factory
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from django.http import FileResponse, Http404, HttpResponseForbidden, HttpResponseNotFound
+from django.http import FileResponse, HttpResponseForbidden, HttpResponseNotFound
 
 from mytxs import consts
 from mytxs.fields import intToBitList
@@ -83,7 +83,7 @@ def registrer(request, medlemPK):
     medlem = Medlem.objects.filter(pk=medlemPK, user=None).first()
 
     if not medlem or not testHash(request):
-        raise Http404('No Medlem matches the given query.')
+        raise HttpResponseNotFound('No Medlem matches the given query.')
 
     userCreationForm = UserCreationForm(request.POST or None)
 
@@ -797,7 +797,7 @@ def lenker(request):
 def lenkeRedirect(request, kor, lenkeNavn):
     if lenke := Lenke.objects.filter(kor__navn=kor, navn=lenkeNavn, redirect=True).first():
         return redirect(lenke.lenke)
-    raise Http404('No Medlem matches the given query.')
+    raise HttpResponseNotFound('Redirect not found.')
 
 
 @harTilgang(querysetModel=Verv)

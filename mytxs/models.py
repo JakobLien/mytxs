@@ -320,9 +320,8 @@ class MedlemQuerySet(models.QuerySet):
                 verv__kor__navn__in=[kor.navn, consts.Kor.Sangern] if kor.navn in consts.bareStorkorNavn else [kor.navn]
             ).prefetch_related('verv__kor')),
             Prefetch('dekorasjonInnehavelser', queryset=DekorasjonInnehavelse.objects.none() if kor == None else DekorasjonInnehavelse.objects.filter(
+                ~Q(dekorasjon__overvalør__dekorasjonInnehavelser__medlem__pk=F('medlem__pk')),
                 dekorasjon__kor__navn__in=[kor.navn, consts.Kor.Sangern] if kor.navn in consts.bareStorkorNavn else [kor.navn]
-            ).exclude(
-                dekorasjon__overvalør__dekorasjonInnehavelser__medlem__id=F('medlem__id')
             ).prefetch_related('dekorasjon__kor')),
         )
 

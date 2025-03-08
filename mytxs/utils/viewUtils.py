@@ -134,7 +134,7 @@ def harFilTilgang(medlem, filePath):
             return True
 
     elif type(instance) == Dekorasjon and fieldName == 'ikon':
-        # Dekorasjonsikoner. Alle aktive medlemmer har tilgang
-        return medlem.aktiveKor.exists()
+        # Dekorasjonsikoner
+        return True
 
     return False

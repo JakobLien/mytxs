@@ -1,17 +1,23 @@
-from django.test import TestCase, Client
-from django.forms import ValidationError
-from django.urls import reverse
-from django.db.utils import IntegrityError
-from django.core.management import call_command
-from django.contrib.auth.models import User
-from mytxs.models import Kor, Medlem, Dekorasjon, DekorasjonInnehavelse
 from datetime import date
+from io import StringIO
+from unittest.mock import Mock
 
+from django.contrib.auth.models import User
+from django.db.utils import IntegrityError
+from django.forms import ValidationError
+from django.test import TestCase, Client
+from django.urls import reverse
+
+from mytxs.management.commands.seed import adminAdmin, runSeed
+from mytxs.models import Kor, Medlem, Dekorasjon, DekorasjonInnehavelse
 
 class DekorasjonOvervalørTestCase(TestCase):
     @classmethod
     def setUpTestData(cls):
-        call_command('seed', '--adminAdmin')
+        mock_self = Mock()
+        mock_self.stdout = StringIO()
+        runSeed(mock_self)
+        adminAdmin(mock_self)
 
         cls.user = User.objects.get(username='admin')
 
