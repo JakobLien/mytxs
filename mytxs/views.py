@@ -14,7 +14,7 @@ from django.db.models.functions import Cast
 from django.forms import inlineformset_factory, modelform_factory, modelformset_factory
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from django.http import FileResponse, HttpResponseForbidden, HttpResponseNotFound
+from django.http import FileResponse, Http404, HttpResponseForbidden, HttpResponseNotFound
 
 from mytxs import consts
 from mytxs.fields import intToBitList
