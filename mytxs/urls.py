@@ -72,6 +72,8 @@ urlpatterns = [
 
     path('eksport/<kor:kor>', views.eksport, name='eksport'),
 
+    path('management/<kor:kor>', views.management, name='management'),
+
     path('logg', views.loggListe, name='logg'),
     path('logg/<int:loggPK>', views.logg, name='logg'),
     path('logg/loggRedirect/<str:modelName>/<int:instancePK>', views.loggRedirect, name='loggRedirect'),

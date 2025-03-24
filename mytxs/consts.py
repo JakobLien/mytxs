@@ -173,3 +173,8 @@ def constsContextProcessor(request):
     # hjelp til å skrive rett importnavn, sammenlignet med oppsalg i en dict. 
     # isinstance(v, type) e om det e en klasse, for å inkluder dem også, for klasser e callable. 
     return {'consts': {k: v for k, v in globals().items() if (not k.startswith('_') and (not callable(v) or isinstance(v, type)))}}
+
+adminManagementCommands = [
+    'assignOvervalør',
+    'seed'
+]

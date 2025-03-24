@@ -1,0 +1,45 @@
+{% load mytxsTags %}
+
+{% block content %}
+
+<h1> Vedlikeholdskommandoer for {{ kor }} </h1>
+
+<form method="POST">
+    {% csrf_token %}
+
+    <label for="selected_command">Velg en kommando: </label>
+    <select name="selected_command" id="selected_command">
+        <option value="" data-help="Velg en kommando for å se hjelpeteksten">Velg en kommando</option>
+        {% for name, data in command_data.items %}
+        <option value="{{ name }}" data-help="{{ data.help }}">{{ name }}</option>
+        {% endfor %}
+    </select>
+
+    <br>
+
+    <label for="args">Argumenter: </label>
+    <textarea name="args" id="args"></textarea>
+
+    <br>
+
+    <button type="submit">Kjør</button>
+</form>
+
+<pre id="help-text">Velg en kommando for å se hjelpeteksten</pre>
+
+<script defer>
+    function updateHelpText() {
+        let select = document.getElementById("selected_command");
+        let helpText = select.selectedOptions[0].dataset.help || "Velg en kommando for å se hjelpeteksten";
+
+        // Decode HTML entities to handle special characters properly
+        let decodedText = new DOMParser().parseFromString(helpText, "text/html").body.textContent;
+
+        document.getElementById("help-text").textContent = decodedText;
+    }
+    document.getElementById("selected_command").onchange = updateHelpText;
+</script>
+
+<p>Output: {{ output }}</p>
+
+{% endblock %}

@@ -9,6 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm, SetPasswordForm
 from django.contrib.auth.models import User as AuthUser
 from django.core import mail
+from django.core.management import ManagementUtility, load_command_class
 from django.db.models import Q, F, IntegerField, Prefetch
 from django.db.models.functions import Cast
 from django.forms import inlineformset_factory, modelform_factory, modelformset_factory
@@ -1171,6 +1172,26 @@ For disse medlemmene hentet de ut: %s\n
         'visCSVLenke': eksportForm.is_valid() and eksportForm.cleaned_data['m'] and eksportForm.cleaned_data['f']
     })
 
+@login_required
+def management(request, kor):
+    command_names = consts.adminManagementCommands
+    commands = dict([(name, load_command_class("mytxs", name)) for name in command_names])
+    command_data = dict([(name, {"help": command.help}) for (name, command) in commands.items()]) # Alternativt {'name': name, 'help': command.help} hvis jeg vil utvide senere
+
+    output = ''
+    if request.method == "POST":
+        selected_command = request.POST.get('selected_command')
+        if selected_command != "":
+            args = request.POST.get('args')
+            argv = ["manage.py", selected_command, *args.split()]
+            utility = ManagementUtility(argv)
+            output = utility.execute()
+
+    return render(request, 'mytxs/management.html', {
+        'kor': kor,
+        'command_data': command_data,
+        'output': output,
+    })
 
 @login_required
 def om(request):
