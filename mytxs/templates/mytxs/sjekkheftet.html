@@ -96,6 +96,20 @@
         {% if medlem.småkor %}
         <li>Småkor: <span>{{medlem.småkor}}</span></li>
         {% endif %}
+
+        {% if medlem.funFact %}
+            <span>
+                Fun fact: 
+                {{ medlem.funFact|slice:":50" }}
+                {% if medlem.funFact|length > 50 %}
+                    <span id="more" class="hidden">{{ medlem.funFact|slice:"50:" }}</span>
+                    <button onclick="
+                        const more = this.previousElementSibling.classList.toggle('hidden');
+                        this.textContent = more ? '... Vis mer' : 'Vis mindre';
+                    ">... Vis mer</button>
+                {% endif %}
+            </span>
+        {% endif %}
     </ul>
 </div>
 <br>

@@ -407,6 +407,7 @@ class Medlem(DbCacheModel):
     emnekoder = models.CharField(blank=True)
     boAdresse = models.CharField(max_length=100, blank=True, verbose_name='Bo adresse')
     foreldreAdresse = models.CharField(max_length=100, blank=True, verbose_name='Foreldre adresse')
+    funFact = models.TextField(max_length=2000, blank=True, verbose_name='fun fact')
 
     @dbCache(paths=['.boAdresse'])
     def boAdresseCord(self):
