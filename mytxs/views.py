@@ -1,6 +1,8 @@
 import datetime
 import json
 import csv
+import contextlib
+import io
 
 from django import forms
 from django.contrib import messages
@@ -9,7 +11,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm, SetPasswordForm
 from django.contrib.auth.models import User as AuthUser
 from django.core import mail
-from django.core.management import ManagementUtility, load_command_class
+from django.core.management import execute_from_command_line, load_command_class
 from django.db.models import Q, F, IntegerField, Prefetch
 from django.db.models.functions import Cast
 from django.forms import inlineformset_factory, modelform_factory, modelformset_factory
@@ -1178,19 +1180,29 @@ def management(request, kor):
     commands = dict([(name, load_command_class("mytxs", name)) for name in command_names])
     command_data = dict([(name, {"help": command.help}) for (name, command) in commands.items()]) # Alternativt {'name': name, 'help': command.help} hvis jeg vil utvide senere
 
-    output = ''
+    stdout_buf = io.StringIO()
+    stderr_buf = io.StringIO()
+    error = ''
+
     if request.method == "POST":
         selected_command = request.POST.get('selected_command')
         if selected_command != "":
             args = request.POST.get('args')
             argv = ["manage.py", selected_command, *args.split()]
-            utility = ManagementUtility(argv)
-            output = utility.execute()
+            try:
+                with contextlib.redirect_stdout(stdout_buf), contextlib.redirect_stdout(stderr_buf):
+                    execute_from_command_line(argv)
+            except SystemExit as e:
+                error = e
+            except Exception as e:
+                error = e
 
     return render(request, 'mytxs/management.html', {
         'kor': kor,
         'command_data': command_data,
-        'output': output,
+        'stdout': stdout_buf.getvalue(),
+        'stderr': stderr_buf.getvalue(),
+        'error': error,
     })
 
 @login_required

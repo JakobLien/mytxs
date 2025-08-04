@@ -40,6 +40,13 @@
     document.getElementById("selected_command").onchange = updateHelpText;
 </script>
 
-<p>Output: {{ output }}</p>
+<label for="stdout">
+<pre id="stdout">Stdout: {{ stdout }}</pre>
+
+<label for="stderr">
+<pre id="stderr">Stderr: {{ stderr }}</pre>
+
+<label for="error">
+<pre id="error">Error: {{ error }}</pre>
 
 {% endblock %}
