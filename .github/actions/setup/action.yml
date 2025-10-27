@@ -2,15 +2,13 @@ name: Setup Django
 runs:
   using: composite
   steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+    - name: Sett opp Python 3.11.2
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.11.2'
 
-      - name: Sett opp Python 3.11.2
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.11.2'
-
-      - name: Installer dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
+    - name: Installer dependencies
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install -r requirements.txt

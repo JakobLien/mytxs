@@ -5,11 +5,15 @@ on:
     branches: [ "main", "develop" ]
   workflow_dispatch:
 
+env:
+  DJANGO_SECRET: "1234"
+
 jobs:
   commited-migrations:
     runs-on: ubuntu-latest
     steps:
-      - uses: ./.github/actions/setup/action.yml
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
       - run: |
           python manage.py makemigrations
           git diff --quiet 
@@ -17,11 +21,20 @@ jobs:
   commited-tailwind:
     runs-on: ubuntu-latest
     steps:
-      - uses: ./.github/actions/setup/action.yml
-      - run: |
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - name: Regenerer tailwind uten endringer
+        run: |
           tailwindcss --cwd mytxs -i static/mytxs/inputStyles.css -o static/mytxs/styles.css --minify
           tailwindcss --cwd docs -o styles.css --minify
-          git diff --quiet
+
+          # git diff --exit-code # burda funka fjell, men MIT licence versjonen endre seg over tid
+          # så derfor gjør vi følgende istedet, som ser etter linjer i diffen som ikke er kommentarer
+
+          if [[ $(git diff -U0 | grep "^[+-][^/+-]") ]]; then
+            git diff
+            exit 1
+          fi
 
   django-test:
     runs-on: ubuntu-latest
@@ -33,14 +46,21 @@ jobs:
           POSTGRES_PASSWORD: postgrespassword
         ports:
           - 5432:5432
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgrespassword
+      PGDATABASE: postgres
 
     steps: 
-      - uses: ./.github/actions/setup/action.yml
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
 
       - name: Vente til Postgres er klar
         run: |
           until pg_isready; do
-            echo "Venter på Posgres..."
+            echo "Venter på Postgres..."
             sleep 1
           done
           psql --version
