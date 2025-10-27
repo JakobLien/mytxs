@@ -1170,10 +1170,3 @@ For disse medlemmene hentet de ut: %s\n
         'eksportForm': eksportForm,
         'visCSVLenke': eksportForm.is_valid() and eksportForm.cleaned_data['m'] and eksportForm.cleaned_data['f']
     })
-
-
-@login_required
-def om(request):
-    return render(request, 'mytxs/om.html', {
-        'heading': 'Feedback og om prosjektet'
-    })

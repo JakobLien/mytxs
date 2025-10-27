@@ -90,7 +90,7 @@ class HendelseFilterForm(NavnKorFilterForm):
 
 class MedlemFilterForm(NavnKorFilterForm):
     # Formet arver feltan navn og kor, men implementere applyFilter dem annerledes fordi medlemmer har navn og kor på en annen måte enn øverige objekter
-    K = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + [(year, year) for year in range(2023, 1909, -1)])
+    K = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + [(year, year) for year in range(datetime.datetime.today().year, 1909, -1)])
     stemmegruppe = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + [(i, i) for i in ['Dirigent', 'ukjentStemmegruppe', *consts.hovedStemmegrupper]])
     dato = MyDateFormField(required=False)
     ikkeOverførtData = forms.BooleanField(required=False, label='Ikke overført data', help_text=toolTip('Bare vis medlemmer som ikke har overført dataen sin til MyTXS 2.0.'))

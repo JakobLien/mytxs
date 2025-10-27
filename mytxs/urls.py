@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.http import FileResponse
 from django.urls import include, path, register_converter
 
 from mytxs import views, consts
@@ -22,18 +23,13 @@ register_converter(KorConverter, "kor")
 
 urlpatterns = [
     path('admin', admin.site.urls, name='admin'),
-
     path("__debug__/", include("debug_toolbar.urls")),
-
-    path('uploads/<path:path>', views.serve, name='serve'),
 
     path('', views.login, name='login'),
     path('logout', views.logout, name='logout'),
     path('endreLogin', views.endreLogin, name='endreLogin'),
     path('registrer/<int:medlemPK>', views.registrer, name='registrer'),
     path('overfør/<str:jwt>', views.overfør, name='overfør'),
-    
-    path('om', views.om, name='om'),
 
     path('medlem', views.medlemListe, name='medlem'),
     path('medlem/<int:medlemPK>', views.medlem, name='medlem'),
@@ -75,4 +71,7 @@ urlpatterns = [
     path('logg', views.loggListe, name='logg'),
     path('logg/<int:loggPK>', views.logg, name='logg'),
     path('logg/loggRedirect/<str:modelName>/<int:instancePK>', views.loggRedirect, name='loggRedirect'),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+    path('uploads/<path:path>', views.serve, name='serve'),
+    path('docs/', lambda req: FileResponse(open('docs/index.html', 'rb')), name='docs')
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + static(settings.DOCS_URL, document_root=settings.DOCS_ROOT)

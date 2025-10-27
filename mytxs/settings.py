@@ -191,6 +191,10 @@ INTERNAL_IPS = [
 MEDIA_ROOT = os.path.join(BASE_DIR, 'uploads')
 MEDIA_URL = '/uploads/'
 
+# Dokumentasjons filer
+DOCS_ROOT = os.path.join(BASE_DIR, 'docs')
+DOCS_URL = '/docs/'
+
 # Logging 
 # Følgende er en kopi av default konfigurasjonen med noen forskjeller
 # https://docs.djangoproject.com/en/4.2/ref/logging/#default-logging-definition

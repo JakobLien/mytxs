@@ -1,69 +1,75 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* Make links look like links */
-a {
-   @apply underline
+@import 'tailwindcss';
+@plugin "@tailwindcss/forms";
+@theme {
+    --color-transparent: transparent;
+    --color-current: currentColor;
+    --color-customPurple: #aaaaff;
 }
 
-/* Om elementet er target (har id verdi for #[id] i urlen) øke vi brightness så det blir highlighta */
-* {
-    @apply target:backdrop-brightness-125
-}
+@layer components {
+    /* Make links look like links */
+    a {
+        @apply underline
+    }
 
-/* FORMS */
+    /* Om elementet er target, altså har url focus (#[id]), øke brightness. Fin generell tilnærming */
+    * {
+        @apply target:backdrop-brightness-125
+    }
 
- /* Make buttons and submit look like buttons */
-input[type=submit], input[type=button] {
-    @apply bg-gray-200 rounded border border-gray-600 px-1
-}
+    /* FORMS */
 
-/* Generell input styling */
-input, select, textarea {
-    @apply !py-0 pl-1 my-1 !text-sm
-}
+    /* Make buttons and submit look like buttons */
+    input[type=submit], input[type=button] {
+        @apply bg-gray-200 rounded border border-gray-600 px-1
+    }
 
-/* Få input og textarea til å vises annerledes når dem e disabled. 
-Alle selects er popup, så de skal ikke være gjennomsiktige. */
-input, textarea {
-    @apply disabled:opacity-40
-}
+    /* Generell input styling */
+    input, select, textarea {
+        @apply py-0 my-1 text-sm
+    }
 
-/* Gjør number inputs kortere (7 siffer bredt i firefox) */
-input[type=number] {
-    @apply w-28
-}
+    /* Få input og textarea til å vises annerledes når dem e disabled. 
+    Alle selects er popup, så de skal ikke være gjennomsiktige. */
+    input, textarea {
+        @apply disabled:opacity-40
+    }
 
-/* Gjør at select markerer checked elementer */
-option:checked {
-    @apply bg-gray-300
-}
+    /* Gjør number inputs kortere (7 siffer bredt i firefox) */
+    input[type=number] {
+        @apply w-28
+    }
 
-/* Gjør at errorlist vises inline, ryddigere for inline formsets */
-.errorlist {
-    @apply bg-red-400 rounded-md pl-2 inline-block [&>*]:inline-block
-}
+    /* Gjør at select markerer checked elementer */
+    option:checked {
+        @apply bg-gray-300
+    }
 
-/*
-Tanken her er at når vi viser forms over flere linjer setter vi de i <p>
-Så disse to statementene er basicly: 
-- Om du er i et inline formset, vær liten og forstørr ved på focus
-- Om ikke, vær stor
-*/
-textarea {
-    @apply mb-0 resize-none
-}
+    /* Gjør at errorlist vises inline, ryddigere for inline formsets */
+    .errorlist {
+        @apply bg-red-400 rounded-md pl-2 inline-block [&>*]:inline-block
+    }
 
-:not(p) > textarea {
-    @apply w-20 h-5 transition-all duration-300 focus:w-80 focus:h-40 focus:fixed focus:z-20 focus:left-1/2 focus:top-1/2 focus:-ml-40 focus:-mt-40 focus:shadow-2xl
-}
+    /*
+    Tanken her er at når vi viser forms over flere linjer setter vi de i <p>
+    Så disse to statementene er basicly: 
+    - Om du er i et inline formset, vær liten og forstørr ved på focus
+    - Om ikke, vær stor
+    */
+    textarea {
+        @apply mb-0 resize-none
+    }
 
-p > textarea {
-    @apply w-80 h-40
-}
+    :not(p) > textarea {
+        @apply w-20 h-5 transition-all duration-300 focus:w-80 focus:h-40 focus:fixed focus:z-20 focus:left-1/2 focus:top-1/2 focus:-ml-40 focus:-mt-40 focus:shadow-2xl
+    }
 
-/* Gjør at hover ikke triggere på labels, e wack for dropdowns */
-label {
-    pointer-events:none;
+    p > textarea {
+        @apply w-80 h-40
+    }
+
+    /* Gjør at hover ikke triggere på labels, e wack for dropdowns */
+    label {
+        pointer-events:none;
+    }
 }

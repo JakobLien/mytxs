@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8"/>
+    <link rel="stylesheet" href="./styles.css">
+    <script>
+        function getCurrPath() { return window.location.hash.substring(1).split('#')[0]; }
+
+        function upOneLevel(path) {
+            if (path.endsWith('/')) {
+                path = path.substring(0, path.length - 1);
+            }
+            path = path.substring(0, path.lastIndexOf('/') + 1);
+            return path || '/';
+        }
+
+        let loadedPath = '';
+        async function update() {
+            let currPath = getCurrPath();
+            if (currPath === '') {
+                window.location.hash = '/';
+                return;
+            }
+
+            // Ikke reload om man bare har trykt på en overskrift. 
+            if (currPath === loadedPath) { return; }
+            loadedPath = currPath;
+
+            let reqPath = currPath;
+            if (currPath.endsWith('/')) {
+                reqPath += 'readme.md';
+            } else if (!currPath.endsWith('.md')) {
+                reqPath += '.md';
+            }
+
+            console.log('Loading', `${reqPath}`);
+            fetch(`/docs${reqPath}`).then(async res => {
+                // Om man ikke finn fila, prøv deg fram oppover. 
+                if (res.status !== 200) {
+                    const upPath = upOneLevel(currPath);
+                    window.location.hash = upPath;
+                    return;
+                }
+
+                let markdown = await res.text();
+
+                navbar.innerHTML = buildNavBar(markdown);
+                content.innerHTML = convertMarkdown(markdown);
+
+                window.setTimeout(() => {
+                    // Reload hash target så den focuse på tingen den lasta inn. 
+                    // Må vær en timeout her for at nettlesern skal focus inn på rett sted, etter htmlen har blitt satt inn. 
+                    const currHash = window.location.hash;
+                    window.location.hash = currHash.split('#')[0];
+                    window.location.hash = currHash;
+                }, 1)
+            });
+        }
+        update();
+        addEventListener("hashchange", update);
+
+        const headerStyles = 'mt-12 target:bg-slate-700';
+        const tailwindStyles = {
+            'h': [
+                'text-4xl',
+                'text-3xl',
+                'text-2xl', 
+                'text-xl',
+                'text-lg',
+                'text-base'
+            ].map(s => (s.split(' ').concat(headerStyles.split(' ')).join(' '))),
+            'p': 'py-2',
+            'a': 'underline text-blue-500',
+            'ul': 'list-disc ml-8',
+            'ulLi': '',
+            'ol': 'list-decimal ml-8',
+            'olLi': '',
+            'code': 'px-8 py-4 my-4 text-orange-400 bg-neutral-700 rounded-lg overflow-x-scroll',
+            'inlineCode': 'text-orange-400 bg-neutral-700 rounded-sm p-0.5 px-1',
+            'quote': 'text-wrap border-l-black border-l-4 rounded-sm pl-4',
+        };
+        const onClickCopyInnerText = 'onclick=' + "\"if(this.text === undefined) {this.text = this.innerText} navigator.clipboard.writeText(this.text); this.innerText = 'Copied!'; this.classList.add('text-center'); setTimeout(() => {this.innerText = this.text; this.classList.remove('text-center');}, 1000)\"";
+
+        function getLineElement(line) {
+            if (/^#+ /.test(line)) {
+                return '# '
+            } else if (line.trimStart().startsWith('- ')) {
+                return 'list';
+            } else if (/^\s*\d+\. /.test(line)) {
+                 return 'list';
+            } else if (line.startsWith('> ')) {
+                return '> ';
+            } else if (line.startsWith(' ')) {
+                return 'code';
+            } else if (!line.trim()) {
+                return '';
+            }
+            return 'p';
+        }
+
+        function sanitize(text) {
+            return text.replaceAll('<', '&lt').replaceAll('>', '&gt');
+        }
+
+        function fixLink(link) {
+            if (link.startsWith('http')) { // Absolutte lenker
+                return link;
+            }
+
+            if (link.startsWith('#')) { // Lenker til overskrifter på denne siden
+                return '#' + getCurrPath() + link;
+            }
+
+            // Konverter relativ path til absolutt path fra docs mappa. 
+            const currentFolder = window.location.hash.substring(1, window.location.hash.lastIndexOf('/') + 1);
+            let totalPath = (currentFolder + link).replaceAll('/./', '/');
+            let oldLength = -1;
+            while (totalPath.length != oldLength) {
+                oldLength = totalPath.length;
+                totalPath = totalPath.replaceAll(/\/[^\/#]+\/\.\.\//g, '/');
+            }
+
+            // Om vi lenke opp og ut av docs mappa e dette en lenke til en kodefil.
+            if (totalPath.includes('/../')) { // Lenker til github kodefiler
+                return 'https://github.com/JakobLien/mytxs/tree/main' + totalPath.replace('/../', '/');
+            }
+
+            // Lenker til dokumentasjonsfiler
+            return ('#' + totalPath).replace('.md', '').replace('/readme', '/');
+        }
+
+        function formatText(text) {
+            text = sanitize(text);
+
+            // Deal med inline code, og replace så vi kan ha asterisks inni der. 
+            text = text.split('`').map((e, i) => i%2 === 0 ? e : `<code class="${tailwindStyles['inlineCode']}">` + e.replaceAll('*', '<ACTUAL_ASTERISK>') + '</code>').join('');
+
+            // Deal med fet skrift
+            text = text.split('**').map((e, i) => i%2 === 0 ? e : '<b>' + e + '</b>').join('');
+
+            // Deal med skråskrift
+            text = text.split('*').map((e, i) => i%2 === 0 ? e : '<i>' + e + '</i>').join('');
+
+            // Rett opp i asterisks i kode
+            text = text.replaceAll('<ACTUAL_ASTERISK>', '*')
+
+            // Deal med lenker
+            for (const match of text.matchAll(/\[(.*?)\]\((.*?)\)/g)) {
+                text = text.replace(match[0], `<a href="${fixLink(match[2])}" class="${tailwindStyles['a']}">${match[1]}</a>`)
+            }
+
+            return text;
+        }
+
+        function headerToId(heading) {
+            // Dette e syntaxen for markdown lenker: https://stackoverflow.com/a/51226139
+            // E velge å skipp regel 5, overskrifta i en fil burde vær unike.
+            return heading.substring(heading.indexOf(' ') + 1).toLowerCase().replaceAll(/[^\w\s]|_/g, "").replaceAll(/\s+/g, '-')
+        }
+
+        function header(heading) {
+            const hLevel = heading.indexOf(' ');
+            const id = getCurrPath() + '#' + headerToId(heading);
+            return `<h${hLevel} class="${tailwindStyles['h'][hLevel-1]}" id="${id}"><a href="#${id}">${formatText(heading)}</a></h${hLevel}>`
+        }
+
+        function getNrLeadingSpaces(line) { return line.length - line.trimStart().length; }
+
+        function list(text) {
+            // Rekursiv funksjon som deale med ordered og unordered lists inni hverandre. 
+            // Deale ikkje med fleire ulike på samme nivå.  
+            const ordered = !text.trimStart().startsWith('- ');
+            let html = ordered ? `<ol class="${tailwindStyles['ol']}">` : `<ul class="${tailwindStyles['ul']}">`;
+
+            let lines = text.split('\n');
+            while (lines.length > 0) {
+                if (lines[0].startsWith(' ')) {
+                    let indentedLines = [lines.shift()];
+                    while (lines.length > 0 && lines[0].startsWith(' ')) {
+                        indentedLines.push(lines.shift())
+                    }
+
+                    html += list(indentedLines.map(
+                        l => l.substring(getNrLeadingSpaces(indentedLines[0]))
+                    ).join('\n'));
+                } else {
+                    const line = lines.shift();
+                    html += `<li class="${tailwindStyles[ordered ? 'olLi' : 'ulLi']}">` + formatText(line.substring(line.indexOf(' ')+1)) + '</li>';
+                }
+            }
+
+            html += ordered ? '</ol>' : '</ul>';
+
+            return html;
+        }
+
+        function blockQuote(text) {
+            return `<pre class="${tailwindStyles['quote']}">` + convertMarkdown(text.split('\n').map(l => l.substring(2)).join('\n')) + '</pre>';
+        }
+
+        function code(text) {
+            // Støtte ikkje doble newlines i koden, og anntar at første linja definere identation. 
+            return `<pre class="${tailwindStyles['code']}" ${onClickCopyInnerText}>` + text.split('\n').map(l => l.substring(getNrLeadingSpaces(text))).join('\n') + '</pre>'
+        }
+
+        function paragraph(text) {
+            return `<p class="${tailwindStyles['p']}">` + formatText(text) + '</p>';
+        }
+
+        function convertMarkdown(markdown) {
+            let lines = markdown.split('\n');
+
+            let paragraphs = [lines[0]]
+
+            for (let i = 1; i < lines.length; i++) {
+                if (!lines[i].trim()) continue;
+                if (getLineElement(lines[i-1]) === getLineElement(lines[i])) {
+                   paragraphs[paragraphs.length-1] += '\n' + lines[i];
+                } else {
+                   paragraphs.push(lines[i])
+                }
+            }
+
+            html = '';
+            for (const element of paragraphs) {
+                if (element.trim() === '') { continue }
+                switch (getLineElement(element)) {
+                    case '# ':
+                        html += header(element);
+                        break;
+                    case 'list':
+                        html += list(element);
+                        break;
+                    case '> ':
+                        html += blockQuote(element);
+                        break;
+                    case 'code':
+                        html += code(element);
+                        break;
+                    default:
+                        html += paragraph(element);
+                }
+            }
+
+            html = html.replaceAll(' class=""', '');
+
+            return html;
+        }
+
+        function buildNavBar(markdown) {
+            headings = markdown.split('\n').filter(l => l.startsWith('#'));
+            let navbarMarkdown = headings.map(l => `${'  '.repeat(l.indexOf(' ') - 1)}- [${l.substring(l.indexOf(' ') + 1)}](#${headerToId(l)})`).join('\n');
+
+            let pathSegment = getCurrPath();
+            let pathLine = '';
+            for (let levelsUp = pathSegment.endsWith('/') ? 1 : 0; levelsUp < (pathSegment.match(/\//g) || []).length; levelsUp++) {
+                pathSegment = upOneLevel(pathSegment)
+                pathLine = `[${pathSegment.split('/').filter(e => e).at(-1) || '#'}](${'../'.repeat(levelsUp) || './'})` + (pathLine ? ' > ' : '') + pathLine;
+            }
+
+            return convertMarkdown(pathLine ? '- ' + pathLine + ' > ' + navbarMarkdown.substring(2) : navbarMarkdown);
+        }
+
+        // Fiks at en overskrift i navbar e highlighta etter kor man e i dokumentet. 
+        const navStyleAbove = 'text-blue-600';
+        const navStyleCurrent = 'text-blue-300';
+        const navStyleBelow = 'text-blue-500';
+        addEventListener("scroll", (event) => {
+            function headingTop(elem) { return document.getElementById(elem.getAttribute('href').substring(1))?.getBoundingClientRect().top; }
+            const navLinks = Array.from(document.querySelectorAll("#navbar > * a")).filter(navLink => headingTop(navLink) !== undefined);
+            const positions = navLinks.map(navLink => Math.abs(headingTop(navLink)));
+            const closestHeadingIndex = positions.indexOf(Math.min(...positions)); // Lineær kjøretid finn nærmeste overskrift
+            for (const [index, navLink] of navLinks.entries()) {
+                navLink.classList.remove(navStyleAbove, navStyleCurrent, navStyleBelow);
+                if (index < closestHeadingIndex) {
+                    navLink.classList.add(navStyleAbove);
+                } else if (index === closestHeadingIndex) {
+                    navLink.classList.add(navStyleCurrent);
+                } else {
+                    navLink.classList.add(navStyleBelow);
+                }
+            }
+        })
+    </script>
+</head>
+<body class="md:pl-64 pb-80 bg-neutral-800 text-neutral-200">
+    <div id="navbar" class="md:fixed md:left-0 md:w-64 bg-neutral-700 md:rounded-r-3xl py-2 pr-2"></div>
+    <div id="content" class="max-w-4xl px-10 m-auto"></div>
+</body>
