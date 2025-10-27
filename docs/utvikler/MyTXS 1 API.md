@@ -1,4 +1,5 @@
 # MyTxS export-API
+
 ## Kort om API-et
 - API-et krever en Bearer token for alle kall
 - Medlem-delen av API-et tilbyr i utgangspunktet "arkiv"-informasjon om hvert medlem
@@ -13,6 +14,7 @@ Denne funksjonaliteten bør integreres mot MyTXS 2.0, f.eks. ved at det generere
 4. Kopiere JWT i bunn av siden og bruk som verdi for "jwt="-parameteret i GET-forespørselen mot API-et
 
 ## Typer
+
 ### Medlem
 {
   "medlemsnummer": "TSS191018",
@@ -55,12 +57,14 @@ Denne funksjonaliteten bør integreres mot MyTXS 2.0, f.eks. ved at det generere
 }
 
 ## Endepunkter
+
 ### TKS
 - https://mitks.mannskor.no/api/medlem
     - Tilbyr en liste over alle medlemmer med "arkiv"-informasjon
 - https://mitks.mannskor.no/api/medlem/<\d{6}>
     - Tilbyr et enkelt medlem med "arkiv"-informasjon
     - Dersom et "jwt="-parameter sendes med *må* dette være korrekt - det kan da utvide informasjonen som tilbys
+
 ### TSS
 - https://mytss.mannskor.no/api/medlem
 - https://mytss.mannskor.no/api/medlem/<\d{6}>
@@ -69,6 +73,7 @@ Denne funksjonaliteten bør integreres mot MyTXS 2.0, f.eks. ved at det generere
 - Nøkkelen er av type Bearer token
 
 ## Eksempelkode
+
 ### Hent alle medlemmer i TSS
 `curl -H "Authorization: Bearer $API_KEY" https://mytss.mannskor.no/api/medlem`
 
@@ -86,4 +91,3 @@ Denne funksjonaliteten bør integreres mot MyTXS 2.0, f.eks. ved at det generere
     - curl -H "Authorization: Bearer $API_KEY" https://mitks.mannskor.no/api/medlem/193080?jwt=123
 - HTTP 404, error: INVALID_PARAMS => Du etterspør et objekt (for eksempel et medlem) som ikke finnes
    - curl -H "Authorization: Bearer $API_KEY" https://mitks.mannskor.no/api/medlem/193000
-
