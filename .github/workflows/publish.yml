@@ -1,0 +1,28 @@
+name: Publish to server
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish to server
+        run: |
+          # Logg på servern
+          echo "${{ secrets.MYTXS_SSH_KEY }}" > ./SSH_KEY
+          chmod 600 ./SSH_KEY # SSH kreve begrensede read permissions. 
+          ssh -i ./SSH_KEY jakobli@login.samfundet.no "
+            set -e # Gjør at en feilende kommando exite ssh
+            
+            # På servern:
+            cd ../felles/web/mytxs
+            git pull
+            source venv/bin/activate
+            python -m pip install -r requirements.txt
+            python manage.py migrate
+            python manage.py collectstatic --noinput
+            rm reload; touch reload; rm reload
+          "

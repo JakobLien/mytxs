@@ -12,15 +12,16 @@ from django.core import mail
 from django.db.models import Q, F, IntegerField, Prefetch
 from django.db.models.functions import Cast
 from django.forms import inlineformset_factory, modelform_factory, modelformset_factory
+from django.http import FileResponse, HttpResponseForbidden, HttpResponseNotFound
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from django.http import FileResponse, HttpResponseForbidden, HttpResponseNotFound
+from django.views.decorators.cache import never_cache
 
 from mytxs import consts
 from mytxs.fields import intToBitList
+from mytxs.forms import HendelseFilterForm, LoggFilterForm, MedlemFilterForm, NavnKorFilterForm, ShareCalendarForm, TurneFilterForm, VervFilterForm, OppmøteFilterForm
 from mytxs.management.commands.transfer import transferByJWT
 from mytxs.models import Dekorasjon, DekorasjonInnehavelse, Hendelse, Kor, Lenke, Logg, Medlem, MedlemQuerySet, Tilgang, Turne, Verv, VervInnehavelse, Oppmøte
-from mytxs.forms import HendelseFilterForm, LoggFilterForm, MedlemFilterForm, NavnKorFilterForm, ShareCalendarForm, TurneFilterForm, VervFilterForm, OppmøteFilterForm
 from mytxs.utils.formAccess import addHelpText, disableBrukt, disableFields, disableFormMedlem, removeFields
 from mytxs.utils.formAddField import addDeleteCheckbox, addDeleteUserCheckbox, addHendelseMedlemmer, addReverseM2M
 from mytxs.utils.googleCalendar import getOrCreateAndShareCalendar
@@ -47,6 +48,8 @@ def serve(request, path):
     except FileNotFoundError:
         return HttpResponseNotFound()
 
+
+@never_cache # For å fiks csrf feil med QR kode scanning. 
 def login(request):
     if request.user.is_authenticated:
         return render(request, 'mytxs/base.html')
@@ -313,12 +316,11 @@ def medlem(request, medlemPK):
     if not request.user.medlem.redigerTilgangQueryset(Medlem).contains(request.instance) and request.user.medlem != request.instance:
         # Om du ikke har redigeringstilgang på medlemmet, skjul dataen demmers
         MedlemsDataForm = modelform_factory(Medlem, fields=['fornavn', 'mellomnavn', 'etternavn'])
-    else:
+    elif request.user.medlem.redigerTilgangQueryset(Medlem, includeExtended=False).contains(request.instance):
         # Om du har tilgang ikke fordi det e deg sjølv, også vis gammeltMedlemsnummer og død feltan
-        if request.user.medlem.redigerTilgangQueryset(Medlem, includeExtended=False).contains(request.instance):
-            MedlemsDataForm = addDeleteUserCheckbox(modelform_factory(Medlem, exclude=['user']))
-        else:
-            MedlemsDataForm = modelform_factory(Medlem, exclude=['user', 'gammeltMedlemsnummer', 'død'])
+        MedlemsDataForm = addDeleteUserCheckbox(modelform_factory(Medlem, exclude=['user']))
+    else:
+        MedlemsDataForm = modelform_factory(Medlem, exclude=['user', 'gammeltMedlemsnummer', 'død'])
     VervInnehavelseFormset = inlineformset_factory(Medlem, VervInnehavelse, formset=getPaginatedInlineFormSet(request), **inlineFormsetArgs)
     DekorasjonInnehavelseFormset = inlineformset_factory(Medlem, DekorasjonInnehavelse, formset=getPaginatedInlineFormSet(request), **inlineFormsetArgs)
 
@@ -340,6 +342,9 @@ def medlem(request, medlemPK):
         instance=request.instance, 
         prefix='dekorasjonInnehavelser'
     )
+
+    if request.instance.storkorNavn() == 'TKS' or request.instance.aktiveKor.filter(navn=consts.Kor.TSS):
+        removeFields(medlemsDataForm, 'ønskerVårbrev')
 
     if disableFormMedlem(request.user.medlem, medlemsDataForm):
         if 'gammeltMedlemsnummer' in medlemsDataForm.fields:

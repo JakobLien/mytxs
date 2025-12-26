@@ -16,6 +16,12 @@
 
         let loadedPath = '';
         async function update() {
+            // Sjekk om dem har encoda # til %23 i hashen, Slack gjør det ihvertfall. 
+            if (window.location.hash !== decodeURIComponent(window.location.hash)) {
+                window.location.hash = decodeURIComponent(window.location.hash);
+                return;
+            }
+
             let currPath = getCurrPath();
             if (currPath === '') {
                 window.location.hash = '/';
