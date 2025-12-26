@@ -62,6 +62,15 @@ class GoogleCalendarManager:
                 # print('Wrote new google calendar token!')
         self.service = build("calendar", "v3", credentials=creds)
 
+    def paginateList(self, endpoint, **listArguments):
+        results = []
+        request = endpoint.list(**listArguments)
+        while request is not None:
+            res = request.execute()
+            results.extend(res.get('items', []))
+            request = endpoint.list_next(request, res)
+        return results 
+
     @exponentialBackoff
     def createCalendar(self, name, description):
         return self.service.calendars().insert(body={
@@ -86,11 +95,11 @@ class GoogleCalendarManager:
 
     @exponentialBackoff
     def getCalendarList(self):
-        return self.service.calendarList().list(maxResults=250).execute().get('items', [])
-    
+        return self.paginateList(self.service.calendarList(), maxResults=250)
+
     @exponentialBackoff
     def listEvents(self, calendarId):
-        return self.service.events().list(calendarId=calendarId, maxResults=2500).execute().get('items', [])
+        return self.paginateList(self.service.events(), calendarId=calendarId, maxResults=2500)
 
     @exponentialBackoff
     def getEventId(self, calendarId, UID):
@@ -185,16 +194,19 @@ def getOrCreateAndShareCalendar(korNavn, medlem, gmail):
 
     calendarId = gCalManager.getCalendarIDs(korNavn, [medlem]).get(medlem)
 
-    if not calendarId:
-        calendarId = gCalManager.createCalendar(f'{korNavn} semesterplan', f'{korNavn}-{medlem.pk}')
-
+    if calendarId:
         gCalManager.shareCalendar(calendarId, gmail)
+        return
 
-        for hendelse in medlem.getHendelser(korNavn):
-            gCalManager.createEvent(
-                calendarId,
-                getHendelseBody(getVeventFromHendelse(hendelse, medlem))
-            )
+    calendarId = gCalManager.createCalendar(f'{korNavn} semesterplan', f'{korNavn}-{medlem.pk}')
+
+    gCalManager.shareCalendar(calendarId, gmail)
+
+    for hendelse in medlem.getHendelser(korNavn):
+        gCalManager.createEvent(
+            calendarId,
+            getHendelseBody(getVeventFromHendelse(hendelse, medlem))
+        )
 
 
 @thread

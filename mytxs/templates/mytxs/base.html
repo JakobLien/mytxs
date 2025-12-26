@@ -18,7 +18,7 @@
     {% block jsHead %} {% endblock %}
 </head>
 
-<body class="bg-customPurple h-screen">
+<body class="bg-customPurple">
     {% block messages %}
     {% if messages %}
     <div class="fixed inset-x-0 top-4 text-center z-10" onclick="this.classList.add('hidden');">
@@ -124,7 +124,7 @@
                 {% endblock %}
             </div>
 
-            <div id="content">
+            <div id="content" class="pb-10">
                 {% block heading %}
                 <h1 class="text-2xl">
                     {% if heading %}

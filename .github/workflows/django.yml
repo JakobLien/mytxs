@@ -2,14 +2,14 @@ name: Django CI
 
 on:
   pull_request:
-    branches: [ "main", "develop" ]
+    branches: [ main, develop ]
   workflow_dispatch:
 
 env:
   DJANGO_SECRET: "1234"
 
 jobs:
-  commited-migrations:
+  committed-migrations:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -18,7 +18,7 @@ jobs:
           python manage.py makemigrations
           git diff --quiet 
 
-  commited-tailwind:
+  committed-tailwind:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

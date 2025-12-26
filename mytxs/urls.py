@@ -74,4 +74,4 @@ urlpatterns = [
 
     path('uploads/<path:path>', views.serve, name='serve'),
     path('docs/', lambda req: FileResponse(open('docs/index.html', 'rb')), name='docs')
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + static(settings.DOCS_URL, document_root=settings.DOCS_ROOT)
+] + static(settings.DOCS_URL, document_root=settings.DOCS_ROOT) # Serves direkte av apache på servern

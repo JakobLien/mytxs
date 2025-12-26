@@ -161,7 +161,9 @@ def insertMedlem(medlemDict):
             'fornavn': medlemDict['fornavn'],
             'mellomnavn': medlemDict.get('mellomnavn', ''),
             'etternavn': medlemDict['etternavn'],
-            'ønskerVårbrev': medlemDict.get('status') == 'Sluttet (skal ha vårbrev)' or medlemDict.get('status') == 'Støttemedlem',
+            'ønskerVårbrev': 
+                medlemDict.get('status') in ['Sluttet (skal ha vårbrev)', 'Støttemedlem'] or 
+                (kor.navn == consts.Kor.TSS and not medlemDict.get('sluttet')),
             'død': medlemDict.get('status') == 'Død',
             'notis': medlemDict.get('anmerkninger', '') + ('\n' if medlemDict.get('anmerkninger', '') else '')
         }
