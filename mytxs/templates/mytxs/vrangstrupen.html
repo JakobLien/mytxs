@@ -1,0 +1,30 @@
+{% extends "mytxs/base.html" %}
+{% load mytxsTags %}
+
+{% block content %}
+<p>(Om noe er feil eller mangler, klag til Jakob.)</p>
+<input type="button" value="Tilfeldig deviice" onclick="
+    deviicer = Array(...document.querySelectorAll('#deviiceListe > h2'));
+    window.location.hash = deviicer[Math.floor(Math.random() * deviicer.length)].id;
+">
+
+<div class="bg-customPurple brightness-125 p-2 max-w-2xl mb-8">
+    <h2 class="text-xl">Min deviice</h2>
+    {% for dekorasjonInnehavelse in request.user.medlem.deviicer %}
+    {{ dekorasjonInnehavelse.dekorasjon.navn }} i {{ dekorasjonInnehavelse.start.year }}<br>
+    {% if dekorasjonInnehavelse.vrangstrupeSpørsmål %}Spørsmål: {{ dekorasjonInnehavelse.vrangstrupeSpørsmål }}<br>{% endif %}
+    {% if dekorasjonInnehavelse.vrangstrupeSvar %}Svar: {{ dekorasjonInnehavelse.vrangstrupeSvar }}<br>{% endif %}
+    {% if dekorasjonInnehavelse.vrangstrupeDeviice %}Deviice: <pre>{{ dekorasjonInnehavelse.vrangstrupeDeviice }}</pre>{% endif %}<br>
+    {% endfor %}
+</div>
+
+<div id="deviiceListe" class="bg-customPurple brightness-125 p-2 max-w-2xl">
+    {% for dekorasjonInnehavelse in request.queryset %}
+    <h2 class="text-xl" id="{{dekorasjonInnehavelse.pk}}">{{ dekorasjonInnehavelse.medlem.navn }}</h2>
+    {{ dekorasjonInnehavelse.dekorasjon.navn }} i {{ dekorasjonInnehavelse.start.year }}<br>
+    {% if dekorasjonInnehavelse.vrangstrupeSpørsmål %}Spørsmål: {{ dekorasjonInnehavelse.vrangstrupeSpørsmål }}<br>{% endif %}
+    {% if dekorasjonInnehavelse.vrangstrupeSvar %}Svar: {{ dekorasjonInnehavelse.vrangstrupeSvar }}<br>{% endif %}
+    {% if dekorasjonInnehavelse.vrangstrupeDeviice %}Deviice: <pre>{{ dekorasjonInnehavelse.vrangstrupeDeviice }}</pre>{% endif %}<br>
+    {% endfor %}
+</div>
+{% endblock %}

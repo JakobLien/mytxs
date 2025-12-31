@@ -2,19 +2,18 @@ from django.forms import BaseFormSet
 
 # Alt forøverig om forms
 
-inlineFormsetArgs = {
-    'exclude': [],
+dekorasjonInlineFormsetArgs = {
+    'fields': ['medlem', 'dekorasjon', 'start'],
     'extra': 1,
     'can_delete_extra': False
 }
-'Args for inline formsets'
 
 
-formsetArgs = {
+vervInlineFormsetArgs = {
+    'fields': ['medlem', 'verv', 'start', 'slutt'],
     'extra': 1,
     'can_delete_extra': False
 }
-'Args for formsets forøvrig'
 
 
 def postIfPost(request, prefix=''):
@@ -30,7 +29,7 @@ def postIfPost(request, prefix=''):
     '''
     if not request.method == 'POST':
         return None
-        
+
     queryDict = request.POST.copy()
     for key in list(filter(lambda k: not k.startswith(prefix), queryDict.keys())):
         queryDict.pop(key)

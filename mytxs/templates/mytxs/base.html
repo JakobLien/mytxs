@@ -75,6 +75,11 @@
             <p>Lenker</p>
             {% endLinkIfAccess %}
 
+            {% linkIfAccess vrangstrupen %}
+            <img src="{% static 'mytxs/vrangstrupen.png' %}" class="w-4/5">
+            <p>Vrangstrupen</p>
+            {% endLinkIfAccess %}
+
             {% linkIfAccess admin %}
             <svg class="w-2/3 fill-transparent stroke-gray-400 stroke-1" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path d="M21 9L9.59309 9C9.59309 9 8.5 7 6 7C3.5 7 2 8.79086 2 11C2 13.2091 3.5 15 6 15C8.5 15 9.59309 13 9.59309 13L15 13L15 17L19 17L19 13L21 13L21 9Z" stroke-linecap="round" stroke-linejoin="round"/>

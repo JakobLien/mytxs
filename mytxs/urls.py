@@ -43,6 +43,8 @@ urlpatterns = [
     path('meldFravær/<int:medlemPK>/<int:hendelsePK>', views.meldFravær, name='meldFravær'),
     path('egenFøring/<int:hendelsePK>', views.egenFøring, name='egenFøring'),
 
+    path('vrangstrupen', views.vrangstrupen, name='vrangstrupen'),
+
     path('fravær/semesterplan/<kor:kor>/<int:medlemPK>', views.fraværSemesterplan, name='fraværSemesterplan'),
     path('fravær/<str:side>', views.fraværSide, name='fravær'),
     path('fravær/<str:side>/<str:underside>', views.fraværSide, name='fravær'),

@@ -540,6 +540,12 @@ class Medlem(DbCacheModel):
         if self.aktiveKor.exists() or self.tilganger.filter(navn__in=[consts.Tilgang.tversAvKor, consts.Tilgang.lenke]).exists():
             navBarNode(sider, 'lenker')
 
+        # Vrangstrupen
+        # TODO: Gjerne få dette inn i dbCache når vi er sikker på at den fungerer med bedre tester.
+        # Pr nå er dette en ekstra spørring for ethvert request, litt irriterende. 
+        if self.dekorasjonInnehavelser.filter(dekorasjon__navn='Ridder', dekorasjon__bruktIKode=True, dekorasjon__kor__navn=consts.Kor.TSS):
+            navBarNode(sider, 'vrangstrupen')
+
         # Herunder er admin sidene
         admin = navBarNode(sider, 'admin', inURL=False, isPage=False)
 
@@ -798,7 +804,8 @@ class Verv(DbCacheModel):
     )
 
     bruktIKode = models.BooleanField(
-        default=False, 
+        default=False,
+        editable=False,
         help_text=toolTip('Hvorvidt vervet er brukt i kode og følgelig ikke kan endres på av brukere.'),
         verbose_name='Brukt i kode'
     )
@@ -956,7 +963,8 @@ class Tilgang(DbCacheModel):
     )
 
     bruktIKode = models.BooleanField(
-        default=False, 
+        default=False,
+        editable=False,
         help_text=toolTip('Hvorvidt tilgangen er brukt i kode og følgelig ikke kan endres på av brukere.'),
         verbose_name='Brukt i kode'
     )
@@ -1003,6 +1011,12 @@ class Dekorasjon(DbCacheModel):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
+    )
+    bruktIKode = models.BooleanField(
+        default=False,
+        editable=False,
+        help_text=toolTip('Hvorvidt dekorasjonen er brukt i kode og følgelig ikke kan endres på av brukere.'),
+        verbose_name='Brukt i kode'
     )
 
     def ikonUploadTo(instance, fileName):
@@ -1083,15 +1097,19 @@ class DekorasjonInnehavelse(DbCacheModel):
         related_name='dekorasjonInnehavelser'
     )
     start = MyDateField(null=False)
-    
+
+    vrangstrupeSpørsmål = models.CharField(max_length=255, blank=True, verbose_name='Spørsmål')
+    vrangstrupeSvar = models.CharField(max_length=255, blank=True, verbose_name='Svar')
+    vrangstrupeDeviice = models.TextField(blank=True, verbose_name='Deviice')
+
     @property
     def kor(self):
         return self.dekorasjon.kor if self.dekorasjon_id else None
-    
+
     @dbCache(paths=['medlem.__str__', 'dekorasjon.__str__'])
     def __str__(self):
         return f'{self.medlem.__str__()} -> {self.dekorasjon.__str__()}'
-    
+
     class Meta:
         unique_together = ('medlem', 'dekorasjon', 'start')
         ordering = ['-start', '-pk']
@@ -1099,9 +1117,19 @@ class DekorasjonInnehavelse(DbCacheModel):
 
     def clean(self, *args, **kwargs):
         '''
-        Sjekke om medlemmet innehar eventuell undervalør, og sjekke om startdato
-        er kompatibel med eventuell undervalør og overvalør.
+        Sjekke at medlemmet ikkje allerede har den dekorasjoen.
+        Sjekke også om medlemmet innehar eventuell undervalør, og at startdato er kompatibel.
         '''
+        if DekorasjonInnehavelse.objects.filter(
+            ~Q(pk=self.pk),
+            medlem=self.medlem,
+            dekorasjon=self.dekorasjon
+        ).exists():
+            raise ValidationError(
+                _('Kan ikke ha flere dekorasjonInnehavelser av samme dekorasjon samtidig'),
+                code='duplicateDekorasjonInnehavelse'
+            )
+
         kanHaUndervalør = hasattr(self.dekorasjon, 'undervalør')
         if kanHaUndervalør:
             undervalør = self.dekorasjon.undervalør.dekorasjonInnehavelser.filter(medlem__id=self.medlem.id).first()

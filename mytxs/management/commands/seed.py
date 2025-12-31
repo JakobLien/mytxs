@@ -3,20 +3,18 @@ import random
 
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User
+from django.db.models.signals import post_delete
 
 from mytxs import consts
 from mytxs.models import *
+from mytxs.signals.logSignals import log_post_delete
 from mytxs.utils.modelUtils import randomDistinct, stemmegruppeVerv, strToModels, vervInnehavelseAktiv
+
 
 class Command(BaseCommand):
     help = 'seed database for testing and development.'
 
     def add_arguments(self, parser):
-        # Positional arguments
-        # parser.add_argument('poll_ids', nargs='+', type=int)
-
-        # Named (optional) arguments
-
         parser.add_argument(
             '--clear',
             action='store_true',
@@ -71,6 +69,9 @@ class Command(BaseCommand):
 
 def clearData(self):
     'Deletes all data from Models that are not the Logg models'
+    for sender in strToModels(consts.loggedModelNames):
+        post_delete.disconnect(log_post_delete, sender)
+
     for model in [m for m in strToModels(consts.allModelNames) if m not in strToModels(consts.loggModelNames)]:
         print(f'Deleting {model.__name__} instances')
         model.objects.all().delete()
@@ -108,6 +109,11 @@ def adminAdmin(self):
 
         medlem.vervInnehavelser.create(
             verv=randomDistinct(Verv.objects.filter(stemmegruppeVerv('', includeUkjentStemmegruppe=False), kor__navn=consts.Kor.Knauskoret)),
+            start=datetime.date.today()
+        )
+
+        medlem.dekorasjonInnehavelser.create(
+            dekorasjon=Dekorasjon.objects.filter(navn='Ridder', kor__navn='TSS', bruktIKode=True).first(),
             start=datetime.date.today()
         )
 
@@ -351,3 +357,26 @@ def runSeed(self):
             stemmegruppeVerv, stemmegruppeVervCreated = kor.verv.get_or_create(navn=stemmegruppe, bruktIKode=True)
             if stemmegruppeVervCreated:
                 self.stdout.write('Created verv ' + stemmegruppeVerv.navn + ' for kor ' + kor.navn + ' at id ' + str(stemmegruppeVerv.pk))
+
+    # Opprett Vrangstrupe dekorasjoner
+    TSS = Kor.objects.get(navn='TSS')
+    vrangstrupeDekorasjoner = []
+    for vrangstrupeDekorasjonNavn in consts.vrangstrupeDekorasjoner:
+        dekorasjon, dekorasjonCreated = Dekorasjon.objects.get_or_create(
+            navn=vrangstrupeDekorasjonNavn, 
+            kor=TSS,
+            defaults={'bruktIKode': True}
+        )
+        vrangstrupeDekorasjoner.append(dekorasjon)
+        if dekorasjonCreated:
+            self.stdout.write('Created dekorasjon ' + dekorasjon.navn + ' for kor TSS')
+        if dekorasjon.bruktIKode == False:
+            dekorasjon.bruktIKode = True
+            dekorasjon.save()
+            self.stdout.write('Satt ' + dekorasjon.navn + ' bruktIKode til True')
+
+    if dekorasjonCreated:
+        for i, dekorasjon in enumerate(vrangstrupeDekorasjoner[:-1]):
+            dekorasjon.overvalør = vrangstrupeDekorasjoner[i+1] 
+            dekorasjon.save()
+            self.stdout.write('Satt ' + str(dekorasjon) + ' overvalør til ' + str(vrangstrupeDekorasjoner[i+1]) )
