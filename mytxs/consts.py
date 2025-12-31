@@ -131,6 +131,8 @@ modelWithRelated = {
 
 hovedStemmegrupper = ['1S', '2S', '1A', '2A', '1T', '2T', '1B', '2B']
 
+vrangstrupeDekorasjoner = ['Ridder', 'Kommandør', 'Kommandør med storkors']
+
 # Denne brukes blant annet på hendelse siden for fraværsføring, 
 # bare hiv på en url på slutten så får du en qr kode som redirecte dit:)
 qrCodeLinkPrefix = 'https://api.qrserver.com/v1/create-qr-code/?size=600x600&qzone=2&data='

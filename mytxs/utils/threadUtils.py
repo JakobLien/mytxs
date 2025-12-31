@@ -44,9 +44,10 @@ def thread(func=None):
     Her har vi også et unntak for testing, fordi hver thread vil ha en egen connection til test 
     databasen, så et sekund etter når django prøve å slett test databasen vil vi få et exception. 
     Vil åpenbart helst unngå unntak for testing, men e ser ikkje en grei måte å gjør det på akk no. 
+    Det samme gjelder seed operasjonen, da vi går tom for database connections veldig fort. 
     '''
     def _decorator(*args, **kwargs):
-        if 'test' in sys.argv:
+        if 'test' in sys.argv or 'seed' in sys.argv:
             return func(*args, **kwargs)
 
         thread = threading.Thread(

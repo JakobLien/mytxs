@@ -9,7 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm, SetPasswordForm
 from django.contrib.auth.models import User as AuthUser
 from django.core import mail
-from django.db.models import Q, F, IntegerField, Prefetch
+from django.db.models import Q, F, IntegerField, Prefetch, Case, When
 from django.db.models.functions import Cast
 from django.forms import inlineformset_factory, modelform_factory, modelformset_factory
 from django.http import FileResponse, HttpResponseForbidden, HttpResponseNotFound
@@ -26,7 +26,7 @@ from mytxs.utils.formAccess import addHelpText, disableBrukt, disableFields, dis
 from mytxs.utils.formAddField import addDeleteCheckbox, addDeleteUserCheckbox, addHendelseMedlemmer, addReverseM2M
 from mytxs.utils.googleCalendar import getOrCreateAndShareCalendar
 from mytxs.utils.lazyDropdown import lazyDropdown
-from mytxs.utils.formUtils import filesIfPost, postIfPost, inlineFormsetArgs
+from mytxs.utils.formUtils import filesIfPost, postIfPost, dekorasjonInlineFormsetArgs, vervInlineFormsetArgs
 from mytxs.utils.hashUtils import addHash, testHash
 from mytxs.utils.modelUtils import inneværendeSemester, korLookup, qBool, randomDistinct, stemmegruppeOrdering, vervInnehavelseAktiv, stemmegruppeVerv, annotateInstance
 from mytxs.utils.pagination import getPaginatedInlineFormSet, addPaginatorPage
@@ -321,8 +321,8 @@ def medlem(request, medlemPK):
         MedlemsDataForm = addDeleteUserCheckbox(modelform_factory(Medlem, exclude=['user']))
     else:
         MedlemsDataForm = modelform_factory(Medlem, exclude=['user', 'gammeltMedlemsnummer', 'død'])
-    VervInnehavelseFormset = inlineformset_factory(Medlem, VervInnehavelse, formset=getPaginatedInlineFormSet(request), **inlineFormsetArgs)
-    DekorasjonInnehavelseFormset = inlineformset_factory(Medlem, DekorasjonInnehavelse, formset=getPaginatedInlineFormSet(request), **inlineFormsetArgs)
+    VervInnehavelseFormset = inlineformset_factory(Medlem, VervInnehavelse, formset=getPaginatedInlineFormSet(request), **vervInlineFormsetArgs)
+    DekorasjonInnehavelseFormset = inlineformset_factory(Medlem, DekorasjonInnehavelse, formset=getPaginatedInlineFormSet(request), **dekorasjonInlineFormsetArgs)
 
     MedlemsDataForm = addReverseM2M(MedlemsDataForm, 'turneer')
 
@@ -819,6 +819,28 @@ def lenkeRedirect(request, kor, lenkeNavn):
     raise HttpResponseNotFound('Redirect not found.')
 
 
+@harTilgang
+def vrangstrupen(request):
+    request.user.medlem.deviicer = DekorasjonInnehavelse.objects.filter(
+        medlem=request.user.medlem,
+        dekorasjon__navn__in=consts.vrangstrupeDekorasjoner,
+        dekorasjon__kor__navn=consts.Kor.TSS,
+        dekorasjon__bruktIKode=True
+    )
+
+    request.queryset = DekorasjonInnehavelse.objects.filter(
+        dekorasjon__navn__in=consts.vrangstrupeDekorasjoner,
+        dekorasjon__kor__navn=consts.Kor.TSS,
+        dekorasjon__bruktIKode=True
+    ).order_by(
+        '-start__year',
+        Case(*[When(dekorasjon__navn=consts.vrangstrupeDekorasjoner[i], then=2-i) for i in range(3)])
+    ).prefetch_related('medlem', 'dekorasjon')
+    return render(request, 'mytxs/vrangstrupen.html', {
+        'heading': 'Vrangstrupens Deviicer',
+    })
+
+
 @harTilgang(querysetModel=Verv)
 def vervListe(request):
     vervFilterForm = VervFilterForm(request.GET)
@@ -847,8 +869,8 @@ def vervListe(request):
 
 @harTilgang(instanceModel=Verv, lookupToArgNames={'kor__navn': 'kor', 'navn': 'vervNavn'})
 def verv(request, kor, vervNavn):
-    VervForm = modelform_factory(Verv, exclude=['kor', 'bruktIKode'])
-    VervInnehavelseFormset = inlineformset_factory(Verv, VervInnehavelse, formset=getPaginatedInlineFormSet(request), **inlineFormsetArgs)
+    VervForm = modelform_factory(Verv, exclude=['kor'])
+    VervInnehavelseFormset = inlineformset_factory(Verv, VervInnehavelse, formset=getPaginatedInlineFormSet(request), **vervInlineFormsetArgs)
 
     VervForm = addDeleteCheckbox(VervForm)
 
@@ -912,14 +934,15 @@ def dekorasjonListe(request):
 @harTilgang(instanceModel=Dekorasjon, lookupToArgNames={'kor__navn': 'kor', 'navn': 'dekorasjonNavn'})
 def dekorasjon(request, kor, dekorasjonNavn):
     DekorasjonForm = modelform_factory(Dekorasjon, exclude=['kor'])
-    DekorasjonInnehavelseFormset = inlineformset_factory(Dekorasjon, DekorasjonInnehavelse, formset=getPaginatedInlineFormSet(request), **inlineFormsetArgs)
+    DekorasjonInnehavelseFormset = inlineformset_factory(Dekorasjon, DekorasjonInnehavelse, formset=getPaginatedInlineFormSet(request), **dekorasjonInlineFormsetArgs)
 
     DekorasjonForm = addDeleteCheckbox(DekorasjonForm)
 
     dekorasjonForm = DekorasjonForm(postIfPost(request, 'dekorasjonForm'), filesIfPost(request, 'dekorasjonForm'), instance=request.instance, prefix='dekorasjonForm')
     dekorasjonInnehavelseFormset = DekorasjonInnehavelseFormset(postIfPost(request, 'dekorasjonInnehavelser'), instance=request.instance, prefix='dekorasjonInnehavelser')
 
-    disableFormMedlem(request.user.medlem, dekorasjonForm)
+    if disableFormMedlem(request.user.medlem, dekorasjonForm):
+        disableBrukt(dekorasjonForm)
     disableFormMedlem(request.user.medlem, dekorasjonInnehavelseFormset)
 
     if res := lazyDropdown(request, dekorasjonInnehavelseFormset, 'medlem'):
@@ -984,7 +1007,7 @@ def tilgangSide(request, side=None):
 
 @harTilgang(instanceModel=Tilgang, lookupToArgNames={'kor__navn': 'kor', 'navn': 'tilgangNavn'})
 def tilgang(request, kor, tilgangNavn):
-    TilgangForm = modelform_factory(Tilgang, exclude=['kor', 'bruktIKode'])
+    TilgangForm = modelform_factory(Tilgang, exclude=['kor'])
 
     TilgangForm = addDeleteCheckbox(TilgangForm)
 
