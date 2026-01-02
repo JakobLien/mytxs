@@ -11,23 +11,26 @@ from django.contrib.auth.forms import AuthenticationForm, UserCreationForm, SetP
 from django.contrib.auth.models import User as AuthUser
 from django.core import mail
 from django.db.models import Q, F, IntegerField, Prefetch, Case, When
+from django.db.models.fields import BLANK_CHOICE_DASH
 from django.db.models.functions import Cast
 from django.forms import inlineformset_factory, modelform_factory, modelformset_factory
 from django.http import FileResponse, HttpResponse, HttpResponseForbidden, HttpResponseNotFound
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views.decorators.cache import never_cache
+from django.http import FileResponse, HttpResponse 
 
 from mytxs import consts
 from mytxs.fields import intToBitList
 from mytxs.forms import HendelseFilterForm, LoggFilterForm, MedlemFilterForm, NavnKorFilterForm, ShareCalendarForm, TurneFilterForm, VervFilterForm, OppmøteFilterForm
 from mytxs.management.commands.transfer import transferByJWT
-from mytxs.models import Dekorasjon, DekorasjonInnehavelse, Hendelse, Kor, Lenke, Logg, Medlem, MedlemQuerySet, Tilgang, Turne, Verv, VervInnehavelse, Oppmøte
+from mytxs.models import Dekorasjon, DekorasjonInnehavelse, Hendelse, Kor, Lenke, Logg, Medlem, MedlemQuerySet, Repertoar, Sang, SangFil, Tilgang, Turne, Verv, VervInnehavelse, Oppmøte
+from mytxs.forms import HendelseFilterForm, LoggFilterForm, MedlemFilterForm, NavnKorFilterForm, RepertoarFilterForm, SangFilterForm, ShareCalendarForm, TurneFilterForm, VervFilterForm, OppmøteFilterForm
 from mytxs.utils.formAccess import addHelpText, disableBrukt, disableFields, disableFormMedlem, removeFields
-from mytxs.utils.formAddField import addDeleteCheckbox, addDeleteUserCheckbox, addHendelseMedlemmer, addReverseM2M
+from mytxs.utils.formAddField import addBulkFileUpload, addDeleteCheckbox, addDeleteUserCheckbox, addHendelseMedlemmer, addReverseM2M
 from mytxs.utils.googleCalendar import getOrCreateAndShareCalendar
 from mytxs.utils.lazyDropdown import lazyDropdown
-from mytxs.utils.formUtils import filesIfPost, postIfPost, dekorasjonInlineFormsetArgs, vervInlineFormsetArgs
+from mytxs.utils.formUtils import filesIfPost, postIfPost, dekorasjonInlineFormsetArgs, vervInlineFormsetArgs, sangInlineFormsetArgs
 from mytxs.utils.hashUtils import addHash, testHash
 from mytxs.utils.modelUtils import inneværendeSemester, korLookup, qBool, randomDistinct, vervInnehavelseAktiv, stemmegruppeVerv, annotateInstance
 from mytxs.utils.pagination import getPaginatedInlineFormSet, addPaginatorPage
@@ -40,12 +43,14 @@ from mytxs.utils.viewUtils import HttpResponseUnauthorized, harFilTilgang, harTi
 def serve(request, path):
     if not request.user.is_authenticated:
         return HttpResponseUnauthorized()
-    
-    if not harFilTilgang(request.user.medlem, path):
+
+    instance = harFilTilgang(request.user.medlem, path)
+    if not instance:
         return HttpResponseForbidden()
 
     try:
-        return FileResponse(open('uploads/'+path, 'rb'))
+        suffix = '.' + path.split('.')[1] if '.' in path else ''
+        return FileResponse(open('uploads/'+path, 'rb'), filename=str(instance).replace(suffix, '') + suffix)
     except FileNotFoundError:
         return HttpResponseNotFound()
 
@@ -381,7 +386,57 @@ def medlem(request, medlemPK):
     })
 
 
-@harTilgang(querysetModel=Hendelse)
+@harTilgang
+def notearkiv(request, kor, side):
+    request.user.medlem.stemmegruppe = Medlem.objects.filter(pk=request.user.medlem.pk).annotateStemmegruppe(kor=kor, understemmegruppe=True).first().stemmegruppe
+
+    if side == 'repertoar':
+        class ÅrForm(forms.Form):
+            år = forms.ChoiceField(required=False, initial=datetime.date.today().year, choices=BLANK_CHOICE_DASH + [(year, year) for year in range(datetime.date.today().year, 1909, -1)])
+
+        årForm = ÅrForm(request.GET)
+
+        if not årForm.is_valid():
+            raise Exception('Invalid filterForm')
+        
+        request.queryset = Repertoar.objects.filter(
+            # Du får opp alle repertoar for koret, med unntak av om du e gammel småkorst
+            (Q(dato__lt=getHalvårStart()) if kor in consts.bareSmåkorNavn and not request.user.medlem.aktiveKor.filter(navn=kor).exists() else qBool(True)) if årForm.cleaned_data['år'] else qBool(True),
+            Q(dato__year=årForm.cleaned_data['år']) if årForm.cleaned_data['år'] else Q(dato__isnull=True),
+            kor__navn=kor,
+        ).prefetch_related(Prefetch( # Skjul filer som er skjult
+            'sanger', queryset=Sang.objects.all().prefetch_related(Prefetch(
+                'filer', queryset=SangFil.objects.filter(skjul=False)
+            ), 'kor')
+        ), 'kor')
+
+        return render(request, 'mytxs/notearkiv.html', {'årForm': årForm})
+
+    if side == 'søk':
+        request.queryset = Sang.objects.filter(kor__navn=consts.Kor.TXS if kor in consts.bareStorkorNavn else kor).filtrerLeseTilgang(request.user.medlem)
+
+        sangFilterForm = SangFilterForm(request.GET)
+
+        request.queryset = sangFilterForm.applyFilter(request.queryset)
+
+        addPaginatorPage(request)
+        request.paginatorPage.object_list = request.paginatorPage.object_list.prefetch_related(Prefetch(
+            'filer', queryset=SangFil.objects.filter(skjul=False)
+        ), 'kor')
+
+        return render(request, 'mytxs/notearkivSøk.html', {'filterForm': sangFilterForm})
+
+    if synligRepertoar := Repertoar.objects.filter(kor__navn=kor, synlig=True, navn=side):
+        request.queryset = synligRepertoar.prefetch_related(Prefetch(
+            'sanger', queryset=Sang.objects.all().prefetch_related(Prefetch(
+                'filer', queryset=SangFil.objects.filter(skjul=False)
+            ), 'kor')
+        ), 'kor')
+
+        return render(request, 'mytxs/notearkiv.html')
+
+
+@harTilgang
 def semesterplan(request, kor):
     if not request.user.medlem.aktiveKor.filter(navn=kor).exists():
         messages.error(request, f'Du har ikke tilgang til andre kors kalender')
@@ -408,7 +463,7 @@ def semesterplan(request, kor):
         request.queryset = Hendelse.objects.filter(
             kategori=Hendelse.UNDERGRUPPE,
             kor__navn__in=[consts.Kor.Sangern, kor] if kor in consts.bareStorkorNavn else [kor],
-            startDate__gte=getHalvårStart(),
+            startDate__gte=getHalvårStart() if request.GET.get('gammelt') else datetime.datetime.today(),
             navn__regex=r'\[(.* )*#[0-9]+( .*)*\]' # Regex for firkantparentes med et hashtag tall ledd separert med mellomrom
         ).prefetch_related('oppmøter__medlem')
 
@@ -642,9 +697,10 @@ def hendelseListe(request):
 
     request.queryset = hendelseFilterForm.applyFilter(request.queryset)
 
-    NyHendelseForm = modelform_factory(Hendelse, fields=['navn', 'kor', 'kategori', 'startDate'])
+    NyHendelseForm = modelform_factory(Hendelse, fields=['navn', 'kor', 'kategori', 'beskrivelse', 'sted', 'startDate', 'startTime', 'sluttDate', 'sluttTime'])
 
     nyHendelseForm = NyHendelseForm(request.POST or None, prefix='nyHendelse')
+    nyHendelseForm.fields['kor'].empty_label = None
     
     disableFormMedlem(request.user.medlem, nyHendelseForm)
 
@@ -854,6 +910,7 @@ def vervListe(request):
     NyttVervForm = modelform_factory(Verv, fields=['navn', 'kor'])
 
     nyttVervForm = NyttVervForm(request.POST or None, prefix='nyttVerv')
+    nyttVervForm.fields['kor'].empty_label = None
     
     disableFormMedlem(request.user.medlem, nyttVervForm)
 
@@ -918,6 +975,7 @@ def dekorasjonListe(request):
     NyDekorasjonForm = modelform_factory(Dekorasjon, fields=['navn', 'kor'])
 
     nyDekorasjonForm = NyDekorasjonForm(request.POST or None, prefix='nyDekorasjon')
+    nyDekorasjonForm.fields['kor'].empty_label = None
     
     disableFormMedlem(request.user.medlem, nyDekorasjonForm)
 
@@ -993,6 +1051,7 @@ def tilgangSide(request, side=None):
     NyTilgangForm = modelform_factory(Tilgang, fields=['navn', 'kor'])
 
     nyTilgangForm = NyTilgangForm(request.POST or None, prefix='nyTilgang')
+    nyTilgangForm.fields['kor'].empty_label = None
     
     disableFormMedlem(request.user.medlem, nyTilgangForm)
 
@@ -1042,6 +1101,7 @@ def turneListe(request):
     NyTurneForm = modelform_factory(Turne, fields=['navn', 'kor', 'start'])
 
     nyTurneForm = NyTurneForm(request.POST or None, prefix='nyTurne')
+    nyTurneForm.fields['kor'].empty_label = None
     
     disableFormMedlem(request.user.medlem, nyTurneForm)
 
@@ -1210,3 +1270,116 @@ def publish(request, key):
         return HttpResponse('Publish script started!')
     else:
         return HttpResponse('Publish script not started, missing environment variables!')
+
+
+@harTilgang(querysetModel=Repertoar)
+def repertoarListe(request):
+    repertoarFilterForm = RepertoarFilterForm(request.GET)
+
+    request.queryset = repertoarFilterForm.applyFilter(request.queryset)
+
+    NyttRepertoarForm = modelform_factory(Repertoar, fields=['navn', 'kor', 'dato'])
+
+    nyttRepertoarForm = NyttRepertoarForm(request.POST or None, prefix='nyttRepertoar')
+    nyttRepertoarForm.fields['kor'].empty_label = None
+    
+    disableFormMedlem(request.user.medlem, nyttRepertoarForm)
+
+    if request.method == 'POST':
+        if nyttRepertoarForm.is_valid():
+            nyttRepertoarForm.save()
+            messages.info(request, f'{nyttRepertoarForm.instance} opprettet!')
+            return redirect(nyttRepertoarForm.instance)
+
+    addPaginatorPage(request)
+    
+    return render(request, 'mytxs/instanceListe.html', {
+        'filterForm': repertoarFilterForm,
+        'newForm': nyttRepertoarForm,
+    })
+
+
+@harTilgang(instanceModel=Repertoar, lookupToArgNames={'kor__navn': 'kor', 'navn': 'repertoarNavn'})
+def repertoar(request, kor, repertoarNavn):
+    RepertoarForm = modelform_factory(Repertoar, exclude=['kor'])
+
+    RepertoarForm = addDeleteCheckbox(RepertoarForm)
+
+    RepertoarForm = addReverseM2M(RepertoarForm, 'sanger')
+
+    repertoarForm = RepertoarForm(request.POST or None, instance=request.instance)
+
+    disableFormMedlem(request.user.medlem, repertoarForm)
+
+    if request.method == 'POST':
+        if repertoarForm.is_valid():
+            repertoarForm.save()
+            if repertoarForm.cleaned_data['DELETE']:
+                messages.info(request, f'{repertoarForm.instance} slettet')
+                return redirect('repertoar')
+            return redirectToInstance(request)
+    
+    return render(request, 'mytxs/instance.html', {
+        'forms': [repertoarForm],
+    })
+
+
+@harTilgang(querysetModel=Sang)
+def sangListe(request):
+    sangFilterForm = SangFilterForm(request.GET)
+
+    request.queryset = sangFilterForm.applyFilter(request.queryset)
+
+    NySangForm = forms.modelform_factory(Sang, fields=['navn', 'kor'])
+
+    NySangForm = addBulkFileUpload(NySangForm)
+
+    nySangForm = NySangForm(request.POST or None, request.FILES or None, prefix='nySang')
+    nySangForm.fields['kor'].empty_label = None
+    
+    disableFormMedlem(request.user.medlem, nySangForm)
+
+    if request.method == 'POST':
+        if nySangForm.is_valid():
+            nySangForm.save()
+            messages.info(request, f'{nySangForm.instance} opprettet!')
+            return redirect(nySangForm.instance)
+
+    addPaginatorPage(request)
+    
+    return render(request, 'mytxs/instanceListe.html', {
+        'filterForm': sangFilterForm,
+        'newForm': nySangForm,
+    })
+
+
+@harTilgang(instanceModel=Sang, lookupToArgNames={'kor__navn': 'kor', 'navn': 'sangNavn'})
+def sang(request, kor, sangNavn):
+    SangForm = modelform_factory(Sang, exclude=['kor'])
+    SangFilForm = inlineformset_factory(Sang, SangFil, formset=getPaginatedInlineFormSet(request), **sangInlineFormsetArgs)
+
+    SangForm = addDeleteCheckbox(SangForm)
+    SangForm = addBulkFileUpload(SangForm)
+
+    sangForm = SangForm(postIfPost(request, 'sang'), filesIfPost(request, 'sang'), instance=request.instance, prefix='sang')
+    sangFilForm = SangFilForm(postIfPost(request, 'filer'), instance=request.instance, prefix='filer')
+
+    disableFormMedlem(request.user.medlem, sangForm)
+    disableFormMedlem(request.user.medlem, sangFilForm)
+
+    if request.method == 'POST':
+        if sangForm.is_valid():
+            sangForm.save()
+            if sangForm.cleaned_data['DELETE']:
+                messages.info(request, f'{sangForm.instance} slettet')
+                return redirect('sang')
+        if sangFilForm.is_valid():
+            sangFilForm.save()
+
+        if sangForm.is_valid() and sangFilForm.is_valid():
+            return redirectToInstance(request)
+    
+    return render(request, 'mytxs/sang.html', {
+        'forms': [sangForm],
+        'formsets': [sangFilForm],
+    })

@@ -36,7 +36,7 @@
     </tr>
     {% for hendelse in request.queryset %}
     <tr class="border-b border-black">
-        <td>{{ hendelse.navnMedPrefiks }} {% if user.medlem|tilgangExists:'semesterplan,fravær' %}<a href="{% url 'hendelse' hendelse.pk %}">Rediger</a>{% endif %}</td>
+        <td>{{ hendelse.navnMedPrefiks }} {% if user.medlem|tilgangExists:'semesterplan,fravær' %}<a href="{{ hendelse.get_absolute_url }}">Rediger</a>{% endif %}</td>
         <td>
             {{ hendelse.startDate|date:'D j. M' }}
             {% if hendelse.startTime %}

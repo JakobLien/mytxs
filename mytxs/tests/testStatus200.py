@@ -35,6 +35,7 @@ class Status200TestCase(TestCase):
         mock_self.stdout = StringIO()
         runSeed(mock_self)
         adminAdmin(mock_self)
+        cls.medlem = Medlem.objects.get(fornavn='admin')
 
     def login(self):
         return self.client.post('', {'username': 'admin', 'password': 'admin'}, follow=True)
@@ -86,10 +87,10 @@ class Status200TestCase(TestCase):
 
     def testRedigerData(self):
         self.login()
-        res = self.client.get('/medlem/1')
+        res = self.client.get(self.medlem.get_absolute_url())
         self.assertEqual(res.status_code, 200)
 
-        res = self.client.post('/medlem/1', {
+        res = self.client.post(self.medlem.get_absolute_url(), {
             'medlemdata-fornavn': 'admin', 
             'medlemdata-mellomnavn': 'MELLOMNAVN', 
             'medlemdata-etternavn': 'adminsen',
@@ -98,9 +99,9 @@ class Status200TestCase(TestCase):
 
         self.assertEqual(res.status_code, 200)
 
-        medlem = Medlem.objects.filter(pk=1).first()
+        self.medlem.refresh_from_db()
 
-        self.assertEqual(medlem.fornavn, 'admin')
-        self.assertEqual(medlem.mellomnavn, 'MELLOMNAVN')
-        self.assertEqual(medlem.etternavn, 'adminsen')
-        self.assertEqual(medlem.fødselsdato, datetime.date(2000, 1, 1))
+        self.assertEqual(self.medlem.fornavn, 'admin')
+        self.assertEqual(self.medlem.mellomnavn, 'MELLOMNAVN')
+        self.assertEqual(self.medlem.etternavn, 'adminsen')
+        self.assertEqual(self.medlem.fødselsdato, datetime.date(2000, 1, 1))

@@ -37,6 +37,8 @@ urlpatterns = [
     path('sjekkheftet/<str:side>', views.sjekkheftet, name='sjekkheftet'),
     path('sjekkheftet/<str:side>/<str:underside>', views.sjekkheftet, name='sjekkheftet'),
 
+    path('notearkiv/<kor:kor>/<str:side>', views.notearkiv, name='notearkiv'),
+
     path('semesterplan/<kor:kor>', views.semesterplan, name='semesterplan'),
     path('iCal/<kor:kor>/<int:medlemPK>', views.iCal, name='iCal'),
 
@@ -74,8 +76,14 @@ urlpatterns = [
     path('logg/<int:loggPK>', views.logg, name='logg'),
     path('logg/loggRedirect/<str:modelName>/<int:instancePK>', views.loggRedirect, name='loggRedirect'),
 
+    path('repertoar', views.repertoarListe, name='repertoar'),
+    path('repertoar/<kor:kor>/<str:repertoarNavn>', views.repertoar, name='repertoar'),
+
+    path('sang', views.sangListe, name='sang'),
+    path('sang/<kor:kor>/<path:sangNavn>', views.sang, name='sang'),
+
     path('uploads/<path:path>', views.serve, name='serve'),
     path('docs/', lambda req: FileResponse(open('docs/index.html', 'rb')), name='docs'),
 
-    path('publish/<str:key>', views.publish, name='publish')
+    path('publish/<str:key>', views.publish, name='publish'),
 ] + static(settings.DOCS_URL, document_root=settings.DOCS_ROOT) # Serves direkte av apache på servern

@@ -56,6 +56,9 @@ class TilgangerTestCase(TestCase):
         cls.user.is_superuser = False
         cls.user.is_staff = False
         cls.user.save()
+        # TODO: Her endre vi på hvilke tilganger admin har i praksis. 
+        # For å unngå uforutsigbare resultater må vi enten få inn faktisk testisolering med transaction rollback, 
+        # eller reverser denne endringen før testen (klassen) fullføre. 
 
         sekretær, created = Verv.objects.get_or_create(
             navn='Sekretær',
@@ -79,7 +82,7 @@ class TilgangerTestCase(TestCase):
 
         cls.user = User.objects.get(username='admin')
         cls.medlem = Medlem.objects.get(user=cls.user)
-        cls.kor = Kor.objects.get(navn='TSS')
+        cls.kor = Kor.objects.get(navn=consts.Kor.TSS)
 
         TilgangerTestCase.seed()
         TilgangerTestCase.setTilganger(cls)

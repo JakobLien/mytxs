@@ -1,0 +1,29 @@
+{% extends "mytxs/base.html" %}
+{% load mytxsTags %}
+
+{% block content %}
+
+{% if filterForm %}
+<form action="{{ request.path }}" method="get">
+    {{ filterForm.as_p }}
+
+    <input type="button" value="Clear" onclick="window.location='?';"/>
+    <input type="submit" value="Søk">
+</form>
+{% endif %}
+
+{% getPaginatorNavigation request.paginatorPage %}
+{% for sang in request.paginatorPage %}
+<span onclick='this.nextElementSibling.classList.toggle("hidden")'>
+    {{ sang.navn }} {% if user.medlem|tilgangExists:consts.Tilgang.notearkiv %}<a class="text-sm" href="{{ sang.get_absolute_url }}">Rediger</a>{% endif %}
+</span> 
+<div class="hidden pl-2">
+    {% for fil in sang.filer.all%}
+    <a class="{% if fil.stemmegruppe and fil.stemmegruppe in request.user.medlem.stemmegruppe %}backdrop-brightness-110{% endif %}" 
+    href="{{ fil.fil.url }}" target="_blank">{{ fil }}</a><br>
+    {% endfor %}
+</div>
+<br>
+{% endfor %}
+
+{% endblock %}

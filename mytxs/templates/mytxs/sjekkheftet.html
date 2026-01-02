@@ -47,7 +47,7 @@
             {{ medlem.navn }}
             {% endif %}
 
-            {% if user.medlem|tilgangExists:consts.Tilgang.medlemsdata %} <a class="text-sm" href="{% url 'medlem' medlem.pk %}">Rediger</a> {% endif %}
+            {% if user.medlem|tilgangExists:consts.Tilgang.medlemsdata %} <a class="text-sm" href="{{ medlem.get_absolute_url }}">Rediger</a> {% endif %}
         </li>
 
         {% if medlem.karantenekor %}
