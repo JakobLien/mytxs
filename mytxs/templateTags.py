@@ -144,6 +144,7 @@ def addSubNavigation(context):
 
 @register.filter
 def divideToPercent(num1, num2):
+    # TODO: Sjekk at dette fortsatt ende opp med prosent!
     if num2 == 0:
         return '0'
     return f'{round(num1/num2*100, 1)}'

@@ -1,5 +1,12 @@
 # Fil for å definere constans som går igjen over hele siden
 
+# TODO: No har e satt opp at kornavnan og tilgangNavnan e satt som properties av (i praksis) statiske klasser, videre må vi sett inn det over alt. 
+# Vi får ikkje veldig my hjelp, bli ikkje compile time feil, men det gjør ihvertfall at ting feile når man kjøre det, heller enn at det feile stille. 
+# Trur ikkje det e mulig å få compile time feil, sida vi ikkje feile, og kode som e i ulike filer sjekke den typ ingenting for korrekthet. 
+# "consts.hmmm, jaja det e sikkert der når vi kjem så langt"
+
+# Har no erstatta alle kor navnan i kode, videre e det tilgang navnan vi må erstatt. Deretter e vi ganske good på denne fronten:)
+
 class Kor:
     TSS = 'TSS'
     TKS = 'TKS'
@@ -7,19 +14,22 @@ class Kor:
     Knauskoret = 'Knauskoret'
     Candiss = 'Candiss'
     Sangern = 'Sangern'
+    TXS = 'TXS'
 
-alleKorNavn = [Kor.TSS, Kor.TKS, Kor.Pirum, Kor.Knauskoret, Kor.Candiss, Kor.Sangern]
+alleKorNavn = [Kor.TSS, Kor.TKS, Kor.Pirum, Kor.Knauskoret, Kor.Candiss, Kor.Sangern, Kor.TXS]
 alleKorTittel = [
     'Trondhjems Studentersangforening',
     'Trondhjems Kvinnelige Studentersangforening',
     'Pirum',
     'Knauskoret',
     'Candiss',
-    'Sangern bar'
+    'Sangern bar',
+    'Begge Trondhjems Studentersangforeninger'
 ]
-alleKorStemmeFordeling = ['TB', 'SA', 'TB', 'SATB', 'SA', '']
+alleKorStemmeFordeling = ['TB', 'SA', 'TB', 'SATB', 'SA', '', '']
 
 # Subsets av alleKorNavn
+bareTilgangKorNavn = alleKorNavn[:6]
 bareKorNavn = alleKorNavn[:5]
 bareStorkorNavn = alleKorNavn[:2]
 bareSmåkorNavn = alleKorNavn[2:5]
@@ -44,21 +54,23 @@ class Tilgang:
     tversAvKor = 'tversAvKor'
     eksport = 'eksport'
     sjekkhefteSynlig = 'sjekkhefteSynlig'
+    notearkiv = 'notearkiv'
 
 tilgangTilKorNavn = {
     Tilgang.medlemsdata: bareStorkorNavn,
-    Tilgang.dekorasjon: alleKorNavn, 
-    Tilgang.dekorasjonInnehavelse: alleKorNavn, 
-    Tilgang.verv: alleKorNavn, 
-    Tilgang.vervInnehavelse: alleKorNavn, 
-    Tilgang.tilgang: alleKorNavn, 
-    Tilgang.semesterplan: alleKorNavn, 
-    Tilgang.fravær: alleKorNavn, 
-    Tilgang.lenke: alleKorNavn, 
+    Tilgang.dekorasjon: bareTilgangKorNavn, 
+    Tilgang.dekorasjonInnehavelse: bareTilgangKorNavn, 
+    Tilgang.verv: bareTilgangKorNavn, 
+    Tilgang.vervInnehavelse: bareTilgangKorNavn, 
+    Tilgang.tilgang: bareTilgangKorNavn, 
+    Tilgang.semesterplan: bareTilgangKorNavn, 
+    Tilgang.fravær: bareTilgangKorNavn, 
+    Tilgang.lenke: bareTilgangKorNavn, 
     Tilgang.turne: bareKorNavn, 
-    Tilgang.tversAvKor: alleKorNavn, 
+    Tilgang.tversAvKor: bareTilgangKorNavn, 
     Tilgang.eksport: bareKorNavn, 
     Tilgang.sjekkhefteSynlig: bareKorNavn, 
+    Tilgang.notearkiv: bareKorNavn,
 }
 tilgangBeskrivelser = [
     'For å kunne endre på medlemsdataene til de i ditt storkor.',
@@ -73,7 +85,8 @@ tilgangBeskrivelser = [
     'For å administrere turnerer, samt endre hvem som deltok.',
     'For å kunne sette relasjoner til objekter i andre kor.',
     'For å kunne eksportere medlemsregisterdata.',
-    'Gjør at all dataen i sjekkheftet er synlig for deg.'
+    'Gjør at all dataen i sjekkheftet er synlig for deg.',
+    'Lar deg redigere notearkivet.'
 ]
 
 alleTilganger = list(tilgangTilKorNavn.keys())
@@ -89,7 +102,9 @@ loggedModelNames = [
     'Turne',
     'Oppmøte',
     'Hendelse',
-    'Lenke'
+    'Lenke',
+    'Repertoar',
+    'Sang'
 ]
 'Names of models that are being logged'
 
@@ -99,6 +114,8 @@ loggModelNames = ['Logg', 'LoggM2M']
 otherModels = ['Kor']
 
 allModelNames = [*loggedModelNames, *loggModelNames, *otherModels]
+
+TXSModelNames = ['Sang']
 
 modelTilTilgangNavn = {
     'VervInnehavelse': Tilgang.vervInnehavelse,
@@ -111,6 +128,9 @@ modelTilTilgangNavn = {
     'Oppmøte': Tilgang.fravær,
     'Hendelse': Tilgang.semesterplan,
     'Lenke': Tilgang.lenke,
+    'Repertoar': Tilgang.notearkiv,
+    'Sang': Tilgang.notearkiv,
+    'SangFil': Tilgang.notearkiv
 }
 'Mappe fra model til navn på tilgang'
 
@@ -118,6 +138,7 @@ korAvhengerAv = {
     'VervInnehavelse': 'Verv',
     'DekorasjonInnehavelse': 'Dekorasjon',
     'Oppmøte': 'Hendelse',
+    'SangFil': 'Sang'
 }
 'Modeller med hvilken model som koret til instanser avhenger av'
 

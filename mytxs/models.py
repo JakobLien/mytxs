@@ -8,7 +8,7 @@ from django.conf import settings as djangoSettings
 from django.core import mail
 from django.db import models
 from django.db.models import Value as V, Q, Case, When, Max, Sum, ExpressionWrapper, F, OuterRef, Subquery, Prefetch, Exists
-from django.db.models.functions import Concat, ExtractMinute, ExtractHour, Right, Coalesce, Cast
+from django.db.models.functions import Concat, ExtractMinute, ExtractHour, Right, Coalesce, Cast, Substr, StrIndex, Greatest
 from django.forms import ValidationError
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -535,7 +535,18 @@ class Medlem(DbCacheModel):
         navBarNode(sider, 'semesterplan', isPage=False)
         for kor in self.aktiveKor.values_list('navn', flat=True):
             navBarNode(sider['semesterplan'], kor)
-        
+
+        # Notearkiv
+        navBarNode(sider, 'notearkiv', isPage=False)
+        for kor in Kor.objects.filter(
+            stemmegruppeVerv(includeDirr=True),
+            verv__vervInnehavelser__medlem=self
+        ).orderKor(tksRekkefølge=self.storkorNavn() == consts.Kor.TKS).values_list('navn', flat=True):
+            navBarNode(sider['notearkiv'], kor, isPage=False)
+            navBarNode(sider['notearkiv'][kor], 'repertoar', defaultParameters=f'?år={datetime.date.today().year}')
+            navBarNode(sider['notearkiv'][kor], 'MSH')
+            navBarNode(sider['notearkiv'][kor], 'søk')
+
         #Lenker
         if self.aktiveKor.exists() or self.tilganger.filter(navn__in=[consts.Tilgang.tversAvKor, consts.Tilgang.lenke]).exists():
             navBarNode(sider, 'lenker')
@@ -585,6 +596,13 @@ class Medlem(DbCacheModel):
             navBarNode(admin, 'eksport', isPage=False)
             for tilgang in self.tilganger.filter(navn__in=[consts.Tilgang.eksport]):
                 navBarNode(admin['eksport'], tilgang.kor.navn)
+        
+        if self.tilganger.filter(navn__in=['notearkiv']).exists():
+            navBarNode(admin, 'repertoar')
+            navBarNode(admin, 'sang')
+        
+        if self.tilganger.exists():
+            navBarNode(admin, 'logg')
         
         sider.generateURLs()
 
@@ -650,7 +668,18 @@ class Medlem(DbCacheModel):
             return medlemmer
 
         # For alle andre modeller, bare skaff objektene for modellen og koret du evt har tilgangen. 
-        returnQueryset = getInstancesForKor(resModel, Kor.objects.filter(tilganger__in=self.tilganger.filter(navn=consts.modelTilTilgangNavn[model.__name__])))
+        korForTilganger = Kor.objects.filter(Q(tilganger__in=self.tilganger.filter(navn=consts.modelTilTilgangNavn[model.__name__])))
+
+        # Håndter objekt på tvers av storkor, dersom dette er en TXS model
+        if (resModel.__name__ in consts.TXSModelNames or (model.__name__ in consts.TXSModelNames and resModel == Kor)) and korForTilganger.filter(navn__in=consts.bareStorkorNavn).exists():
+            korForTilganger = Kor.objects.filter(
+                Q(navn=consts.Kor.TXS) | Q(
+                    ~Q(navn__in=consts.bareStorkorNavn),
+                    pk__in=korForTilganger
+                )
+            )
+
+        returnQueryset = getInstancesForKor(resModel, korForTilganger)
 
         # Exclude Verv og VervInnehavelser som gir tilganger som medlemmet ikke har, dersom medlemmet ikke har tilgang tilgangen 
         # i koret til vervet. Dette hindre at noen med vervInnehavelse tilgangen kan gjøre seg selv til Formann og gå løs på 
@@ -1639,3 +1668,135 @@ class Lenke(DbCacheModel):
         unique_together = ('kor', 'navn')
         ordering = ['kor', 'navn', '-pk']
         verbose_name_plural = 'lenker'
+
+
+class Repertoar(DbCacheModel):
+    navn = models.CharField(max_length=100)
+
+    kor = models.ForeignKey(
+        'Kor',
+        related_name='repertoar',
+        on_delete=models.SET_NULL,
+        null=True
+    )
+
+    dato = MyDateField(blank=True, null=True)
+
+    def get_absolute_url(self):
+        return reverse('repertoar', args=[self.kor.navn, self.navn])
+
+    @dbCache
+    def __str__(self):
+        if self.dato and self.dato.day == 1 and self.dato.month in [1, 7]:
+            return self.navn
+        return f'{self.navn}({self.dato})' if self.dato else self.navn
+
+    class Meta:
+        unique_together = ('kor', 'navn',)
+        ordering = ['kor', '-dato', 'navn', '-pk']
+        verbose_name_plural = 'repertoar'
+
+
+class SangQuerySet(models.QuerySet):
+    def filterTilgang(self, medlem):
+        '''
+        Hvilke sanger et medlem har tilgang til er ganske sammensatt, så vi tar det her for å unngå å måtta implementer det fleir gong. 
+        Utgangspunktet e at du har tilgang til alle sanga i koret ditt om du e aktiv, og gamle storkorista har tilgang til alt. 
+        Videre har du tilgang til alt før dette semesteret om du e gammel småkorist. 
+        '''
+        return self.filter(
+            Q(kor__navn__in=consts.bareStorkorNavn) | # Sangen e i storkor
+            vervInnehavelseAktiv('kor__verv__vervInnehavelser') | # Du e aktiv i småkor
+            Q( # Gammel småkorist, isafall:
+                Q(repertoar__dato__lt=getHalvårStart()) | # Sangen e på et repertoar fra et tidligar år
+                Q(repertoar__dato__isnull=True) # Sangen har ingen repertoar eller e på et repertoar uten dato
+            ),
+            stemmegruppeVerv('kor__verv', includeDirr=True),
+            kor__verv__vervInnehavelser__medlem=medlem,
+        ).distinct()
+
+
+class Sang(DbCacheModel):
+    objects = SangQuerySet.as_manager()
+
+    navn = models.CharField(max_length=100)
+
+    kor = models.ForeignKey(
+        'Kor',
+        related_name='sanger',
+        on_delete=models.SET_NULL,
+        null=True
+    )
+
+    kortype = models.CharField(
+        choices=[(s, s) for s in ['mannskor', 'damekor', 'blandakor', 'begge', '']],
+        blank=True
+    )
+
+    repertoar = MyManyToManyField(
+        Repertoar,
+        related_name='sanger',
+        blank=True
+    )
+
+    notis = models.TextField(blank=True)
+
+    def get_absolute_url(self):
+        return reverse('sang', args=[self.kor.navn, self.navn])
+
+    @dbCache
+    def __str__(self):
+        return f'{self.navn}'
+
+    class Meta:
+        unique_together = ('kor', 'navn')
+        ordering = ['kor', 'navn', '-pk']
+        verbose_name_plural = 'sanger'
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+
+
+class SangFil(DbCacheModel):
+    navn = models.CharField(max_length=100, blank=True)
+
+    sang = models.ForeignKey(
+        Sang,
+        on_delete=models.CASCADE,
+        null=False,
+        related_name='filer'
+    )
+
+    stemmegruppe = models.CharField(
+        max_length=3,
+        choices=[(s, s) for s in getStemmegrupper('SATB', 1, 2)],
+        blank=True
+    )
+
+    skjul = models.BooleanField(default=False)
+
+    def filUploadTo(instance, fileName):
+        return os.path.join('notearkiv/', str(instance.pk) + ('' if '.' not in fileName else '.' + fileName.split('.')[-1]))
+
+    fil = models.FileField(upload_to=filUploadTo, null=False, blank=False)
+
+    @property
+    def filtype(self):
+        return '' if '.' not in self.fil.name else '.' + self.fil.name.split('.')[-1]
+
+    @property
+    def kor(self):
+        return self.sang.kor if self.sang_id else None
+
+    @dbCache
+    def __str__(self):
+        if self.navn:
+            return self.navn + self.filtype
+        if self.stemmegruppe:
+            return self.stemmegruppe + self.filtype
+        return f'Fil #{self.pk}' + self.filtype
+
+    class Meta:
+        unique_together = ('sang', 'navn', 'stemmegruppe')
+        ordering = ['sang', 'navn', stemmegruppeOrdering(fieldName='stemmegruppe'), '-pk']
+        verbose_name_plural = 'sangfiler'

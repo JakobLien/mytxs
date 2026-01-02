@@ -6,6 +6,8 @@ import os
 import re
 import urllib3
 
+from mytxs import consts
+
 # Så greia e at MyTXS 1.0 servern supporte ikkje ipv6, og samfundet har ipv6 som default.
 # Dette lede til at dersom vi ikkje eksplisit spesifisere at vi må bruk ipv4 får vi en bug
 # på servern som vi ikke får lokalt, og som e no har brukt 3 tima på å debug med itk. Ikke 
@@ -343,7 +345,7 @@ def insertMedlem(medlemDict):
             for keyword, småkor in småkorKeywordToKor.items():
                 if keyword in vervDict['verv'].lower():
                     # Dersom det e medlemskapsvervet, gi de ukjentStemmegruppe vervet
-                    if vervDict['verv'] in [consts.Kor.Pirum, consts.Kor.Knauskoret, consts.Kor.Candiss]:
+                    if vervDict['verv'] in consts.bareSmåkorNavn:
                         vervDict['verv'] = 'ukjentStemmegruppe'
 
                     # Dersom det e dirigentvervet, gi de dirigent vervet
