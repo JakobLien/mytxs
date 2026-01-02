@@ -1,7 +1,8 @@
 from django import forms
+from django.core.files.base import ContentFile
 
 from mytxs import consts
-from mytxs.fields import MyModelMultipleChoiceField
+from mytxs.fields import MultipleFileField, MyModelMultipleChoiceField
 from mytxs.models import Hendelse, Medlem
 from mytxs.utils.modelUtils import stemmegruppeVerv, vervInnehavelseAktiv
 
@@ -100,4 +101,20 @@ def addHendelseMedlemmer(HendelseForm):
                 self.instance.genererOppmøter(undergruppeMedlemmer=self.cleaned_data['medlemmer'])
             super().save(*args, **kwargs)
 
+    return NewForm
+
+
+def addBulkFileUpload(SangForm):
+    class NewForm(SangForm):
+        BULK_UPLOAD=MultipleFileField(required=False)
+
+        def save(self, *args, **kwargs):
+            super().save(*args, **kwargs)
+
+            for file in self.cleaned_data['BULK_UPLOAD']:
+                self.instance.filer.create(
+                    navn=file.name,
+                    fil=ContentFile(file.file.read(), name=file.name)
+                )
+    
     return NewForm

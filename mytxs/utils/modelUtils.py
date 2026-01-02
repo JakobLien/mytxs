@@ -1,4 +1,5 @@
 import datetime
+import os
 import random
 import re
 
@@ -9,6 +10,7 @@ from django.db.models.fields.related import RelatedField
 from django.forms import ValidationError
 from django.utils.translation import gettext_lazy as _
 
+from mytxs import consts
 from mytxs.utils.utils import getStemmegrupper
 
 # Utils for modeller
@@ -18,7 +20,7 @@ def vervInnehavelseAktiv(pathToVervInnehavelse='vervInnehavelser', dato=None, ut
     Produsere et Q object som querye for aktive vervInnehavelser. Siden man 
     ikke kan si Tilganger.objects.filter(verv__vervInnehavelser=Q(...)) er dette en funksjon.
 
-    Argumentet er query lookup pathen til vervInnehavelsene.
+    pathToVervInnehavelse er query lookup pathen til vervInnehavelsene.
     - Om man gir ingen argument anntar den at vi filtrere på Medlem eller Verv (som vi som oftest gjør).
     - Om man gir en tom streng kan vi filterere direkte på VervInnehavelse tabellen
     - Alternativt kan man gi en full path, f.eks. i Tilgang.objects.filter(vervInnehavelseAktiv('verv__vervInnehavelse'))
@@ -28,6 +30,9 @@ def vervInnehavelseAktiv(pathToVervInnehavelse='vervInnehavelser', dato=None, ut
     - Medlem.objects.filter(vervInnehavelseAktiv(), vervInnehavelser__verv__in=verv)
     - VervInnehavelse.objects.filter(vervInnehavelseAktiv(''))
     - Tilgang.objects.filter(vervInnehavelseAktiv('verv__vervInnehavelser'))
+
+    utvidetStart og utvidetSlutt er for å filtrere vervInnehavelser som hadde vært aktiv om vi utvidet starten og slutten på vervInnehavelsen. 
+    Det er vervInnehavelsen sin varighet som utvides, ikke dags dato, pass på den mentale modellen her. 
     '''
 
     # Må skriv dette fordi default parameters bare evalueres når funksjonen defineres. 
@@ -172,6 +177,8 @@ def getPathToKor(model):
         return 'hendelse__kor'
     if model.__name__ == 'Medlem':
         return None
+    if model.__name__ == 'SangFil':
+        return 'sang__kor'
     
     # Alle andre modeller kan anntas å ha en direkte relasjon til kor
     return 'kor'
@@ -330,3 +337,44 @@ def annotateInstance(instance, annotateFunction, *args, **kwargs):
 def refreshQueryset(queryset):
     'En quick fix funksjon som hindrer at filters ikkje kombineres på uintensjonelle måter.'
     return queryset.model.objects.filter(pk__in=queryset.values_list('pk', flat=True))
+
+
+def splitAlphaNumeric(string):
+    l = ['']
+    for c in string:
+        if not l[-1] and (c.isnumeric() or c.isalpha()):
+            l[-1] += c
+        elif l[-1].isnumeric() and c.isnumeric():
+            l[-1] += c
+        elif l[-1].isalpha() and c.isalpha():
+            l[-1] += c
+        elif c.isnumeric() or c.isalpha():
+            l.append(c)
+        elif l[-1] != '':
+            l.append('')
+    return l
+
+
+gjettStemmegruppeStemmer = {'sopran': 'S', 'alt': 'A', 'tenor': 'T', 'bass': 'B'}
+for k, v in dict(**gjettStemmegruppeStemmer).items():
+    gjettStemmegruppeStemmer[k[:3]] = v
+    gjettStemmegruppeStemmer[k[:1]] = v
+
+
+def gjettStemmegruppe(filnavn):
+    filNavnSplit = splitAlphaNumeric(filnavn.lower())
+    for i, stemmegruppePart in enumerate(filNavnSplit):
+        if stemmegruppePart not in gjettStemmegruppeStemmer.keys():
+            continue
+
+        stemmegruppe = gjettStemmegruppeStemmer[stemmegruppePart]
+        # Gå over alle potensielle underdelinger til høyre, også til venstre
+        filNavnSplit = [*filNavnSplit[i+1:], *filNavnSplit[i::-1][1:]]
+        for part in filNavnSplit:
+            if part.isnumeric() and len(part) == 1 and 1 <= int(part) <= 2:
+                stemmegruppe += part
+                if len(stemmegruppe) >= 3:
+                    break
+
+        return stemmegruppe[::-1]
+    return ''

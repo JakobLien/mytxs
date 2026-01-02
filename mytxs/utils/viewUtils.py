@@ -3,12 +3,15 @@ from http import HTTPStatus
 from django.apps import apps
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import FileField
+from django.db.models import FileField, Q, Exists, OuterRef
 from django.http import HttpResponse
 from django.shortcuts import redirect
 
 from mytxs import consts
 from mytxs.models import Dekorasjon, Medlem
+from mytxs.models import Medlem, Repertoar, Sang, SangFil
+from mytxs.utils.modelUtils import stemmegruppeVerv, vervInnehavelseAktiv
+from mytxs.utils.utils import getHalvårStart
 
 # Utils til bruk i og rundt views
 
@@ -69,7 +72,7 @@ def harTilgang(viewFunc=None, querysetModel=None, instanceModel=None, lookupToAr
                 for key, value in lookupToArgNames.items():
                     # Om den e i kwargs
                     if value not in request.resolver_match.captured_kwargs:
-                        raise Exception('Couldn\'t make filterKwargs from {lookupToArgNames} and {request.resolver_match.captured_kwargs}')
+                        raise Exception(f'Couldn\'t make filterKwargs from {lookupToArgNames} and {request.resolver_match.captured_kwargs}')
                     
                     filterKwargs[key] = request.resolver_match.captured_kwargs[value]
             
@@ -120,21 +123,31 @@ class HttpResponseUnauthorized(HttpResponse):
 
 
 def harFilTilgang(medlem, filePath):
+    'Returne instance dersom medlemmet har tilgang til fila.'
     instance, fieldName = filePathToInstance(filePath)
 
     if not instance:
         return False
     
+    # Sjekkhefte bildet
     if type(instance) == Medlem and fieldName == 'bilde':
-        # Sjekkhefte bildet
+        # Bilder av aktive har alle tilgang til
         if instance.aktiveKor.exists():
-            return True
+            return instance
         
+        # Øverige bilder har de med tilgang tilgang til med medlemsdata tilgangen
         if medlem.tilganger.filter(navn=consts.Tilgang.medlemsdata, kor__navn=instance.storkorNavn()):
-            return True
+            return instance
 
     elif type(instance) == Dekorasjon and fieldName == 'ikon':
         # Dekorasjonsikoner
-        return True
+        return instance
 
+    # Notearkiv filer
+    if type(instance) == SangFil and fieldName == 'fil':
+        # Tilgang til filan til koret ditt om du har vært i storkor, eller er aktiv i småkor
+
+        if SangFil.objects.filter(pk=instance.pk, sang__in=Sang.objects.filtrerLeseTilgang(medlem)).exists():
+            return instance
+    
     return False

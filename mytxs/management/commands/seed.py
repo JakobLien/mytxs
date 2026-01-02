@@ -34,6 +34,12 @@ class Command(BaseCommand):
         )
 
         parser.add_argument(
+            '--clearNotearkiv',
+            action='store_true',
+            help='Slett alt som har med notearkivet å gjør'
+        )
+
+        parser.add_argument(
             '--dont',
             action='store_true',
             help='Don\'t actually seed',
@@ -63,6 +69,10 @@ class Command(BaseCommand):
         if options['clearLogs']:
             print('clearLogs...')
             clearLogs(self)
+
+        if options['clearNotearkiv']:
+            print('clearNotearkiv...')
+            clearNotearkiv(self)
         
         if not options['dont']:
             print('Seeding Data...')
@@ -92,6 +102,13 @@ def clearLogs(self):
     for model in strToModels(consts.loggModelNames):
         print(f'Deleting {model.__name__} instances')
         model.objects.all().delete()
+
+
+def clearNotearkiv(self):
+    'Slett all data fra notearkivet'
+    Repertoar.objects.all().delete()
+    SangFil.objects.all().delete()
+    Sang.objects.all().delete()
 
 
 def adminAdmin(self):

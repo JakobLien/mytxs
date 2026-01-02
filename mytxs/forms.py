@@ -5,8 +5,8 @@ from django.db.models.fields import BLANK_CHOICE_DASH
 from django.shortcuts import redirect
 
 from mytxs import consts
-from mytxs.fields import BitmapMultipleChoiceField, MyDateFormField
-from mytxs.models import Hendelse, Kor, Medlem, MedlemQuerySet, Verv, Oppmøte
+from mytxs.fields import BitmapMultipleChoiceField, MultipleFileField, MyDateFormField
+from mytxs.models import Hendelse, Kor, Medlem, MedlemQuerySet, Sang, Verv, Oppmøte
 from mytxs.utils.formUtils import postIfPost, toolTip
 from mytxs.utils.modelUtils import getPathToKor, stemmegruppeVerv, vervInnehavelseAktiv
 
@@ -231,6 +231,42 @@ class OppmøteFilterForm(KorFilterForm):
             )
 
             queryset = queryset.filter(stemmegruppe=sg)
+
+        return queryset
+
+
+class SangFilterForm(NavnKorFilterForm):
+    år = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + [(year, year) for year in range(datetime.date.today().year, 1909, -1)])
+    notisInnhold = forms.CharField(required=False, label='Notis innhold')
+
+    def applyFilter(self, queryset):
+        if not self.is_valid():
+            raise Exception('Invalid filterForm')
+
+        if navn := self.cleaned_data['navn']:
+            # Dette sjekke om alle ordan e i navnet, heller enn at helheten e i navnet. 
+            queryset = queryset.filter(*map(lambda n: Q(navn__icontains=n), navn.split()))
+
+        if kor := self.cleaned_data['kor']:
+            queryset = queryset.filter(repertoar__kor__navn=kor.navn)
+
+        if år := self.cleaned_data['år']:
+            queryset = queryset.filter(repertoar__dato__year=år)
+
+        if 'notisInnhold' in self.fields and (notis := self.cleaned_data['notisInnhold']):
+            queryset = queryset.filter(*map(lambda n: Q(notis__icontains=n), notis.split()))
+
+        return queryset
+
+
+class RepertoarFilterForm(NavnKorFilterForm):
+    år = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + [(year, year) for year in range(datetime.date.today().year, 1909, -1)])
+
+    def applyFilter(self, queryset):
+        queryset = super().applyFilter(queryset)
+
+        if år := self.cleaned_data['år']:
+            queryset = queryset.filter(dato__year=år)
 
         return queryset
 

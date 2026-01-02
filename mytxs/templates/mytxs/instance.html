@@ -31,7 +31,7 @@
     {% comment %} Dette er for at help_text ikkje skal hive på en <br> tag {% endcomment %}
     {{ form.non_field_errors }}
     {% for field in form.visible_fields %}
-    {{ field.errors }} {{ field.label_tag }} {{ field }} {{ field.help_text|safe }}
+    {{ field.errors }} {{ field.label_tag }} {{ field }} {{ field.help_text|safe }} {% block afterField %}{% endblock %}
     {% endfor %} {% addLoggLink form.instance %}
     {% for field in form.hidden_fields %}{{ field }}{% endfor %}
 
