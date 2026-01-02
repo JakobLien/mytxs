@@ -43,3 +43,21 @@ def cropImage(imageFile, name, width, height):
 def getHalvårStart():
     halvårStart = datetime.date.today()
     return halvårStart.replace(month=(halvårStart.month // 7) * 6 + 1, day=1)
+
+
+def getStemmegrupper(stemmefordeling, lengde=2, ekstraDybde=0):
+    '''
+    Stemmefordeling er 'SA', 'TB' eller 'SATB'. 
+    Lengde er lengden av strengene vi skal ha. Dybde hiver på dypere lengder.
+    '''
+    stemmegrupper = ','.join(stemmefordeling)
+
+    for l in range(1, lengde+ekstraDybde):
+        if l < lengde:
+            # Bare øk lengden av alt
+            stemmegrupper = ','.join([f'1{s},2{s}' for s in stemmegrupper.split(',')])
+        else:
+            # Øk og dupliser de lengste strengene
+            stemmegrupper = ','.join([(f'{s},1{s},2{s}' if len(s) == l else s) for s in stemmegrupper.split(',')])
+        
+    return stemmegrupper.split(',')

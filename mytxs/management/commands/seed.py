@@ -97,17 +97,17 @@ def adminAdmin(self):
     if created:
         medlem.innstillinger = {
             'adminTilganger': consts.alleTilganger,
-            'adminTilgangerKor': ['TSS', 'Knauskoret']
+            'adminTilgangerKor': [consts.Kor.TSS, consts.Kor.Knauskoret]
         }
         medlem.save()
 
         medlem.vervInnehavelser.create(
-            verv=randomDistinct(Verv.objects.filter(stemmegruppeVerv('', includeUkjentStemmegruppe=False), kor__navn='TSS')),
+            verv=randomDistinct(Verv.objects.filter(stemmegruppeVerv('', includeUkjentStemmegruppe=False), kor__navn=consts.Kor.TSS)),
             start=datetime.date.today()
         )
 
         medlem.vervInnehavelser.create(
-            verv=randomDistinct(Verv.objects.filter(stemmegruppeVerv('', includeUkjentStemmegruppe=False), kor__navn='Knauskoret')),
+            verv=randomDistinct(Verv.objects.filter(stemmegruppeVerv('', includeUkjentStemmegruppe=False), kor__navn=consts.Kor.Knauskoret)),
             start=datetime.date.today()
         )
 
@@ -126,7 +126,7 @@ def testData(self):
 
     def makeMedlem(kor=None, start=None, slutt=None, stemmegruppe=None):
         medlem = Medlem.objects.create(
-            fornavn=random.choice(guttenavn) if getattr(kor, 'navn', '') == 'TSS' else random.choice(jentenavn) if getattr(kor, 'navn', '') == 'TKS' else random.choice([*guttenavn, *jentenavn]),
+            fornavn=random.choice(guttenavn) if getattr(kor, 'navn', '') == consts.Kor.TSS else random.choice(jentenavn) if getattr(kor, 'navn', '') == consts.Kor.TKS else random.choice([*guttenavn, *jentenavn]),
             mellomnavn='Test',
             etternavn=random.choice(etternavn)
         )
@@ -146,7 +146,7 @@ def testData(self):
 
     # Lag stor og småkorista, og gi dem testVerv og testDekorasjona
     for i in range(totalNumber):
-        kor = Kor.objects.get(navn='TSS' if i <= totalNumber / 2 else 'TKS')
+        kor = Kor.objects.get(navn=consts.Kor.TSS if i <= totalNumber / 2 else consts.Kor.TKS)
         
         start = datetime.date.fromisoformat(str(random.randrange((startYear), datetime.date.today().year+1)) + '-09-01')
         medlem = makeMedlem(
@@ -159,9 +159,9 @@ def testData(self):
         # Gi noen av de stemmmegrupper i småkor
         if (småkorTall := random.randrange(8)) < 3:
             if småkorTall < 2:
-                småkor = Kor.objects.get(navn='Pirum' if kor.navn=='TSS' else 'Candiss')
+                småkor = Kor.objects.get(navn=consts.Kor.Pirum if kor.navn==consts.Kor.TSS else consts.Kor.Candiss)
             else:
-                småkor = Kor.objects.get(navn='Knauskoret')
+                småkor = Kor.objects.get(navn=consts.Kor.Knauskoret)
 
             # Dette kan generere folk som e aktiv i småkor lenger enn dem e aktiv i storkor, som ikkje virke krise for koden sin del
             stemmegruppe = Verv.objects.get(navn=random.choice(kor.stemmegrupper(lengde=2)), kor=småkor)
@@ -307,24 +307,24 @@ def runSeed(self):
         if korCreated:
             self.stdout.write('Created kor ' + kor.navn + ' at id ' + str(kor.pk))
 
-        # Opprett generelle tilganger
-        for t in range(len(consts.tilganger)):
-            tilgang, tilgangCreated = kor.tilganger.get_or_create(navn=consts.tilganger[t], defaults={
-                'bruktIKode': True, 
-                'beskrivelse': consts.tilgangBeskrivelser[t]
-            })
+        tilgangerForKor = [t[0] for t in consts.tilgangTilKorNavn.items() if kor.navn in t[1]]
+
+        # Opprett tilganger
+        for tilgangNavn in tilgangerForKor:
+            tilgang, tilgangCreated = kor.tilganger.get_or_create(
+                navn=tilgangNavn, 
+                bruktIKode=True, 
+                defaults={
+                    'beskrivelse': consts.tilgangBeskrivelser[list(consts.tilgangTilKorNavn.keys()).index(tilgangNavn)]
+                }
+            )
             if tilgangCreated:
                 print(f'Created tilgang {tilgang}')
 
-        # Opprett storkor-tilganger
-        if kor.navn in consts.bareStorkorNavn:
-            for t in range(len(consts.storkorTilganger)):
-                tilgang, tilgangCreated = kor.tilganger.get_or_create(navn=consts.storkorTilganger[t], defaults={
-                    'bruktIKode': True, 
-                    'beskrivelse': consts.storkorTilgangBeskrivelser[t]
-                })
-                if tilgangCreated:
-                    print(f'Created tilgang {tilgang}')
+        # Slett tilganger i kor som ikkje har de. 
+        deletedNum, tilgang = kor.tilganger.filter(~Q(navn__in=tilgangerForKor), bruktIKode=True).delete()
+        if deletedNum > 0:
+            print(f'Slettet tilgang {tilgang}')
 
         # Om det e et kor (ikke Sangern)
         if kor.navn in consts.bareKorNavn:
@@ -343,6 +343,8 @@ def runSeed(self):
             ukjentStemmegruppeVerv, ukjentStemmegruppeVervCreated = kor.verv.get_or_create(navn='ukjentStemmegruppe', bruktIKode=True)
             if ukjentStemmegruppeVervCreated:
                 self.stdout.write('Created verv ' + ukjentStemmegruppeVerv.navn + ' for kor ' + kor.navn + ' at id ' + str(ukjentStemmegruppeVerv.pk))
+
+            # TODO: Skriv om dette til å bruk utils.py sin getStemmegrupper ?
 
             # Opprett stemmegrupper
             for stemmegruppe in kor.stemmefordeling:

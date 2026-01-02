@@ -5,8 +5,8 @@ from django.db.models.fields import BLANK_CHOICE_DASH
 from django.shortcuts import redirect
 
 from mytxs import consts
-from mytxs.fields import BitmapMultipleChoiceField, MyDateFormField
-from mytxs.models import Hendelse, Kor, Medlem, MedlemQuerySet, Verv, Oppmøte
+from mytxs.fields import BitmapMultipleChoiceField, MultipleFileField, MyDateFormField
+from mytxs.models import Hendelse, Kor, Medlem, MedlemQuerySet, Sang, Verv, Oppmøte
 from mytxs.utils.formUtils import postIfPost, toolTip
 from mytxs.utils.modelUtils import getPathToKor, korLookup, qBool, refreshQueryset, stemmegruppeVerv, vervInnehavelseAktiv
 
@@ -42,7 +42,7 @@ class NavnKorFilterForm(KorFilterForm):
 
 
 class TurneFilterForm(NavnKorFilterForm):
-    år = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + [(year, year) for year in range(2023, 1909, -1)])
+    år = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + [(year, year) for year in range(datetime.date.today().year, 1909, -1)])
 
     def applyFilter(self, queryset):
         queryset = super().applyFilter(queryset)
@@ -60,10 +60,7 @@ class VervFilterForm(NavnKorFilterForm):
         queryset = super().applyFilter(queryset)
 
         if (sistAktiv := self.cleaned_data['sistAktiv']) or sistAktiv == 0:
-            queryset = queryset.filter(
-                Q(vervInnehavelser__start__year__gte=datetime.date.today().year - (sistAktiv or 0)) |
-                (Q(vervInnehavelser__slutt__isnull=True) & Q(vervInnehavelser__isnull=False))
-            )
+            queryset = queryset.filter(vervInnehavelseAktiv(utvidetSlutt=datetime.timedelta(days=365*sistAktiv)))
 
         return queryset
 
@@ -90,7 +87,7 @@ class HendelseFilterForm(NavnKorFilterForm):
 
 class MedlemFilterForm(NavnKorFilterForm):
     # Formet arver feltan navn og kor, men implementere applyFilter dem annerledes fordi medlemmer har navn og kor på en annen måte enn øverige objekter
-    K = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + [(year, year) for year in range(2023, 1909, -1)])
+    K = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + [(year, year) for year in range(datetime.date.today().year, 1909, -1)])
     stemmegruppe = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + [(i, i) for i in ['Dirigent', 'ukjentStemmegruppe', *consts.hovedStemmegrupper]])
     dato = MyDateFormField(required=False)
     ikkeOverførtData = forms.BooleanField(required=False, label='Ikke overført data', help_text=toolTip('Bare vis medlemmer som ikke har overført dataen sin til MyTXS 2.0.'))
@@ -238,6 +235,35 @@ class OppmøteFilterForm(KorFilterForm):
         return queryset
 
 
+class SangFilterForm(NavnKorFilterForm):
+    år = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + [(year, year) for year in range(datetime.date.today().year, 1909, -1)])
+    notisInnhold = forms.CharField(required=False, label='Notis innhold')
+
+
+    def applyFilter(self, queryset):
+        queryset = super().applyFilter(queryset)
+
+        if år := self.cleaned_data['år']:
+            queryset = queryset.filter(repertoar__dato__year=år)
+
+        if 'notisInnhold' in self.fields and (notis := self.cleaned_data['notisInnhold']):
+            queryset = queryset.filter(*map(lambda n: Q(notis__icontains=n), notis.split()))
+
+        return queryset
+
+
+class RepertoarFilterForm(NavnKorFilterForm):
+    år = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + [(year, year) for year in range(datetime.date.today().year, 1909, -1)])
+
+    def applyFilter(self, queryset):
+        queryset = super().applyFilter(queryset)
+
+        if år := self.cleaned_data['år']:
+            queryset = queryset.filter(dato__year=år)
+
+        return queryset
+
+
 class ShareCalendarForm(forms.Form):
     gmail = forms.EmailField(help_text=toolTip('Skriv in gmailen din her for å inviteres til en google kalender som oppdaterer umiddelbart!'))
 
@@ -307,3 +333,26 @@ def addInnstillingerForm(request):
         request.user.medlem.innstillinger = request.optionForm.cleaned_data
         request.user.medlem.save()
         return redirect(request.get_full_path())
+
+
+NySangForm = forms.modelform_factory(Sang, fields=['navn', 'kor'])
+
+# class NySangForm(NySangForm):
+#     # TODO: Funke ikkje:/
+#     filer = MultipleFileField(required=False)
+
+#     def form_valid(self, form):
+#         self.files = form.cleaned_data["filer"]
+#         return super().form_valid()
+    
+#     def save(self, *args, **kwargs):
+#         v = super().save(*args, **kwargs)
+
+#         print(type(self.files[0]))
+
+#         # for f in self.files:
+#         #     self.instance.filer.create(
+
+#         #     )
+
+#         return v

@@ -6,6 +6,8 @@ import os
 import re
 import urllib3
 
+from mytxs import consts
+
 # Så greia e at MyTXS 1.0 servern supporte ikkje ipv6, og samfundet har ipv6 som default.
 # Dette lede til at dersom vi ikkje eksplisit spesifisere at vi må bruk ipv4 får vi en bug
 # på servern som vi ikke får lokalt, og som e no har brukt 3 tima på å debug med itk. Ikke 
@@ -84,11 +86,11 @@ def transferByJWT(jwt):
 
     medlemsnummer = json.loads(base64.b64decode(jwt.split('.')[1]+'==', altchars='-_'))['sub']
 
-    if medlemsnummer.startswith('TSS'):
+    if medlemsnummer.startswith(consts.Kor.TSS):
         medlemDict = http.request("GET", f"https://mytss.mannskor.no/api/medlem/{medlemsnummer[3:]}?jwt={jwt}", headers={
             "Authorization": f"Bearer {os.environ['API_KEY']}"
         }).json()
-    elif medlemsnummer.startswith('TKS'):
+    elif medlemsnummer.startswith(consts.Kor.TKS):
         medlemDict = http.request("GET", f"https://mitks.mannskor.no/api/medlem/{medlemsnummer[3:]}?jwt={jwt}", headers={
             "Authorization": f"Bearer {os.environ['API_KEY']}"
         }).json()
@@ -192,7 +194,7 @@ def insertMedlem(medlemDict):
         )
     elif (stemmeGruppeInt := int(medlemDict['medlemsnummer'][7:9]) // 20) < 4 and not feilMedlemsnummer(medlemDict):
         # Ellers, gjett på stemmegruppen deres basert på medlemsnummer, om medlemsnummeret ikke er før korets grunneggelse
-        if kor.navn == 'TSS':
+        if kor.navn == consts.Kor.TSS:
             stemmeGruppeInt += 4
         
         stemmegruppe = Verv.objects.get(
@@ -331,16 +333,16 @@ def insertMedlem(medlemDict):
             # Dette dekker ikke PC(TKS) og Kruser(TSS/TKS), men disse vil jeg sterkt råde korlederne om
             # at vi sletter, siden å være ferdig i et småkor ikke er et verv, det er bare dataduplisering. 
             småkorKeywordToKor = {
-                'pirum': 'Pirum',
-                'knaus': 'Knauskoret',
-                'candiss': 'Candiss'
+                'pirum': consts.Kor.Pirum,
+                'knaus': consts.Kor.Knauskoret,
+                'candiss': consts.Kor.Candiss
             }
 
             # Sjekk om det e et småkorverv
             for keyword, småkor in småkorKeywordToKor.items():
                 if keyword in vervDict['verv'].lower():
                     # Dersom det e medlemskapsvervet, gi de ukjentStemmegruppe vervet
-                    if vervDict['verv'] in ['Pirum', 'Knauskoret', 'Candiss']:
+                    if vervDict['verv'] in consts.bareSmåkorNavn:
                         vervDict['verv'] = 'ukjentStemmegruppe'
 
                     # Dersom det e dirigentvervet, gi de dirigent vervet
@@ -425,8 +427,8 @@ def feilMedlemsnummer(medlemDict):
     Det er hundrevis av TKSere med "feil medlemsnummer", som har år før 1930. Se bort fra disse
     Er også en par TSSere med "feil medlemsnummer", som har år før 1910. 
     '''
-    return (medlemDict['medlemsnummer'][:3] == 'TKS' and int(medlemDict['medlemsnummer'][3:7]) < 1930) or \
-           (medlemDict['medlemsnummer'][:3] == 'TSS' and int(medlemDict['medlemsnummer'][3:7]) < 1910)
+    return (medlemDict['medlemsnummer'][:3] == consts.Kor.TKS and int(medlemDict['medlemsnummer'][3:7]) < 1930) or \
+           (medlemDict['medlemsnummer'][:3] == consts.Kor.TSS and int(medlemDict['medlemsnummer'][3:7]) < 1910)
 
 
 def parseSluttet(sluttet):

@@ -50,7 +50,7 @@ def fieldIsRequired(field):
         return not field.blank
     return not field.null
 
-def objectsGenerator(objects):
+def objectsGenerator(objects, save=True):
     'Generere en stream av objects, og printe prosent av gjennomgang i strømmen.'
     numberOfObjects = len(objects)
     print(f'Number of objects: {numberOfObjects}')
@@ -60,7 +60,8 @@ def objectsGenerator(objects):
             print(f'{math.floor(i/numberOfObjects*100)}%')
         yield instance
 
-        instance.save()
+        if save:
+            instance.save()
     print('100%')
 
 def trim(model, fieldName, options):

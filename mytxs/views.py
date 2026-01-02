@@ -1,5 +1,6 @@
 import datetime
 import json
+import csv
 
 from django import forms
 from django.contrib import messages
@@ -9,17 +10,18 @@ from django.contrib.auth.forms import AuthenticationForm, UserCreationForm, SetP
 from django.contrib.auth.models import User as AuthUser
 from django.core import mail
 from django.db.models import Q, F, IntegerField, Prefetch
+from django.db.models.fields import BLANK_CHOICE_DASH
 from django.db.models.functions import Cast
 from django.forms import inlineformset_factory, modelform_factory, modelformset_factory
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from django.http import FileResponse, Http404 
+from django.http import FileResponse, Http404, HttpResponse 
 
 from mytxs import consts
 from mytxs.fields import intToBitList
 from mytxs.management.commands.transfer import transferByJWT
-from mytxs.models import Dekorasjon, DekorasjonInnehavelse, Hendelse, Kor, Lenke, Logg, Medlem, MedlemQuerySet, Tilgang, Turne, Verv, VervInnehavelse, Oppmøte
-from mytxs.forms import HendelseFilterForm, LoggFilterForm, MedlemFilterForm, NavnKorFilterForm, ShareCalendarForm, TurneFilterForm, VervFilterForm, OppmøteFilterForm
+from mytxs.models import Dekorasjon, DekorasjonInnehavelse, Hendelse, Kor, Lenke, Logg, Medlem, MedlemQuerySet, Repertoar, Sang, SangFil, Tilgang, Turne, Verv, VervInnehavelse, Oppmøte
+from mytxs.forms import HendelseFilterForm, LoggFilterForm, MedlemFilterForm, NavnKorFilterForm, NySangForm, RepertoarFilterForm, SangFilterForm, ShareCalendarForm, TurneFilterForm, VervFilterForm, OppmøteFilterForm, subForm
 from mytxs.utils.formAccess import addHelpText, disableBrukt, disableFields, disableFormMedlem, removeFields
 from mytxs.utils.formAddField import addDeleteCheckbox, addDeleteUserCheckbox, addHendelseMedlemmer, addReverseM2M
 from mytxs.utils.googleCalendar import getOrCreateAndShareCalendar
@@ -29,8 +31,8 @@ from mytxs.utils.hashUtils import addHash, testHash
 from mytxs.utils.logAuthorUtils import logAuthorAndSave, logAuthorInstance
 from mytxs.utils.modelUtils import inneværendeSemester, korLookup, qBool, randomDistinct, stemmegruppeOrdering, vervInnehavelseAktiv, stemmegruppeVerv, annotateInstance
 from mytxs.utils.pagination import getPaginatedInlineFormSet, addPaginatorPage
-from mytxs.utils.downloadUtils import downloadCSV, downloadICal, downloadVCard
-from mytxs.utils.utils import getHalvårStart
+from mytxs.utils.downloadUtils import downloadFile, downloadICal, downloadVCard
+from mytxs.utils.utils import getHalvårStart, getStemmegrupper
 from mytxs.utils.viewUtils import HttpResponseUnauthorized, harFilTilgang, harTilgang, redirectToInstance
 
 # Create your views here.
@@ -39,8 +41,12 @@ def serve(request, path):
     if not request.user.is_authenticated:
         return HttpResponseUnauthorized()
     
-    if not harFilTilgang(request.user.medlem, path):
+    instance = harFilTilgang(request.user.medlem, path)
+    if not instance:
         raise Http404()
+    
+    if isinstance(instance, SangFil):
+        return FileResponse(open('uploads/'+path, 'rb'), filename=str(instance))
 
     return FileResponse(open('uploads/'+path, 'rb'))
 
@@ -211,7 +217,7 @@ def sjekkheftet(request, side, underside=None):
         else:
             # Om det e heile koret
             request.queryset = request.queryset.filter(
-                stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
+                stemmegruppeVerv('vervInnehavelser__verv', includeUkjentStemmegruppe=False, includeDirr=True),
                 vervInnehavelseAktiv(),
                 vervInnehavelser__verv__kor=kor
             ).annotatePublic(
@@ -354,7 +360,55 @@ def medlem(request, medlemPK):
     })
 
 
-@harTilgang(querysetModel=Hendelse)
+@harTilgang
+def notearkiv(request, kor, side):
+    if side == 'repertoar':
+        class ÅrForm(forms.Form):
+            år = forms.ChoiceField(required=False, initial=datetime.date.today().year, choices=BLANK_CHOICE_DASH + [(year, year) for year in range(datetime.date.today().year, 1909, -1)])
+
+        årForm = ÅrForm(request.GET)
+
+        if not årForm.is_valid():
+            raise Exception('Invalid filterForm')
+        
+        request.queryset = Repertoar.objects.filter(
+            # Du får opp alle repertoar for koret, med unntak av om du e gammel småkorst
+            (Q(dato__lt=getHalvårStart()) if kor in consts.bareSmåkorNavn and not request.user.medlem.aktiveKor.filter(navn=kor).exists() else qBool(True)) if årForm.cleaned_data['år'] else qBool(True),
+            Q(dato__year=årForm.cleaned_data['år']) if årForm.cleaned_data['år'] else Q(dato__isnull=True),
+            kor__navn=kor,
+        ).prefetch_related(Prefetch( # Skjul filer som er skjult
+            'sanger', queryset=Sang.objects.all().prefetch_related(Prefetch(
+                'filer', queryset=SangFil.objects.filter(skjul=False)
+            ))
+        ))
+
+        return render(request, 'mytxs/notearkiv.html', {'årForm': årForm})
+    
+    if side == 'MSH':
+        request.queryset = Repertoar.objects.filter(
+            navn='MSH',
+            kor__navn=kor
+        ).prefetch_related(Prefetch( # Skjul filer som er skjult
+            'sanger', queryset=Sang.objects.all().prefetch_related(Prefetch(
+                'filer', queryset=SangFil.objects.filter(skjul=False)
+            ))
+        ))
+
+        return render(request, 'mytxs/notearkiv.html')
+
+    if side == 'søk':
+        request.queryset = Sang.objects.filter(kor__navn=kor).filterTilgang(request.user.medlem)
+
+        sangFilterForm = SangFilterForm(request.GET)
+
+        request.queryset = sangFilterForm.applyFilter(request.queryset)
+
+        addPaginatorPage(request)
+
+        return render(request, 'mytxs/notearkivSøk.html', {'filterForm': sangFilterForm})
+
+
+@harTilgang
 def semesterplan(request, kor):
     if not request.user.medlem.aktiveKor.filter(navn=kor).exists():
         messages.error(request, f'Du har ikke tilgang til andre kors kalender')
@@ -407,6 +461,9 @@ def semesterplan(request, kor):
 
     if not request.GET.get('gammelt'):
         request.queryset = request.queryset.filter(startDate__gte=datetime.datetime.today())
+
+    if request.GET.get('utenUndergruppe'):
+        request.queryset = request.queryset.exclude(kategori=Hendelse.UNDERGRUPPE)
 
     request.iCalLink = 'http://' + request.get_host() + addHash(reverse('iCal', args=[kor, request.user.medlem.pk]))
 
@@ -537,7 +594,8 @@ def fraværSide(request, side, underside=None):
     
     if side == 'statistikk':
         medlemmer = request.queryset.annotateKarantenekor(kor=underside).annotateStemmegruppe(kor=underside)\
-            .annotateKor(annotationNavn="småkorNavn", korAlternativ=consts.bareSmåkorNavn, aktiv=True)
+            .annotateKor(annotationNavn="aktivtSmåkorNavn", korAlternativ=consts.bareSmåkorNavn, aktiv=True)\
+            .annotateKor(annotationNavn="småkorNavn", korAlternativ=consts.bareSmåkorNavn, aktiv=False)
         
         class fraværGruppe:
             def __init__(self, navn):
@@ -557,6 +615,10 @@ def fraværSide(request, side, underside=None):
                 return sum([m.ugyldigFravær for m in self.medlemmer])/len(self.medlemmer)
         
             @property
+            def umeldtFravær(self):
+                return sum([m.umeldtFravær for m in self.medlemmer])/len(self.medlemmer)
+        
+            @property
             def hendelseVarighet(self):
                 return sum([m.hendelseVarighet for m in self.medlemmer])/len(self.medlemmer)
         
@@ -570,6 +632,7 @@ def fraværSide(request, side, underside=None):
 
         for småkorNavn in consts.småkorForStorkor.get(underside, []):
             fraværGrupper[småkorNavn] = fraværGruppe(småkorNavn)
+            fraværGrupper['Eks ' + småkorNavn] = fraværGruppe('Eks ' + småkorNavn)
 
         for medlem in medlemmer:
             fraværGrupper[medlem.karantenekor].medlemmer.append(medlem)
@@ -577,8 +640,10 @@ def fraværSide(request, side, underside=None):
             if medlem.stemmegruppe != None:
                 fraværGrupper[medlem.stemmegruppe].medlemmer.append(medlem)
             
-            if medlem.småkorNavn in fraværGrupper:
-                fraværGrupper[medlem.småkorNavn].medlemmer.append(medlem)
+            if medlem.aktivtSmåkorNavn in fraværGrupper:
+                fraværGrupper[medlem.aktivtSmåkorNavn].medlemmer.append(medlem)
+            elif medlem.småkorNavn and 'Eks ' + medlem.småkorNavn in fraværGrupper:
+                fraværGrupper['Eks ' + medlem.småkorNavn].medlemmer.append(medlem)
         
         request.queryset = list(filter(lambda fg: fg.medlemmer, fraværGrupper.values()))
 
@@ -613,7 +678,7 @@ def hendelseListe(request):
 
     request.queryset = hendelseFilterForm.applyFilter(request.queryset)
 
-    NyHendelseForm = modelform_factory(Hendelse, fields=['navn', 'kor', 'kategori', 'startDate'])
+    NyHendelseForm = modelform_factory(Hendelse, fields=['navn', 'kor', 'kategori', 'beskrivelse', 'sted', 'startDate', 'startTime', 'sluttDate', 'sluttTime'])
 
     nyHendelseForm = NyHendelseForm(request.POST or None, prefix='nyHendelse')
     
@@ -1061,16 +1126,18 @@ def eksport(request, kor):
         if 'stemmegruppe' in fields:
             medlemmer = medlemmer.annotateStemmegruppe(kor=kor, understemmegruppe=True, includeDirr=True)
 
-        csv = [['Navn'] + fields]
+        response = downloadFile('MyTXS-eksport.csv', content_type='text/csv')
+        writer = csv.writer(response)
+
+        writer.writerow(['Navn'] + fields)
         for medlem in medlemmer:
             line = []
             for field in ['fulltNavn'] + fields:
                 if field == 'matpreferanse':
-                    value = ', '.join(list(map(lambda t: t[1], filter(lambda t: t[0] in intToBitList(getattr(medlem, field)), enumerate(consts.matpreferanseOptions)))))
+                    line.append(', '.join(list(map(lambda t: t[1], filter(lambda t: t[0] in intToBitList(getattr(medlem, field)), enumerate(consts.matpreferanseOptions))))))
                 else:
-                    value = str(getattr(medlem, field))
-                line.append(value)
-            csv.append(line)
+                    line.append(getattr(medlem, field))
+            writer.writerow(line)
 
         mail.mail_admins(subject='Eksport!', message='''\
 Eksport siden har blitt brukt av %s.\n
@@ -1078,7 +1145,7 @@ De hentet ut informasjon om følgende medlemmer: %s\n
 For disse medlemmene hentet de ut: %s\n
 ''' % (str(request.user.medlem), '\n- '.join(['']+list(map(lambda m: str(m), medlemmer))), '\n- '.join(['']+list(fields))))
 
-        return downloadCSV('MyTXS-eksport.csv', csv)
+        return response
 
     if 'fraværEksport' in request.GET:
         hendelser = Hendelse.objects.filter(inneværendeSemester('startDate')).filter(
@@ -1095,12 +1162,15 @@ For disse medlemmene hentet de ut: %s\n
             ).order_by('hendelse'))
         )
 
-        csv = [[*',name,address,zip,city,emailAddress,phoneNumber,gender,yearOfBirth,'.split(','), *['' for h in hendelser]]]
-        csv.append([*'date,,,,,,,,,Dato'.split(','), *[h.start.strftime('%d.%m.%Y') for h in hendelser]])
-        csv.append([*'time,,,,,,,,,Starttid'.split(','), *[h.start.strftime('%H:%M') for h in hendelser]])
-        csv.append([*'type,,,,,,,,,Hvordan er samlingen gjennomført?'.split(','), *['F' for h in hendelser]])
-        csv.append([*'hoursWithoutTeacher,,,,,,,,,Timer uten lærer'.split(','), *[(str(round(h.varighet/60, 2)).replace('.', ',') if not h.dirigentTilstede else 0) for h in hendelser]])
-        csv.append([*'hours,Navn,Adresse,Postnummer,Poststed,Epostadresse,Telefon,Kjønn,Fødselsår,Timer med lærer'.split(','), *[(str(round(h.varighet/60, 2)).replace('.', ',') if h.dirigentTilstede else 0) for h in hendelser]])
+        response = downloadFile('MyTXS-eksport.csv', content_type='text/csv')
+        writer = csv.writer(response)
+
+        writer.writerow([*',name,address,zip,city,emailAddress,phoneNumber,gender,yearOfBirth,'.split(','), *['' for h in hendelser]])
+        writer.writerow([*'date,,,,,,,,,Dato'.split(','), *[h.start.strftime('%d.%m.%Y') for h in hendelser]])
+        writer.writerow([*'time,,,,,,,,,Starttid'.split(','), *[h.start.strftime('%H:%M') for h in hendelser]])
+        writer.writerow([*'type,,,,,,,,,Hvordan er samlingen gjennomført?'.split(','), *['F' for h in hendelser]])
+        writer.writerow([*'hoursWithoutTeacher,,,,,,,,,Timer uten lærer'.split(','), *[(str(round(h.varighet/60, 2)).replace('.', ',') if not h.dirigentTilstede else 0) for h in hendelser]])
+        writer.writerow([*'hours,Navn,Adresse,Postnummer,Poststed,Epostadresse,Telefon,Kjønn,Fødselsår,Timer med lærer'.split(','), *[(str(round(h.varighet/60, 2)).replace('.', ',') if h.dirigentTilstede else 0) for h in hendelser]])
         
         for i, medlem in enumerate(medlemmer):
             postNummer, postSted = '', ''
@@ -1108,7 +1178,7 @@ For disse medlemmene hentet de ut: %s\n
                 postNummer = medlem.boAdresse.split(',')[1].split()[0]
                 postSted = medlem.boAdresse.split(',')[1].split()[1]
 
-            line = [i, medlem.navn, medlem.boAdresse.split(',')[0], postNummer, postSted, medlem.epost, medlem.tlf, 'K' if medlem.storkorNavn() == 'TKS' else 'M', medlem.fødselsdato.year if medlem.fødselsdato else '', '']
+            line = [i, medlem.navn, medlem.boAdresse.split(',')[0], postNummer, postSted, medlem.epost, medlem.tlf, 'K' if medlem.storkorNavn() == consts.Kor.TKS else 'M', medlem.fødselsdato.year if medlem.fødselsdato else '', '']
 
             # Må ta høyde for at permisjon kan medføre færre oppmøter enn hendelser
             oppmøteIndex=0
@@ -1121,11 +1191,11 @@ For disse medlemmene hentet de ut: %s\n
                 else:
                     line.append('')
 
-            csv.append(line)
+            writer.writerow(line)
         
         mail.mail_admins(subject='Fravær Eksport!', message=f'Eksport siden sin fravær funksjon har blitt brukt av {str(request.user.medlem)}.')
 
-        return downloadCSV('MyTXS-fremmøte.csv', csv)
+        return response
 
     return render(request, 'mytxs/eksport.html', {
         'eksportForm': eksportForm,
@@ -1137,4 +1207,117 @@ For disse medlemmene hentet de ut: %s\n
 def om(request):
     return render(request, 'mytxs/om.html', {
         'heading': 'Feedback og om prosjektet'
+    })
+
+
+@harTilgang(querysetModel=Repertoar)
+def repertoarListe(request):
+    repertoarFilterForm = RepertoarFilterForm(request.GET)
+
+    request.queryset = repertoarFilterForm.applyFilter(request.queryset)
+
+    NyttRepertoarForm = modelform_factory(Repertoar, fields=['navn', 'kor', 'dato'])
+
+    nyttRepertoarForm = NyttRepertoarForm(request.POST or None, prefix='nyttRepertoar')
+    
+    disableFormMedlem(request.user.medlem, nyttRepertoarForm)
+
+    if request.method == 'POST':
+        if nyttRepertoarForm.is_valid():
+            logAuthorAndSave(nyttRepertoarForm, request.user.medlem)
+            messages.info(request, f'{nyttRepertoarForm.instance} opprettet!')
+            return redirect(nyttRepertoarForm.instance)
+
+    addPaginatorPage(request)
+    
+    return render(request, 'mytxs/instanceListe.html', {
+        'filterForm': repertoarFilterForm,
+        'newForm': nyttRepertoarForm,
+    })
+
+
+@harTilgang(instanceModel=Repertoar, lookupToArgNames={'kor__navn': 'kor', 'navn': 'repertoarNavn'})
+def repertoar(request, kor, repertoarNavn):
+    RepertoarForm = modelform_factory(Repertoar, exclude=['kor'])
+
+    RepertoarForm = addDeleteCheckbox(RepertoarForm)
+
+    RepertoarForm = addReverseM2M(RepertoarForm, 'sanger')
+
+    repertoarForm = RepertoarForm(request.POST or None, instance=request.instance)
+
+    if disableFormMedlem(request.user.medlem, repertoarForm) and kor in consts.bareStorkorNavn:
+        # TODO: E burda ikkje treng en ekstra filter her vel?
+        repertoarForm.fields['sanger'].queryset = repertoarForm.fields['sanger'].queryset.filter(kor__navn=consts.Kor.TXS)
+
+    if request.method == 'POST':
+        if repertoarForm.is_valid():
+            logAuthorAndSave(repertoarForm, request.user.medlem)
+            if repertoarForm.cleaned_data['DELETE']:
+                messages.info(request, f'{repertoarForm.instance} slettet')
+                return redirect('repertoar')
+            return redirectToInstance(request)
+    
+    return render(request, 'mytxs/instance.html', {
+        'forms': [repertoarForm],
+    })
+
+
+@harTilgang(querysetModel=Sang)
+def sangListe(request):
+    sangFilterForm = SangFilterForm(request.GET)
+
+    request.queryset = sangFilterForm.applyFilter(request.queryset)
+
+    nySangForm = NySangForm(request.POST or None, prefix='nySang')
+    
+    disableFormMedlem(request.user.medlem, nySangForm)
+
+    if request.method == 'POST':
+        if nySangForm.is_valid():
+            logAuthorAndSave(nySangForm, request.user.medlem)
+            messages.info(request, f'{nySangForm.instance} opprettet!')
+            return redirect(nySangForm.instance)
+
+    addPaginatorPage(request)
+    
+    return render(request, 'mytxs/instanceListe.html', {
+        'filterForm': sangFilterForm,
+        'newForm': nySangForm,
+    })
+
+
+@harTilgang(instanceModel=Sang, lookupToArgNames={'kor__navn': 'kor', 'navn': 'sangNavn'})
+def sang(request, kor, sangNavn):
+    SangForm = modelform_factory(Sang, exclude=['kor'])
+    SangFilForm = inlineformset_factory(Sang, SangFil, formset=getPaginatedInlineFormSet(request), **inlineFormsetArgs)
+
+    SangForm = addDeleteCheckbox(SangForm)
+
+    sangForm = SangForm(postIfPost(request, 'sang'), instance=request.instance, prefix='sang')
+    sangFilForm = SangFilForm(postIfPost(request, 'filer'), filesIfPost(request, 'filer'), instance=request.instance, prefix='filer')
+
+    print(request.instance.filer.all())
+
+    if disableFormMedlem(request.user.medlem, sangForm) and kor == consts.Kor.TXS:
+        # TODO: E burda ikkje treng en ekstra filter her vel?
+        sangForm.fields['repertoar'].queryset = sangForm.fields['repertoar'].queryset.filter(kor__navn__in=consts.bareStorkorNavn)
+
+    disableFormMedlem(request.user.medlem, sangFilForm)
+
+    if request.method == 'POST':
+        if sangForm.is_valid():
+            logAuthorAndSave(sangForm, request.user.medlem)
+            if sangForm.cleaned_data['DELETE']:
+                messages.info(request, f'{sangForm.instance} slettet')
+                return redirect('repertoar')
+        if sangFilForm.is_valid():
+            logAuthorAndSave(sangFilForm, request.user.medlem)
+
+        if sangForm.is_valid() and sangFilForm.is_valid():
+            return redirectToInstance(request)
+    
+    return render(request, 'mytxs/instance.html', {
+        'forms': [sangForm],
+        'formsets': [sangFilForm],
     })

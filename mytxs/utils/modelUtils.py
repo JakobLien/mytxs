@@ -1,4 +1,5 @@
 import datetime
+import os
 import random
 import re
 
@@ -9,6 +10,8 @@ from django.db.models.fields.related import RelatedField
 from django.forms import ValidationError
 from django.utils.translation import gettext_lazy as _
 
+from mytxs.utils.utils import getStemmegrupper
+
 # Utils for modeller
 
 def vervInnehavelseAktiv(pathToVervInnehavelse='vervInnehavelser', dato=None, utvidetStart=datetime.timedelta(), utvidetSlutt=datetime.timedelta()):
@@ -16,7 +19,7 @@ def vervInnehavelseAktiv(pathToVervInnehavelse='vervInnehavelser', dato=None, ut
     Produsere et Q object som querye for aktive vervInnehavelser. Siden man 
     ikke kan si Tilganger.objects.filter(verv__vervInnehavelser=Q(...)) er dette en funksjon.
 
-    Argumentet er query lookup pathen til vervInnehavelsene.
+    pathToVervInnehavelse er query lookup pathen til vervInnehavelsene.
     - Om man gir ingen argument anntar den at vi filtrere på Medlem eller Verv (som vi som oftest gjør).
     - Om man gir en tom streng kan vi filterere direkte på VervInnehavelse tabellen
     - Alternativt kan man gi en full path, f.eks. i Tilgang.objects.filter(vervInnehavelseAktiv('verv__vervInnehavelse'))
@@ -26,6 +29,9 @@ def vervInnehavelseAktiv(pathToVervInnehavelse='vervInnehavelser', dato=None, ut
     - Medlem.objects.filter(vervInnehavelseAktiv(), vervInnehavelser__verv__in=verv)
     - VervInnehavelse.objects.filter(vervInnehavelseAktiv(''))
     - Tilgang.objects.filter(vervInnehavelseAktiv('verv__vervInnehavelser'))
+
+    utvidetStart og utvidetSlutt er for å filtrere vervInnehavelser som hadde vært aktiv om vi utvidet starten og slutten på vervInnehavelsen. 
+    Det er vervInnehavelsen sin varighet som utvides, ikke dags dato, pass på den mentale modellen her. 
     '''
 
     # Må skriv dette fordi default parameters bare evalueres når funksjonen defineres. 
@@ -79,20 +85,32 @@ def isStemmegruppeVervNavn(navn, includeUkjentStemmegruppe=True):
     return re.match(stemmegruppeVervRegex, navn) or (includeUkjentStemmegruppe and navn == 'ukjentStemmegruppe')
 
 
-def stemmegruppeOrdering(fieldName='navn', includeDirr=False):
-    ordering = [When(**{fieldName:'Dirigent'}, then=0)] if includeDirr else []
-    count = 1 if includeDirr else 0
 
-    for letter in 'SATB':
-        for y in '12':
-            ordering.append(When(**{fieldName:y+letter}, then=count))
-            count += 1
-            for x in '12':
-                ordering.append(When(**{fieldName:x+y+letter}, then=count))
-                count += 1
+def stemmegruppeOrdering(fieldName='navn'):
+    ordering = [When(**{fieldName:'Dirigent'}, then=0)]
     
-    ordering.append(When(**{fieldName:'ukjentStemmegruppe'}, then=count))
-    return Case(*ordering, default=count+1)
+    for stemmegruppe in getStemmegrupper('SATB', 1, 2):
+        ordering.append(When(**{fieldName: stemmegruppe}, then=len(ordering)))
+
+    ordering.append(When(**{fieldName:'ukjentStemmegruppe'}, then=len(ordering)))
+
+    return Case(*ordering, default=len(ordering))
+
+
+# def stemmegruppeOrdering(fieldName='navn', includeDirr=False):
+#     ordering = [When(**{fieldName:'Dirigent'}, then=0)] if includeDirr else []
+#     count = 1 if includeDirr else 0
+
+#     for letter in 'SATB':
+#         for y in '12':
+#             ordering.append(When(**{fieldName:y+letter}, then=count))
+#             count += 1
+#             for x in '12':
+#                 ordering.append(When(**{fieldName:x+y+letter}, then=count))
+#                 count += 1
+    
+#     ordering.append(When(**{fieldName:'ukjentStemmegruppe'}, then=count))
+#     return Case(*ordering, default=count+1)
 
 
 def inneværendeSemester(pathToDate):
@@ -177,6 +195,8 @@ def getPathToKor(model):
         return 'hendelse__kor'
     if model.__name__ == 'Medlem':
         return None
+    if model.__name__ == 'SangFil':
+        return 'sang__kor'
     
     # Alle andre modeller kan anntas å ha en direkte relasjon til kor
     return 'kor'

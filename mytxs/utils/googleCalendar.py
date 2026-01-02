@@ -18,7 +18,7 @@ def exponentialBackoff(func):
         while True:
             if self.requestCountDown != None:
                 if self.requestCountDown <= 0:
-                    raise Exception('Google Calendar exceeded 100 requests.')
+                    raise Exception('Google Calendar requestCountDown reached 0.')
                 self.requestCountDown -= 1
             try:
                 return func(self, *args, **kwargs)
@@ -216,7 +216,7 @@ def updateGoogleCalendar(hendelse, changed=False, oldMedlemmer=[], newMedlemmer=
     
     # Sangern hendelser kan vær i begge storkor sine kalendere
     if hendelse.kor.navn == 'Sangern':
-        medlemCalendars = gCalManager.getCalendarIDs('TSS', oldMedlemmer+newMedlemmer) | gCalManager.getCalendarIDs('TKS', oldMedlemmer+newMedlemmer)
+        medlemCalendars = gCalManager.getCalendarIDs(consts.Kor.TSS, oldMedlemmer+newMedlemmer) | gCalManager.getCalendarIDs(consts.Kor.TKS, oldMedlemmer+newMedlemmer)
     else:
         medlemCalendars = gCalManager.getCalendarIDs(hendelse.kor.navn, oldMedlemmer+newMedlemmer)
     

@@ -47,7 +47,7 @@ class Migration(migrations.Migration):
                 ('studieEllerJobb', models.CharField(blank=True, max_length=100)),
                 ('boAdresse', models.CharField(blank=True, max_length=100)),
                 ('foreldreAdresse', models.CharField(blank=True, max_length=100)),
-                ('bilde', models.ImageField(blank=True, null=True, upload_to=mytxs.models.Medlem.generateUploadTo)),
+                ('bilde', models.ImageField(blank=True, null=True, upload_to=mytxs.models.Medlem.bildeUploadTo)),
                 ('user', models.OneToOneField(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='medlem', to=settings.AUTH_USER_MODEL)),
             ],
         ),

@@ -1,29 +1,79 @@
 # Fil for å definere constans som går igjen over hele siden
 
-alleKorNavn = ['TSS', 'TKS', 'Pirum', 'Knauskoret', 'Candiss', 'Sangern']
+# TODO: No har e satt opp at kornavnan og tilgangNavnan e satt som properties av (i praksis) statiske klasser, videre må vi sett inn det over alt. 
+# Vi får ikkje veldig my hjelp, bli ikkje compile time feil, men det gjør ihvertfall at ting feile når man kjøre det, heller enn at det feile stille. 
+# Trur ikkje det e mulig å få compile time feil, sida vi ikkje feile, og kode som e i ulike filer sjekke den typ ingenting for korrekthet. 
+# "consts.hmmm, jaja det e sikkert der når vi kjem så langt"
+
+# Har no erstatta alle kor navnan i kode, videre e det tilgang navnan vi må erstatt. Deretter e vi ganske good på denne fronten:)
+
+class Kor:
+    TSS = 'TSS'
+    TKS = 'TKS'
+    Pirum = 'Pirum'
+    Knauskoret = 'Knauskoret'
+    Candiss = 'Candiss'
+    Sangern = 'Sangern'
+    TXS = 'TXS'
+
+alleKorNavn = [Kor.TSS, Kor.TKS, Kor.Pirum, Kor.Knauskoret, Kor.Candiss, Kor.Sangern, Kor.TXS]
 alleKorTittel = [
     'Trondhjems Studentersangforening',
     'Trondhjems Kvinnelige Studentersangforening',
     'Pirum',
     'Knauskoret',
     'Candiss',
-    'Sangern bar'
+    'Sangern bar',
+    'Begge Trondhjems Studentersangforeninger'
 ]
-alleKorStemmeFordeling = ['TB', 'SA', 'TB', 'SATB', 'SA', '']
+alleKorStemmeFordeling = ['TB', 'SA', 'TB', 'SATB', 'SA', '', '']
 
 # Subsets av alleKorNavn
-bareKorNavn = ['TSS', 'TKS', 'Pirum', 'Knauskoret', 'Candiss']
-bareStorkorNavn = ['TSS', 'TKS']
-bareSmåkorNavn = ['Pirum', 'Knauskoret', 'Candiss']
+bareTilgangKorNavn = alleKorNavn[:6]
+bareKorNavn = alleKorNavn[:5]
+bareStorkorNavn = alleKorNavn[:2]
+bareSmåkorNavn = alleKorNavn[2:5]
 småkorForStorkor = {
-    'TSS': ['Pirum', 'Knauskoret'],
-    'TKS': ['Candiss', 'Knauskoret']
+    Kor.TSS: [Kor.Pirum, Kor.Knauskoret],
+    Kor.TKS: [Kor.Candiss, Kor.Knauskoret]
 }
 
-bareKorNavnTKSRekkefølge = ['TKS', 'TSS', 'Candiss', 'Knauskoret', 'Pirum']
+bareKorNavnTKSRekkefølge = [Kor.TKS, Kor.TSS, Kor.Candiss, Kor.Knauskoret, Kor.Pirum]
 
-tilganger = ['dekorasjon', 'dekorasjonInnehavelse', 'verv', 'vervInnehavelse', 'tilgang', 'semesterplan', 'fravær', 'lenke', 'turne', 'tversAvKor', 'eksport', 'sjekkhefteSynlig']
+class Tilgang:
+    medlemsdata = 'medlemsdata'
+    dekorasjon = 'dekorasjon'
+    dekorasjonInnehavelse = 'dekorasjonInnehavelse'
+    verv = 'verv'
+    vervInnehavelse = 'vervInnehavelse'
+    tilgang = 'tilgang'
+    semesterplan = 'semesterplan'
+    fravær = 'fravær'
+    lenke = 'lenke'
+    turne = 'turne'
+    tversAvKor = 'tversAvKor'
+    eksport = 'eksport'
+    sjekkhefteSynlig = 'sjekkhefteSynlig'
+    notearkiv = 'notearkiv'
+
+tilgangTilKorNavn = {
+    Tilgang.medlemsdata: bareStorkorNavn,
+    Tilgang.dekorasjon: bareTilgangKorNavn, 
+    Tilgang.dekorasjonInnehavelse: bareTilgangKorNavn, 
+    Tilgang.verv: bareTilgangKorNavn, 
+    Tilgang.vervInnehavelse: bareTilgangKorNavn, 
+    Tilgang.tilgang: bareTilgangKorNavn, 
+    Tilgang.semesterplan: bareKorNavn, 
+    Tilgang.fravær: bareKorNavn, 
+    Tilgang.lenke: bareTilgangKorNavn, 
+    Tilgang.turne: bareKorNavn, 
+    Tilgang.tversAvKor: bareTilgangKorNavn, 
+    Tilgang.eksport: bareKorNavn, 
+    Tilgang.sjekkhefteSynlig: bareKorNavn, 
+    Tilgang.notearkiv: bareKorNavn,
+}
 tilgangBeskrivelser = [
+    'For å kunne endre på medlemsdataene til de i ditt storkor.',
     'For å opprette og slette dekorasjoner, samt endre på eksisterende dekorasjoner.',
     'For å opprette og slette dekorasjonInnehavelser, altså hvem som fikk hvilken dekorasjon når.',
     'For å opprette og slette verv, samt endre på eksisterende verv.',
@@ -35,15 +85,11 @@ tilgangBeskrivelser = [
     'For å administrere turnerer, samt endre hvem som deltok.',
     'For å kunne sette relasjoner til objekter i andre kor.',
     'For å kunne eksportere medlemsregisterdata.',
-    'Gjør at all dataen i sjekkheftet er synlig for deg.'
+    'Gjør at all dataen i sjekkheftet er synlig for deg.',
+    'Lar deg redigere notearkivet.'
 ]
 
-storkorTilganger = ['medlemsdata']
-storkorTilgangBeskrivelser = [
-    'For å kunne endre på medlemsdataene til de i ditt storkor.'
-]
-
-alleTilganger = tilganger + storkorTilganger
+alleTilganger = tilgangTilKorNavn.keys()
 
 # Hold denne lista i en rekkefølge vi ønske å slett de i, for seed --clear sin del:)
 loggedModelNames = [
@@ -56,7 +102,9 @@ loggedModelNames = [
     'Turne',
     'Oppmøte',
     'Hendelse',
-    'Lenke'
+    'Lenke',
+    'Repertoar',
+    'Sang'
 ]
 'Names of models that are being logged'
 
@@ -67,17 +115,22 @@ otherModels = ['Kor']
 
 allModelNames = [*loggedModelNames, *loggModelNames, *otherModels]
 
+TXSModelNames = ['Sang']
+
 modelTilTilgangNavn = {
-    'VervInnehavelse': 'vervInnehavelse',
-    'Verv': 'verv',
-    'DekorasjonInnehavelse': 'dekorasjonInnehavelse',
-    'Dekorasjon': 'dekorasjon',
-    'Medlem': 'medlemsdata',
-    'Tilgang': 'tilgang',
-    'Turne': 'turne',
-    'Oppmøte': 'fravær',
-    'Hendelse': 'semesterplan',
-    'Lenke': 'lenke'
+    'VervInnehavelse': Tilgang.vervInnehavelse,
+    'Verv': Tilgang.verv,
+    'DekorasjonInnehavelse': Tilgang.dekorasjonInnehavelse,
+    'Dekorasjon': Tilgang.dekorasjon,
+    'Medlem': Tilgang.medlemsdata,
+    'Tilgang': Tilgang.tilgang,
+    'Turne': Tilgang.turne,
+    'Oppmøte': Tilgang.fravær,
+    'Hendelse': Tilgang.semesterplan,
+    'Lenke': Tilgang.lenke,
+    'Repertoar': Tilgang.notearkiv,
+    'Sang': Tilgang.notearkiv,
+    'SangFil': Tilgang.notearkiv
 }
 'Mappe fra model til navn på tilgang'
 
@@ -85,6 +138,7 @@ korAvhengerAv = {
     'VervInnehavelse': 'Verv',
     'DekorasjonInnehavelse': 'Dekorasjon',
     'Oppmøte': 'Hendelse',
+    'SangFil': 'Sang'
 }
 'Modeller med hvilken model som koret til instanser avhenger av'
 

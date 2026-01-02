@@ -90,6 +90,12 @@ class MyModelMultipleChoiceField(forms.ModelMultipleChoiceField):
         
         return returnValue
 
+    # def get_limit_choices_to(self):
+    #     if callable(self.limit_choices_to) and self.limit_choices_to.__code__.co_argcount == 1:
+    #         return self.limit_choices_to(self)
+        
+    #     return super().get_limit_choices_to()
+
 
 class MyManyToManyField(models.ManyToManyField):
     'Et model field med et form field som kan disable m2m options på seg:)'
@@ -97,6 +103,12 @@ class MyManyToManyField(models.ManyToManyField):
         defaults = {'form_class': MyModelMultipleChoiceField}
         defaults.update(kwargs)
         return super().formfield(**defaults)
+
+    # def get_limit_choices_to(self):
+    #     if callable(self.remote_field.limit_choices_to) and self.remote_field.limit_choices_to.func_code.co_argcount == 1:
+    #         return self.remote_field.limit_choices_to(self)
+        
+    #     return super().get_limit_choices_to()
 
 
 def bitListToInt(lVal):
@@ -205,3 +217,21 @@ class BitmapMultipleChoiceField(models.BigIntegerField):
         }
         defaults.update(kwargs)
         return super().formfield(**defaults)
+
+
+class MultipleFileInput(forms.FileInput):
+    allow_multiple_selected = True
+
+
+class MultipleFileField(forms.FileField):
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("widget", MultipleFileInput())
+        super().__init__(*args, **kwargs)
+
+    def clean(self, data, initial=None):
+        single_file_clean = super().clean
+        if isinstance(data, (list, tuple)):
+            result = [single_file_clean(d, initial) for d in data]
+        else:
+            result = single_file_clean(data, initial)
+        return result
