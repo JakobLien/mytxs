@@ -35,7 +35,7 @@
 <h2 class="text-xl mt-4">{{ newForm.prefix|capfirst }}</h2>
 {% endif %}
 
-<form action="{{ request.get_full_path }}" method="post" class="creationForm">
+<form action="{{ request.get_full_path }}" method="post" class="creationForm" {% fixFileField newForm %}>
     {% csrf_token %}
     {{ newForm.as_p }}
     <input type="submit" value="Opprett">

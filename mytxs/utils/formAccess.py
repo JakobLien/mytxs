@@ -144,7 +144,7 @@ def disableFormMedlem(medlem, form):
             # (vi anntar her at vi aldri har m2mFelt på forms uten lagret instance, f.eks. i tomme forms på inlineformset)
             if medlem.redigerTilgangQueryset(tilgangModel, type(form.instance), fieldType=forms.ModelMultipleChoiceField).contains(form.instance):
                 # Vis selected options + options du har tilgang til, og enable options du har tilgang til
-                field.queryset = getattr(form.instance, fieldName).distinct() | tilgangQueryset.distinct()
+                field.queryset = field.queryset.distinct() & (getattr(form.instance, fieldName).distinct() | tilgangQueryset.distinct())
                 field.setEnableQueryset(tilgangQueryset, getattr(form.instance, fieldName))
             else:
                 # Ellers bare disable fieldet

@@ -3,7 +3,7 @@
 
 {% block content %}
 
-{% toggleURLparam 'jobbvakter' 'jobbvakter' %}
+{% toggleURLparam 'jobbvakter' 'jobbvakter' %}  {% toggleURLparam 'gammelt' 'vis gammelt' %}
 
 <table class="text-left">
     <tr class="[&>*]:w-52 border-b border-black">
@@ -18,7 +18,7 @@
             {{hendelse.navn}}
 
             {% if user.medlem|tilgangExists:consts.Tilgang.semesterplan %} 
-            <a class="text-sm" href="{% url 'hendelse' hendelse.pk %}">Rediger</a> 
+            <a class="text-sm" href="{{ hendelse.get_absolute_url }}">Rediger</a> 
             {% endif %}
         </td>
         <td>

@@ -16,6 +16,13 @@ vervInlineFormsetArgs = {
 }
 
 
+sangInlineFormsetArgs = {
+    'exclude': ['fil'],
+    'extra': 0,
+    'can_delete_extra': False
+}
+
+
 def postIfPost(request, prefix=''):
     '''
     Return subset med prefix av request.POST dersom request.method == 'POST', ellers None.

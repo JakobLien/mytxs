@@ -18,7 +18,7 @@ function getInitialValue(element){
         if(element.hasAttribute('multiple')){
             return [...element.options].filter(option => option.defaultSelected).map(option => option.text);
         }else{
-            return element.querySelector('option[selected]')?.text || null;
+            return element.querySelector('option[selected]')?.text || element.querySelector('option')?.text || null;
         }
     }else if(element.type === 'checkbox'){
         return element.defaultChecked;
