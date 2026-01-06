@@ -15,6 +15,7 @@
     {% if request.lazyDropdownData %}<script src="{% static 'mytxs/lazyDropdown.js' %}" defer data-json="{{ request.lazyDropdownData }}"></script>{% endif %}
     <script src="{% static 'mytxs/searchDropdown.js' %}" defer></script>
     <script src="{% static 'mytxs/imageHover.js' %}" defer></script>
+    <script src="{% static 'mytxs/spill-script.js' %}" defer></script>
     {% block jsHead %} {% endblock %}
 </head>
 
@@ -157,5 +158,26 @@
         </form>
     </div>
     {% endif %}
+
+    <div id="startScreen" class="fixed top-1/4 left-1/4 w-1/2 h-1/2 z-30 bg-gray-800 text-white flex flex-col items-center justify-center">
+        <h1 class="text-3xl mb-4">Sangern the Game</h1>
+        <button id="startButton">Start Spillet</button>
+        <button id="closeButton">Lukk Spillet</button>
+    </div>
+
+    <div id="gameOverScreen" class="fixed top-1/4 left-1/4 w-1/2 h-1/2 z-20 bg-gray-800 text-white flex flex-col items-center justify-center">
+        <h1 class="text-3xl mb-4">Game Over!</h1>
+        <button id="startButton">Prøv Igjen</button>
+        <button id="closeButton">Lukk Spillet</button>
+    </div>
+
+    <div class="fixed bottom-0 w-full h-96 bg-transparent">
+        <div id="player" class="absolute left-32 z-10 w-5 h-12 bg-black"></div>
+        <div id="obstacles"></div>
+    </div>
+
+    <div style="position: fixed; top: 1.5rem; right: 1.5rem; padding: 1rem; background-color: white; border-radius: 0.5rem; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); z-index: 1000;">
+        <div id="score" style="font-size: 1.5rem; font-weight: bold; text-align: center; color: #333; font-family: 'Courier New', Courier, monospace;"></div>
+    </div>       
 </body>
 </html>
