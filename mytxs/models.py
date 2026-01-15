@@ -1431,7 +1431,14 @@ class Hendelse(DbCacheModel):
                     code='invalidPrefix'
                 )
         
-        # Validering av start og slutt
+        # Validering av start og slutt dato
+        if (self.startDate == self.sluttDate):
+            raise ValidationError(
+                _('startDate og sluttDate må være ulik, eller verken'), 
+                code='startAndEndDate'
+            )
+        
+        # Validering av start og slutt time
         if bool(self.startTime) != bool(self.sluttTime): # Dette er XOR
             raise ValidationError(
                 _('Må ha både startTime og sluttTime eller verken'),
@@ -1440,7 +1447,7 @@ class Hendelse(DbCacheModel):
         
         if self.slutt:
             validateStartSlutt(self, canEqual=False)
-
+            
         if self.kor.navn == consts.Kor.Sangern and self.kategori in [Hendelse.OBLIG, Hendelse.PÅMELDING]:
             raise ValidationError(
                 _('Sangern kan ikke ha obligatoriske hendelser'),
