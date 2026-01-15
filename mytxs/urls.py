@@ -75,5 +75,7 @@ urlpatterns = [
     path('logg/loggRedirect/<str:modelName>/<int:instancePK>', views.loggRedirect, name='loggRedirect'),
 
     path('uploads/<path:path>', views.serve, name='serve'),
-    path('docs/', lambda req: FileResponse(open('docs/index.html', 'rb')), name='docs')
+    path('docs/', lambda req: FileResponse(open('docs/index.html', 'rb')), name='docs'),
+
+    path('publish/<str:key>', views.publish, name='publish')
 ] + static(settings.DOCS_URL, document_root=settings.DOCS_ROOT) # Serves direkte av apache på servern

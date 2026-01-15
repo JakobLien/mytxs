@@ -1,6 +1,7 @@
 import datetime
 import json
 import csv
+import os
 
 from django import forms
 from django.contrib import messages
@@ -12,7 +13,7 @@ from django.core import mail
 from django.db.models import Q, F, IntegerField, Prefetch, Case, When
 from django.db.models.functions import Cast
 from django.forms import inlineformset_factory, modelform_factory, modelformset_factory
-from django.http import FileResponse, HttpResponseForbidden, HttpResponseNotFound
+from django.http import FileResponse, HttpResponse, HttpResponseForbidden, HttpResponseNotFound
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views.decorators.cache import never_cache
@@ -1198,3 +1199,11 @@ For disse medlemmene hentet de ut: %s\n
         'eksportForm': eksportForm,
         'visCSVLenke': eksportForm.is_valid() and eksportForm.cleaned_data['m'] and eksportForm.cleaned_data['f']
     })
+
+
+def publish(request, key):
+    if os.environ.get('PUBLISH_KEY') == key and os.environ.get('PUBLISH_PATH'):
+        os.system(os.environ['PUBLISH_PATH'])
+        return HttpResponse('Publish script started!')
+    else:
+        return HttpResponse('Publish script not started, missing environment variables!')

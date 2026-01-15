@@ -10,35 +10,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Publish to server
-        run: |
-          # Logg på servern
-          echo "${{ secrets.MYTXS_SSH_KEY }}" > ./SSH_KEY
-          chmod 600 ./SSH_KEY # SSH kreve begrensede read permissions. 
-
-          mkdir -p ~/.ssh
-          ssh-keyscan login.samfundet.no >> ~/.ssh/known_hosts
-
-          ssh -i ./SSH_KEY jakobli@login.samfundet.no " # Kan ikke bruk double quotes inn her. 
-            set -e # Gjør at en feilende kommando exite ssh
-
-            echo; echo; echo 'cd ../felles/web/mytxs'
-            cd ../felles/web/mytxs
-
-            echo; echo; echo 'git pull'
-            git pull
-
-            echo; echo; echo 'source venv/bin/activate'
-            source venv/bin/activate
-
-            echo; echo; echo 'python -m pip install -r requirements.txt'
-            python -m pip install -r requirements.txt
-
-            echo; echo; echo 'python manage.py migrate'
-            python manage.py migrate
-
-            echo; echo; echo 'python manage.py collectstatic --noinput'
-            python manage.py collectstatic --noinput
-
-            echo; echo; echo 'rm -f reload; touch reload; rm reload'
-            rm -f reload; touch reload; rm reload
-          "
+        run: curl https://mytxs.samfundet.no/publish/${{ secrets.MYTXS_PUBLISH_KEY }}
