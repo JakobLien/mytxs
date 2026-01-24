@@ -343,7 +343,7 @@ def insertMedlem(medlemDict):
             for keyword, småkor in småkorKeywordToKor.items():
                 if keyword in vervDict['verv'].lower():
                     # Dersom det e medlemskapsvervet, gi de ukjentStemmegruppe vervet
-                    if vervDict['verv'] in [consts.Kor.Pirum, consts.Kor.Knauskoret, consts.Kor.Candiss]:
+                    if vervDict['verv'] in consts.bareSmåkorNavn:
                         vervDict['verv'] = 'ukjentStemmegruppe'
 
                     # Dersom det e dirigentvervet, gi de dirigent vervet

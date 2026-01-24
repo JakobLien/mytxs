@@ -42,7 +42,7 @@ class NavnKorFilterForm(KorFilterForm):
 
 
 class TurneFilterForm(NavnKorFilterForm):
-    år = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + [(year, year) for year in range(2023, 1909, -1)])
+    år = forms.ChoiceField(required=False, choices=BLANK_CHOICE_DASH + [(year, year) for year in range(datetime.datetime.today().year, 1909, -1)])
 
     def applyFilter(self, queryset):
         queryset = super().applyFilter(queryset)
@@ -60,10 +60,7 @@ class VervFilterForm(NavnKorFilterForm):
         queryset = super().applyFilter(queryset)
 
         if (sistAktiv := self.cleaned_data['sistAktiv']) or sistAktiv == 0:
-            queryset = queryset.filter(
-                Q(vervInnehavelser__start__year__gte=datetime.date.today().year - (sistAktiv or 0)) |
-                (Q(vervInnehavelser__slutt__isnull=True) & Q(vervInnehavelser__isnull=False))
-            )
+            queryset = queryset.filter(vervInnehavelseAktiv(utvidetSlutt=datetime.timedelta(days=365*sistAktiv)))
 
         return queryset
 
