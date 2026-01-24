@@ -219,7 +219,7 @@ def sjekkheftet(request, side, underside=None):
         else:
             # Om det e heile koret
             request.queryset = request.queryset.filter(
-                stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
+                stemmegruppeVerv('vervInnehavelser__verv', includeUkjentStemmegruppe=False, includeDirr=True),
                 vervInnehavelseAktiv(),
                 vervInnehavelser__verv__kor=kor
             ).annotatePublic(
