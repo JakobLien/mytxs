@@ -12,6 +12,28 @@ MyTXS ble ikke bare skrevet for å fungere, men også for å være mulig å endr
 - Se på [github issues](https://github.com/JakobLien/mytxs/issues) etter arbeidsoppgaver du kunne tenkt deg gå løs på. I skrivende stund lever brorparten av beskrivelsen av prosjektet og arbeidsoppgaver i mine private notater, men som med alt annet hjelper jeg deg gjerne å finne ut av det. Jeg skal prøve å få flyttet over flere issues på github snart™.
 
 
+## Git
+[Git](https://git-scm.com/) er verdens versjonskontrollsystem, som lar oss jobbe med flere ulike versjoner av kodebasen samtidig. Dette i motsetning til google docs der det alltid finnes en versjon, og om flere redigerer samtidig og noe blir feil må de fikse det der og da. Det finnes massevis av tutorials for git, og e kan virkelig ikke alt, men her følger dem viktigste kommandoan du treng å vætta om for å jobbe på prosjektet, i rekkefølge tiltenkt at du jobber med en arbeidsoppgave. 
+- `git status`: Dette forteller deg hva ståa er akk nå, om du og eller remote branch har de nyeste endringene.  
+- `git checkout <branch>`: Dette bytter branch lokalt, og endrer følgelig hvilke filer som er i mappen. Kan evt erstatte `<branch>` med en commit SHA. Klassisk bruk `git checkout main`, for å komme seg til main, altså hoved branchen. 
+- `git fetch`: Gjør git lokalt obs på hvilke branches og endringer som finnes remotely, men endrer ingenting lokalt. E bruke det personlig ganske skjelden. 
+- `git pull`: Dette henter endringer fra remote branch (på github) som tilsvarer din nåværende lokale branch, slik at du har de nyeste endringene derifra lokalt. Før du begynner med noe burde du kjøre denne på main, før du oppretter en branch for arbeidet ditt. 
+- `git checkout -b branch`: Dette lager en ny branch lokalt basert på hva enn som finnes på branchen du er på. I branch navn bruker vi bindestrek heller enn mellomrom, men som med alt annet, prøv å gjør det beskrivende til endringen din. 
+    - Noe ganske sick er at du kan ha (uncommitted) endringer lokalt, og kjøre denne, så vil endringene bli med deg til den nye branchen din og den gamle branchen vil forbli urørt. Altså kan du (i teorien) alltid jobbe på main, også når du er ferdig, kan du lage en branch for de endringene. Om du gjør dette forl enge kan du potensielt slite med merge conflicts, så kan være fint å lage en branch tidlig, ikke la det gå ukesvis liksom. 
+- `git add <filnavn>`: Dette stager endringen din. I VS Code kan du også trykke pluss på den aktuelle filen på Source Controll fanen til venstre. `git add .` vil legge til alle endringer. 
+- `git commit -m "<melding>"`: Dette committer endringen, og lager altså en commit, altså et øyeblikksbilde av kodebasen slik det er nå, med en melding. Meldingen kan være hva som helst, også newlines, som anbefales å bruke for å skrive en kort beskrivelse på første linje, også gjerne et avsnitt eller 3 med utdypende forklaring, som automatisk kommer på PRen. Dette kan du også fint gjøre via VS Code. 
+    - Flere commits kan gjøres etter hverandre, men for å holde ting oversiktlig, prøv å begrens commits til endringer som gir mening som en enhet. For git historikkens del er det dust om man har PR med 100 bittesmå commits. 
+    - En viktig og anbefalt variant av denne er `git commit --amend`, som tar den forrige committen, angrer den, også lager en ny commit, potensielt med en ny committ message. Dette kan aldri gjøres for noe som alt finnes på main, fordi om vi ikkje har en lineær main historikk vil det potensielt bli kjipt for serveren. Jeg bruker ammend ofte for å fikse på ting når jeg innser etterpå at jeg glemte å gjøre noe småtteri. 
+- `git push`: Dette dytter endringene dine lokalt til remote branchen (på github), slik at endringene er synlig for oss andre. Om remote branchen ikke finnes vil git foreslå kommandoen som oppretter remote branchen, er også en innstilling som automatisk gjør dette istedet, anbefales. Deretter kan du lage en PR til main, slik at andre kan se over arbeidet ditt, før det merges inn. Etter PRen er opprettet kan du fortsatt legge til flere commits og pushe opp det, eller ammend-e committen din, også push med `--force-with-lease`. 
+
+Vår lokale brancher kan diverge, altså når det er gjort ulike endringer både på remote og lokalt. I denne casen har man tre alternativ. Merk at disse kan være destruktive, altså man kan faktisk mist arbeid av disse kommandoan, så vær forsiktig. 
+- Man kan kjør `git pull` og potensielt end opp med merge conflicts lokalt. Da må dette fikses, før du pusher det opp igjen. 
+- Man kan kjør `git reset --hard` som droppe det du har lokalt og hente remote changes. 
+- Man kan kjør `git push --force-with-lease`, helst ikke bare `--force`, for å tving remote branchen te å dropp endringan sine, og heller ta inn dine. 
+
+For merge strategi bruke vi alltid merge strategi rebase, og dette er for å gjøre at main får en fin og linær historikk. Dette e påkrevd på MyTXS githubben for nye PRer, men for din del kan det vær nyttig å vætta ka man gjør når det står at source branch (dine endringer) er bakom main branch (nettiden pr nå). Det du gjør da, du går på main, puller denne, går tilbake på branchen din, puller den også om nødvendig, også kjøre du `git rebase main` på den branchen. Dette vil sett andres endringer kronologisk før dine endringer i git historikken, som er det rebase merge stategien gjør. Om du får merge conflicts her, må du deale med det, VS Code sitt interface er ganske greit for dette, og deretter er det bare å `git push --force-with-lease`. 
+
+
 ## Oppsett
 Her er hvordan man setter opp nettsiden lokalt. Om du ikke har erfaring med progging kan jeg anbefale [VS Code](https://code.visualstudio.com/) som editor, den e heilt grei. 
 1. Når du er der du vil ha repoet, clone repoet med `git clone https://github.com/JakobLien/mytxs.git`. 
@@ -120,7 +142,7 @@ For å unngå å lage loggs på ting folk skal kunne endre selv, og ikke minst s
 
 
 ## Infrastruktur
-Her følger en beskrivelse av infrastrukturen vi har byggd for å gjøre prosjektet mere bærekraftig. Dette er ting som brukere og adminer på nettsiden har noe som helst forhold til. 
+Her følger en beskrivelse av infrastrukturen vi har byggd for å gjøre prosjektet mere bærekraftig. Dette er ting som brukere og adminer på nettsiden ikke har noe som helst forhold til. 
 
 
 ### Tailwind
@@ -201,6 +223,32 @@ ITK har også et oppsett der man kan se loggs fra de kjørende instansen(e?) på
     1. For å se kjøre loggs, skriv `less /var/log/uwsgi/app/mytxs.samfundet.no.log`
     1. For å se mellomserver(?) loggs, skriv `less /var/log/apache2/external/error-mytxs.samfundet.no.log`
     1. For å se logg av innkommende requests, skriv `less /var/log/apache2/external/access-mytxs.samfundet.no.log`
+
+
+### Automatisk publisering script
+Okei, så listen av steg under [publisering](#publisering) er ganske lang, og det er irriterende for meg å måtte kjøre dette manuelt hver gang. Også typ annenhver gong glømme e å kjør et steg, også begynne e å debugge koden fordi e trur at noko e feil, også e det bare publiseringen e har gjort feil. Dette motiverte meg til å skriv et automatisk publiserings script i jula 25. Første versjon av dette scriptet SSHet inn på serveren og kjøre kommandoene som meg, men siden dette er mot [ITK sin policy](https://itk.samfundet.no/IT-reglement.pdf) byttet jeg til at scriptet ble kjørt av MyTXS servern, og at det er en github action som kjører scriptet når det kommer nye commits på main. 
+
+Scriptet ligger som en fil i rot på servern, men ikke (enda?) i git, for at det skal være lett å endre på. Det er uansett ikke er så lett å teste eller jobbe med lokalt, så det e kanskje like greit. Scriptet generer loggfiler som viser output kommando for kommando, for videre debugging. For at ikke hvem som helst skal kunne starte en restart av MyTXS servern, som ITK ønsker å unngå der det ikke er nødvendig, er det en secret key spesifisert på servern, som må komme med spørringen til `/publish/<str:key>` [endepunktet](../../mytxs/urls.py#L80). Bash scriptet for å publisere serveren er pr no som følger, der run funksjonen fikser fin logging av alt som kjøres:
+
+    #!/usr/bin/env bash
+    LOG_FILE="publish_$(date '+%Y-%m-%dT%H:%M:%S').log"
+    echo "Running from working dir: $PWD" >> "$LOG_FILE" 2>&1
+    
+    run () {
+        echo -e "\n\n$*" >> "$LOG_FILE" 2>&1
+        "$@" >> "$LOG_FILE" 2>&1
+    }
+    
+    run git -c safe.directory=/home/cassarossa/sangern/felles/web/mytxs pull # For å si at dette e greit å kjør fra script bruker
+    run source venv/bin/activate
+    export HOME=/home/cassarossa/sangern/jakobli # For å få pip te å bruk min cache når den installere ting
+    run python -m pip install -r requirements.txt
+    run python manage.py migrate
+    run python manage.py collectstatic --noinput
+    run rm -f reload
+    run touch reload
+    run sleep 5s
+    run rm reload
 
 
 ## Konvensjoner
