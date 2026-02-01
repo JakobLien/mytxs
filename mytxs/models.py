@@ -1075,11 +1075,12 @@ class Dekorasjon(DbCacheModel):
             validateUndervalørInnehas(self.overvalør)
             validateOvervalørStart(self)
 
+        if self.pk and self.ikon and self.ikon != Dekorasjon.objects.get(pk=self.pk).ikon:
+            if max(self.ikon.width, self.ikon.height) > 40:
+                raise ValidationError('Ikonet kan ikkje vær større enn 40*40 piksler')
 
     def save(self, *args, **kwargs):
         self.clean()
-        if self.pk and self.ikon and self.ikon != Dekorasjon.objects.get(pk=self.pk).ikon:
-            self.ikon = cropImage(self.ikon, self.ikon.name, 40, 40)
         super().save(*args, **kwargs)
 
 
