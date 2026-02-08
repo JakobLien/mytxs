@@ -814,6 +814,7 @@ class Verv(DbCacheModel):
     def stemmegruppeVerv(self):
         return isStemmegruppeVervNavn(self.navn)
 
+    @dbCache(runOnNone=True)
     def get_absolute_url(self):
         return reverse('verv', args=[self.kor.navn, self.navn])
 
@@ -975,6 +976,7 @@ class Tilgang(DbCacheModel):
         verbose_name='Synlig i sjekkheftet'
     )
 
+    @dbCache(runOnNone=True)
     def get_absolute_url(self):
         return reverse('tilgang', args=[self.kor.navn, self.navn])
 
@@ -1024,6 +1026,7 @@ class Dekorasjon(DbCacheModel):
 
     ikon = models.ImageField(upload_to=ikonUploadTo, null=True, blank=True)
 
+    @dbCache(runOnNone=True)
     def get_absolute_url(self):
         return reverse(consts.Tilgang.dekorasjon, args=[self.kor.navn, self.navn])
 
@@ -1178,6 +1181,7 @@ class Turne(DbCacheModel):
         blank=True
     )
 
+    @dbCache(runOnNone=True)
     def get_absolute_url(self):
         return reverse('turne', args=[self.kor.navn, self.start.year, self.navn])
 
@@ -1560,6 +1564,7 @@ class Oppmøte(DbCacheModel):
     def kor(self):
         return self.hendelse.kor if self.pk else None
     
+    @dbCache(runOnNone=True)
     def get_absolute_url(self):
         return reverse('meldFravær', args=[self.medlem.pk, self.hendelse.pk])
 

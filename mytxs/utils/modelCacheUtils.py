@@ -91,7 +91,7 @@ def getDbCachedFields(model):
     return [f for f in dir(model) if getattr(getattr(model, f, None), 'dbCached', False)]
 
 
-def dbCache(actualMethod=None, paths=[]):
+def dbCache(actualMethod=None, paths=[], runOnNone=False):
     '''
     Kan brukes på modeller som arver fra dbCacheModel, gjør at resultatet av methoden lagres i dbCacheField ved lagring. 
 
@@ -99,14 +99,19 @@ def dbCache(actualMethod=None, paths=[]):
     - I utgangspunktet kjøre metoden ved hver lagring. Bruk ".felt" for å avgrens til bare når felt har endra seg. 
     - Om en relasjon spesifiseres, "relasjon.", skal vi også kjør hver gong den lagres. 
     - "relasjon.felt" fungere slik man sku forvent, på det relaterte objektet må det feltet ha endra seg. 
+
+    runOnNone gjør at dataen hentes og lagres dersom dbCacheField mangle eller er None for denne. 
+    Kun bruk det der denne metoden aldri kjem te å return None, og du vil at det skal caches med ein gong. 
     '''
     if not actualMethod:
         # Om vi calle decoratoren, return resten av funksjonen wrapped i en lambda
-        return lambda actualMethod: dbCache(actualMethod, paths=paths)
+        return lambda actualMethod: dbCache(actualMethod, paths=paths, runOnNone=runOnNone)
 
     def _decorator(self, run=False):
         if run:
             self.dbCacheField[actualMethod.__name__] = actualMethod(self)
+        elif runOnNone and self.dbCacheField.get(actualMethod.__name__, None) == None:
+            self.save()
 
         return self.dbCacheField.get(actualMethod.__name__, 'UNSAVED_OBJ_STR' if actualMethod.__name__ == '__str__' else None)
 

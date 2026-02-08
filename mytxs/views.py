@@ -29,7 +29,7 @@ from mytxs.utils.googleCalendar import getOrCreateAndShareCalendar
 from mytxs.utils.lazyDropdown import lazyDropdown
 from mytxs.utils.formUtils import filesIfPost, postIfPost, dekorasjonInlineFormsetArgs, vervInlineFormsetArgs
 from mytxs.utils.hashUtils import addHash, testHash
-from mytxs.utils.modelUtils import inneværendeSemester, korLookup, qBool, randomDistinct, stemmegruppeOrdering, vervInnehavelseAktiv, stemmegruppeVerv, annotateInstance
+from mytxs.utils.modelUtils import inneværendeSemester, korLookup, qBool, randomDistinct, vervInnehavelseAktiv, stemmegruppeVerv, annotateInstance
 from mytxs.utils.pagination import getPaginatedInlineFormSet, addPaginatorPage
 from mytxs.utils.downloadUtils import downloadFile, downloadICal, downloadVCard
 from mytxs.utils.utils import getHalvårStart
@@ -670,8 +670,11 @@ def hendelse(request, hendelsePK):
             kor=request.instance.kor,
             includeDirr=True,
             pkPath='medlem__pk'
-        ).select_related('medlem').order_by(stemmegruppeOrdering(fieldName='stemmegruppe'), 'medlem')
+        ).select_related('medlem').order_by('medlem')
 
+        # Om e sortert på stemmegruppe på db nivå vart spørringa lenger enn 10K characters, så vi gjør det slik istedet. 
+        request.orderedQueryset = sorted(request.queryset, key=lambda o: (consts.hovedStemmegrupper + ['Dirigent']).index(o.stemmegruppe))
+        
         endreFraværForm = None
         if medlemPK := request.GET.get('førFraværFor') or request.GET.get('medlem'):
             oppmøte = request.queryset.filter(medlem__pk=medlemPK).first()
