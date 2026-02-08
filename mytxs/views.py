@@ -1183,7 +1183,7 @@ For disse medlemmene hentet de ut: %s\n
             for hendelse in hendelser:
                 if oppmøteIndex == len(medlem.oppmøter.all()):
                     row.append('')
-                elif medlem.oppmøter.all()[oppmøteIndex].hendelse_id == hendelse.id:
+                elif medlem.oppmøter.all()[oppmøteIndex].hendelse_id == hendelse.pk:
                     row.append('X' if medlem.oppmøter.all()[oppmøteIndex].fravær != None else '')
                     oppmøteIndex += 1
                 else:

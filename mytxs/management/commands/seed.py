@@ -117,11 +117,9 @@ def adminAdmin(self):
             start=datetime.date.today()
         )
 
-
-def testData(self):
-    'Opprett masse medlemmer, korledere, dirigenter og hendelser'
-    random.seed('SeedMedlemsRegister!')
-
+guttenavn, jentenavn, etternavn = [], [], []
+def setTop100Navn():
+    global guttenavn, jentenavn, etternavn
     guttenavn, jentenavn, etternavn = [], [], []
     with open('mytxs/management/commands/seedNames.csv', 'r') as f:
         while line := f.readline():
@@ -130,21 +128,25 @@ def testData(self):
             jentenavn.append(line[1])
             etternavn.append(line[2])
 
-    def makeMedlem(kor=None, start=None, slutt=None, stemmegruppe=None):
-        medlem = Medlem.objects.create(
-            fornavn=random.choice(guttenavn) if getattr(kor, 'navn', '') == consts.Kor.TSS else random.choice(jentenavn) if getattr(kor, 'navn', '') == consts.Kor.TKS else random.choice([*guttenavn, *jentenavn]),
-            mellomnavn='Test',
-            etternavn=random.choice(etternavn)
+def makeMedlem(kor=None, start=None, slutt=None, stemmegruppe=None):
+    medlem = Medlem.objects.create(
+        fornavn=random.choice(guttenavn) if getattr(kor, 'navn', '') == consts.Kor.TSS else random.choice(jentenavn) if getattr(kor, 'navn', '') == consts.Kor.TKS else random.choice([*guttenavn, *jentenavn]),
+        mellomnavn='Test',
+        etternavn=random.choice(etternavn)
+    )
+    if kor:
+        medlem.vervInnehavelser.get_or_create(
+            start=start,
+            slutt=slutt,
+            verv=stemmegruppe
         )
-        if kor:
-            medlem.vervInnehavelser.get_or_create(
-                start=start,
-                slutt=slutt,
-                verv=stemmegruppe
-            )
-        
-        return medlem
     
+    return medlem
+
+def testData(self):
+    'Opprett masse medlemmer, korledere, dirigenter og hendelser'
+    setTop100Navn()
+
     totalNumber = 500
     startYear = 2010
     korlederVervNavn = ['Formann', 'Leder', 'Pirumsjef', 'Knausleder', 'Toppcandisse', 'Barsjef'] # Rekkefølgen tilsvarer consts.alleKorNavn
