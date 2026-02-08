@@ -1038,7 +1038,7 @@ class Dekorasjon(DbCacheModel):
 
     def clean(self, *args, **kwargs):
         def validateUlikOvervalør(dekorasjon):
-            if dekorasjon.overvalør.id == dekorasjon.id:
+            if dekorasjon.overvalør.pk == dekorasjon.pk:
                 raise ValidationError(
                     _(f'{dekorasjon} kan ikke ha seg selv som overvalør'),
                     code='overvalørUgyldig',
@@ -1133,7 +1133,7 @@ class DekorasjonInnehavelse(DbCacheModel):
 
         kanHaUndervalør = hasattr(self.dekorasjon, 'undervalør')
         if kanHaUndervalør:
-            undervalør = self.dekorasjon.undervalør.dekorasjonInnehavelser.filter(medlem__id=self.medlem.id).first()
+            undervalør = self.dekorasjon.undervalør.dekorasjonInnehavelser.filter(medlem__id=self.medlem.pk).first()
             if undervalør is None:
                 raise ValidationError(
                     _(f'Dekorasjonen {self.dekorasjon} krever {self.dekorasjon.undervalør}'),
@@ -1146,7 +1146,7 @@ class DekorasjonInnehavelse(DbCacheModel):
                 )
         kanHaOvervalør = self.dekorasjon.overvalør is not None
         if kanHaOvervalør:
-            overvalør = self.dekorasjon.overvalør.dekorasjonInnehavelser.filter(medlem__id=self.medlem.id).first()
+            overvalør = self.dekorasjon.overvalør.dekorasjonInnehavelser.filter(medlem__id=self.medlem.pk).first()
             if overvalør is not None and self.start > overvalør.start:
                 raise ValidationError(
                     _(f'Dekorasjonsinnehavelsen {self} kan ikke ha startdato etter {overvalør.dekorasjon} ({overvalør.start})'),
