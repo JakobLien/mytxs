@@ -16,6 +16,12 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
+            '--reMigrate',
+            action='store_true',
+            help='Drop all tables and reapply migrations'
+        )
+
+        parser.add_argument(
             '--clear',
             action='store_true',
             help='Clear all database contents except loggs and django.users',
@@ -46,6 +52,10 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        if options['reMigrate']:
+            print('Dropping tables and redoing migrations...')
+            os.system('echo "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" | python manage.py dbshell; python manage.py migrate;')
+    
         if options['clear']:
             print('clear...')
             clearData(self)

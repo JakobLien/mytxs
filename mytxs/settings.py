@@ -23,11 +23,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ['DJANGO_SECRET']
 
-# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = 'DJANGO_DEBUG' in os.environ
+# https://docs.djangoproject.com/en/5.2/ref/django-admin/#envvar-DJANGO_RUNSERVER_HIDE_WARNING
+os.environ['DJANGO_RUNSERVER_HIDE_WARNING'] = 'true'
 
 ALLOWED_HOSTS = ['mytxs.samfundet.no', '127.0.0.1']
 
@@ -149,10 +149,6 @@ TIME_ZONE = 'Europe/Oslo'
 USE_I18N = True
 
 USE_TZ = True
-
-# ME
-
-USE_L10N = False
 
 DATE_FORMAT = 'd.m.Y'
 

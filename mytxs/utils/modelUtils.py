@@ -82,6 +82,8 @@ def isStemmegruppeVervNavn(navn, includeUkjentStemmegruppe=True):
 
 
 def stemmegruppeOrdering(fieldName='navn'):
+    # Denne kan lede til jææævli lange spørringer om du sortere på denne.
+    # Det går fint på Verv ordering, men vær varsom!
     ordering = []
     for stemmegruppe in getStemmegrupper('SATB', 2, 1):
         ordering.append(When(**{fieldName: stemmegruppe}, then=len(ordering)))

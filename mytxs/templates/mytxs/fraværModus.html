@@ -17,7 +17,7 @@
     </form>
     {% endif %}
 
-    {% for oppmøte in request.queryset %}
+    {% for oppmøte in request.orderedQueryset %}
 
     {% if request.GET.medKommerIkke or oppmøte.ankomst != False or oppmøte.fravær != None %}
     {% if request.GET.medMøtt or oppmøte.fravær == None %}
