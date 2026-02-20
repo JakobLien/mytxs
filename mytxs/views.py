@@ -417,7 +417,7 @@ def notearkiv(request, kor, side):
 
         sangFilterForm = SangFilterForm(request.GET)
 
-        request.queryset = sangFilterForm.applyFilter(request.queryset)
+        request.queryset = sangFilterForm.applyFilter(request.queryset).distinct()
 
         addPaginatorPage(request)
         request.paginatorPage.object_list = request.paginatorPage.object_list.prefetch_related(Prefetch(
