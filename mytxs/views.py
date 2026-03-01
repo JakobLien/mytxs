@@ -40,10 +40,8 @@ from mytxs.utils.viewUtils import HttpResponseUnauthorized, harFilTilgang, harTi
 
 # Create your views here.
 
+@login_required
 def serve(request, path):
-    if not request.user.is_authenticated:
-        return HttpResponseUnauthorized()
-
     instance = harFilTilgang(request.user.medlem, path)
     if not instance:
         return HttpResponseForbidden()
@@ -417,7 +415,7 @@ def notearkiv(request, kor, side):
 
         sangFilterForm = SangFilterForm(request.GET)
 
-        request.queryset = sangFilterForm.applyFilter(request.queryset)
+        request.queryset = sangFilterForm.applyFilter(request.queryset).distinct()
 
         addPaginatorPage(request)
         request.paginatorPage.object_list = request.paginatorPage.object_list.prefetch_related(Prefetch(
@@ -488,6 +486,8 @@ def semesterplan(request, kor):
 
     if request.GET.get('utenUndergruppe'):
         request.queryset = request.queryset.exclude(kategori=Hendelse.UNDERGRUPPE)
+
+    request.queryset = request.queryset.prefetch_related('oppmøter__medlem', 'kor')
 
     request.iCalLink = 'http://' + request.get_host() + addHash(reverse('iCal', args=[kor, request.user.medlem.pk]))
 
@@ -1330,7 +1330,7 @@ def sangListe(request):
 
     request.queryset = sangFilterForm.applyFilter(request.queryset)
 
-    NySangForm = forms.modelform_factory(Sang, fields=['navn', 'kor'])
+    NySangForm = forms.modelform_factory(Sang, fields=['navn', 'kor', 'kortype'])
 
     NySangForm = addBulkFileUpload(NySangForm)
 

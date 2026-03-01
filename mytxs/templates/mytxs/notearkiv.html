@@ -22,7 +22,7 @@
 </span> 
 <div class="hidden pl-2">
     {% for fil in sang.filer.all %}
-    <a class="{% if fil.stemmegruppe and fil.stemmegruppe in request.user.medlem.stemmegruppe %}backdrop-brightness-110{% endif %}" 
+    <a class="{% if fil.stemmegruppe and request.user.medlem.stemmegruppe%}{% if fil.stemmegruppe in request.user.medlem.stemmegruppe or request.user.medlem.stemmegruppe in fil.stemmegruppe %}backdrop-brightness-110{% endif %}{% endif %}" 
         href="{{ fil.fil.url }}" target="_blank">{{ fil }}</a><br>
     {% endfor %}
 </div>

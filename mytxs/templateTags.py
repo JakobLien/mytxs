@@ -114,12 +114,6 @@ def toggleURLparam(context, urlParamName, linkName=None, **kwargs):
 
 
 @register.filter
-def filterMedlemFirst(queryset, medlem):
-    'For når man treng å filtrer et queryset på medlem=medlem, også si .first()'
-    return queryset.filter(medlem=medlem).first()
-
-
-@register.filter
 def past(moment):
     'For å sjekk om en date eller datetime var i fortiden'
     if isinstance(moment, datetime.datetime):
