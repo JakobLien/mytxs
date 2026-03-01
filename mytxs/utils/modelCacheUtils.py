@@ -111,7 +111,7 @@ def dbCache(actualMethod=None, paths=[], runOnNone=False):
         if run:
             self.dbCacheField[actualMethod.__name__] = actualMethod(self)
         elif runOnNone and self.dbCacheField.get(actualMethod.__name__, None) == None:
-            self.save()
+            DbCacheModel.save(self)
 
         return self.dbCacheField.get(actualMethod.__name__, 'UNSAVED_OBJ_STR' if actualMethod.__name__ == '__str__' else None)
 

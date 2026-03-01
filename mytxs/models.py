@@ -8,6 +8,7 @@ from django.conf import settings as djangoSettings
 from django.core import mail
 from django.db import models
 from django.db.models import Value as V, Q, Case, When, Max, Sum, ExpressionWrapper, F, OuterRef, Subquery, Prefetch, Exists
+from django.db.models.fields import BLANK_CHOICE_DASH
 from django.db.models.functions import Concat, ExtractMinute, ExtractHour, Right, Coalesce, Cast, Substr, StrIndex, Lower, Substr, StrIndex
 from django.forms import ValidationError
 from django.urls import reverse
@@ -1061,7 +1062,7 @@ class Dekorasjon(DbCacheModel):
 
     @dbCache(runOnNone=True)
     def get_absolute_url(self):
-        return reverse(consts.Tilgang.dekorasjon, args=[self.kor.navn, self.navn])
+        return reverse('dekorasjon', args=[self.kor.navn, self.navn])
 
     @dbCache
     def __str__(self):
@@ -1750,7 +1751,7 @@ class Sang(DbCacheModel):
     )
 
     kortype = models.CharField(
-        choices=[(s, s) for s in ['Mannskor', 'Damekor', 'Blandakor', 'Begge', '']],
+        choices=BLANK_CHOICE_DASH + [(s, s) for s in ['Mannskor', 'Damekor', 'Blandakor', 'Begge']],
         blank=True
     )
 

@@ -160,6 +160,12 @@ For å få hjelp når du skriv tailwind anbefales virkelig [Tailwind CSS Intelli
     ],
 
 
+#### Versjonering av tailwind
+At vi har samme versjon av `pytailwindcss` impliserer ikke at vi har samme versjon av `tailwindcss`. Førstnevnte er et støtteverktøy som gjør det lett å installere sistnevnte, men den pinner ikke hvilken versjon som installeres. For å fortsette å få tailwindcss oppdateringer pinner heller ikke versjonen i pipelinen, virke bare greit det liksom. For å installer nyeste (eller en spesifikk) versjon av tailwindcss, kjør følgende kommando. 
+
+    tailwindcss_install
+
+
 ### Cron jobs
 Opprettet vårt av cron jobs e ganske enkelt, men fungere flott! På sørvern kjøres kommandoen `python manage.py cron` hvert minutt, slik at i koden i [cron.py](../../mytxs/management/commands/cron.py) kan vi utviklera skriv kode som gjør i stor grad ka som helst, uten å måtta hør med ITK om å få opp en egen cron kommando for det. Cron koden skal ellers vær ganske selvforklarende. Pr no har vi 2 cron jobs:
 - [fraværEpost](../../mytxs/management/commands/cron.py), som sende epost te folk med fravær tilgangen 2 tima før øvelse. 
@@ -225,20 +231,33 @@ ITK har også et oppsett der man kan se loggs fra de kjørende instansen(e?) på
     1. For å se logg av innkommende requests, skriv `less /var/log/apache2/external/access-mytxs.samfundet.no.log`
 
 
+### CICD
+For å unngå å ødelegg ting på dumme måter sjekkes følgende på hver PR. Før hver av disse kjøres en [setup action](../../.github/actions/setup/action.yml) som sett opp python med rett versjon og installere dependencies. 
+1. Vi kjøre `python manage.py makemigrations`, for å bekreft at [migrasjonan](../../mytxs/migrations) samsvare med [models.py](../../mytxs/models.py). 
+1. Vi re-generere tailwind filan, [selve mytxs](../../mytxs/static/mytxs/styles.css) og for [docs](../../docs/styles.css). 
+1. Vi kjøre [testan](../../mytxs/tests) med `python manage.py test`. 
+
+
+#### Klassiske CICD feil
+1. Om tailwind i pipeline bli ikkje enig med endringan lokalt, se å få oppdatert tailwindcss versjon [her](#versjonering-av-tailwind). Så `amend` og `push --force-with-lease`. 
+
+
 ### Automatisk publisering script
 Okei, så listen av steg under [publisering](#publisering) er ganske lang, og det er irriterende for meg å måtte kjøre dette manuelt hver gang. Også typ annenhver gong glømme e å kjør et steg, også begynne e å debugge koden fordi e trur at noko e feil, også e det bare publiseringen e har gjort feil. Dette motiverte meg til å skriv et automatisk publiserings script i jula 25. Første versjon av dette scriptet SSHet inn på serveren og kjøre kommandoene som meg, men siden dette er mot [ITK sin policy](https://itk.samfundet.no/IT-reglement.pdf) byttet jeg til at scriptet ble kjørt av MyTXS servern, og at det er en github action som kjører scriptet når det kommer nye commits på main. 
 
-Scriptet ligger som en fil i rot på servern, men ikke (enda?) i git, for at det skal være lett å endre på. Det er uansett ikke er så lett å teste eller jobbe med lokalt, så det e kanskje like greit. Scriptet generer loggfiler som viser output kommando for kommando, for videre debugging. For at ikke hvem som helst skal kunne starte en restart av MyTXS servern, som ITK ønsker å unngå der det ikke er nødvendig, er det en secret key spesifisert på servern, som må komme med spørringen til `/publish/<str:key>` [endepunktet](../../mytxs/urls.py#L80). Bash scriptet for å publisere serveren er pr no som følger, der run funksjonen fikser fin logging av alt som kjøres:
+Scriptet ligger som en fil i rot på servern, men ikke (enda?) i git, for at det skal være lett å endre på. Det er uansett ikke er så lett å teste eller jobbe med lokalt, så det e kanskje like greit. Scriptet generer loggfiler som viser output kommando for kommando, for videre debugging. For at ikke hvem som helst skal kunne starte en restart av MyTXS servern, som ITK ønsker å unngå der det ikke er nødvendig, er det en secret key spesifisert på servern, som må komme med spørringen til `/publish/<str:key>` [endepunktet](../../mytxs/urls.py#L88). Bash scriptet for å publisere serveren er pr no som følger, der run funksjonen fikser fin logging av alt som kjøres:
 
     #!/usr/bin/env bash
-    LOG_FILE="publish_$(date '+%Y-%m-%dT%H:%M:%S').log"
-    echo "Running from working dir: $PWD" >> "$LOG_FILE" 2>&1
+    umask 006 # Fiks at filer som scriptet oppretter kan skrives av gruppen
     
+    LOG_FILE="publish_$(date '+%Y-%m-%dT%H:%M:%S').log"
     run () {
-        echo -e "\n\n$*" >> "$LOG_FILE" 2>&1
+        echo -e "$*" >> "$LOG_FILE" 2>&1
         "$@" >> "$LOG_FILE" 2>&1
+        echo -e "\n" >> "$LOG_FILE" 2>&1
     }
     
+    run pwd # For debugging formål, si kor vi kjøre fra
     run git -c safe.directory=/home/cassarossa/sangern/felles/web/mytxs pull # For å si at dette e greit å kjør fra script bruker
     run source venv/bin/activate
     export HOME=/home/cassarossa/sangern/jakobli # For å få pip te å bruk min cache når den installere ting
