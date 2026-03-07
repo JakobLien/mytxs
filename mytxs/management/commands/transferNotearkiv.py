@@ -29,24 +29,36 @@ class Command(BaseCommand):
             help='Clear all database contents except loggs and django.users',
         )
 
+        parser.add_argument(
+            '--kk',
+            action='store_true',
+            help='Sett inn Knauskorets notearkiv fra databasedump istedet.',
+        )
+
+        parser.add_argument(
+            '--skipReq',
+            action='store_true',
+            help='Just write empty files instead of sending requests.',
+        )
+
     def handle(self, *args, **options):
         if options['clear']:
             Repertoar.objects.all().delete()
             Sang.objects.all().delete()
         
-        transferNoterakiv()
+        transferNoterakiv(skipReq=options['skipReq'], kk=options['kk'])
 
 
-def transferNoterakiv():
+def transferNoterakiv(skipReq=False, kk=False):
     http = urllib3.PoolManager(
         cert_reqs="CERT_REQUIRED",
         ca_certs=certifi.where()
     )
 
-    path = os.environ.get('NOTEARKIV_DUMP_PATH')
+    path = os.environ.get('NOTEARKIV_DUMP_PATH_KK' if kk else 'NOTEARKIV_DUMP_PATH')
 
     if not path:
-        raise CommandError('SET NOTEARKIV_DUMP_PATH in .env')
+        raise CommandError('SET NOTEARKIV_DUMP_PATH(_KK?) in .env')
 
     if not os.path.isfile(path):
         raise CommandError('Notearkiv file not found')
@@ -86,25 +98,36 @@ def transferNoterakiv():
     # print(getEntry(entries['Arkivtabell'], arkivid=11))
     # [{'arkivid': 11, 'arkivnr': 202, 'kortype': 'mannskor', 'tittel': 'Drikkevise', 'lengde': '3:18', 'antallstemmer': 4, 'sakral': 0, 'solist': 0, 'instrument': '', 'kommentar': 'MILJØSANG', 'oppdatert': '0000-00-00 00:00:00'}]
 
+    if kk:
+        guttesanger, created = Repertoar.objects.get_or_create(
+            navn='Guttesanger', 
+            kor=Kor.objects.get(navn=consts.Kor.Knauskoret), 
+            synlig=True
+        )
+        jentesanger, created = Repertoar.objects.get_or_create(
+            navn='Jentesanger', 
+            kor=Kor.objects.get(navn=consts.Kor.Knauskoret), 
+            synlig=True
+        )
+    else:
+        # Fiks Miljøsangheftet for begge koran. 
+        tssMSHsangIder, tksMSHsangIder = [], []
+        for arkivId, notehefteId in [(d['arkivid'], d['notehefteid']) for d in entries['note_notehefte']]:
+            if notehefteId == 106: # NotehefteID for TSS MSH
+                tssMSHsangIder.append(arkivId)
+            elif notehefteId == 107: # NotehefteID for TKS MSH
+                tksMSHsangIder.append(arkivId)
 
-    # Fiks Miljøsangheftet for begge koran. 
-    tssMSHsangIder, tksMSHsangIder = [], []
-    for arkivId, notehefteId in [(d['arkivid'], d['notehefteid']) for d in entries['note_notehefte']]:
-        if notehefteId == 106: # NotehefteID for TSS MSH
-            tssMSHsangIder.append(arkivId)
-        elif notehefteId == 107: # NotehefteID for TKS MSH
-            tksMSHsangIder.append(arkivId)
-
-    tssMSHRep, created = Repertoar.objects.get_or_create(
-        navn='MSH', 
-        kor=Kor.objects.get(navn='TSS'), 
-        synlig=True
-    )
-    tksMSHRep, created = Repertoar.objects.get_or_create(
-        navn='MSH', 
-        kor=Kor.objects.get(navn='TKS'), 
-        synlig=True
-    )
+        tssMSHRep, created = Repertoar.objects.get_or_create(
+            navn='MSH', 
+            kor=Kor.objects.get(navn=consts.Kor.TSS), 
+            synlig=True
+        )
+        tksMSHRep, created = Repertoar.objects.get_or_create(
+            navn='MSH', 
+            kor=Kor.objects.get(navn=consts.Kor.TKS), 
+            synlig=True
+        )
 
     # Generer sangan
     for sangIndex, sangDict in enumerate(objectsGenerator(entries['Arkivtabell'], save=False)):
@@ -118,9 +141,9 @@ def transferNoterakiv():
         while True:
             try:
                 sang, created = Sang.objects.get_or_create(
-                    kor=Kor.objects.filter(navn=consts.Kor.TXS).first(), 
+                    kor=Kor.objects.filter(navn=consts.Kor.Knauskoret if kk else consts.Kor.TXS).first(), 
                     navn=sangDict['tittel'] + (f'_{unikSangNr}' if unikSangNr else ''),
-                    kortype=(sangDict['kortype'].title() if sangDict['kortype'] != 'like stemmer' else 'Begge') if sangDict['kortype'] else ''
+                    kortype='Blandakor' if kk else ((sangDict['kortype'].title() if sangDict['kortype'] != 'like stemmer' else 'Begge') if sangDict['kortype'] else '')
                 )
                 break
             except IntegrityError as e:
@@ -132,6 +155,14 @@ def transferNoterakiv():
             kommentarLinjer = kommentar.split('\n')
             kommentarLinjer = [k for k in kommentarLinjer if k != 'MILJØSANG']
             kommentarLinjer = [k for k in kommentarLinjer if not k.startswith('TKS arkivnummer')]
+            if kk:
+                if 'Guttesang' in kommentar:
+                    sang.kortype = 'Mannskor'
+                    sang.repertoar.add(guttesanger)
+                elif 'Jentesang' in kommentar:
+                    sang.kortype = 'Damekor'
+                    sang.repertoar.add(jentesanger)
+
             if kommentarLinjer:
                 sang.notis = '\n'.join(kommentarLinjer) + '\n'
 
@@ -147,7 +178,7 @@ def transferNoterakiv():
         if antallStemmer := sangDict['antallstemmer']:
             sang.notis += f'Antall stemmer: {antallStemmer}\n'
 
-        if sangDict['sakral']:
+        if not kk and sangDict['sakral']:
             sang.notis += f'Sakral sang\n'
 
         if sangDict['solist']:
@@ -177,23 +208,21 @@ def transferNoterakiv():
 
             sangFil.skjul = sangFilDict['status'] == 'skjul'
 
-            # DETTE FUNKA, men det tar selvfølgelig my nett å last ned alt, og i den faktiske overføringa kjem ta her te å ta laaang tid. 
-            # print('Request sent')
-            res = http.request("GET", f"https://mannskor.no/notearkiv/filer/{sangFilDict['navn']}")
+            if skipReq:
+                sangFil.fil = ContentFile(bytes(), name=sangFilDict['navn'])
+            else:
+                url = 'https://files.knauskoret.no' if kk else 'https://mannskor.no'
+                res = http.request("GET", f"{url}/notearkiv/filer/{sangFilDict['navn']}")
 
-            if res.status != 200:
-                print(f"Request for sang {sang.navn} and fil {sangFil.navn} got code {res.status}")
+                if res.status != 200:
+                    print(f"Request for sang {sang.navn} and fil {sangFil.navn} got code {res.status}")
 
-            # print(res.headers)
-            # #  HTTPHeaderDict({'Server': 'nginx/1.14.0 (Ubuntu)', 'Date': 'Thu, 08 Aug 2024 18:09:09 GMT', 'Content-Type': 'audio/mpeg', 'Content-Length': '4116479', 'Connection': 'keep-alive', 'Last-Modified': 'Mon, 06 May 2019 19:30:02 GMT', 'ETag': '"5cd08b3a-3ecfff"', 'Accept-Ranges': 'bytes'})
-
-            sangFil.fil = ContentFile(res.data, name=sangFilDict['navn'])
-            # sangFil.fil = ContentFile(bytes(), name=sangFilDict['navn']) # WIP VERSJON SOM LAGE EN TOM FIL
+                sangFil.fil = ContentFile(res.data, name=sangFilDict['navn'])
             sangFil.save()
 
         # Sett inn sangen i (semester) repertoaran den ska vær i
         for repertoarDict in filterEntries(entries['Repertoar'], NoteID=sangDict['arkivid']):
-            repertoar, created = Repertoar.objects.get_or_create(kor=Kor.objects.filter(navn=repertoarDict['kor']).first(), navn=str(repertoarDict['årstall']) + ' ' + repertoarDict['semester'])
+            repertoar, created = Repertoar.objects.get_or_create(kor=Kor.objects.filter(navn=consts.Kor.Knauskoret if kk else repertoarDict['kor']).first(), navn=str(repertoarDict['årstall']) + ' ' + repertoarDict['semester'])
 
             if created:
                 repertoar.dato = datetime.date(year=repertoarDict['årstall'], month=1 if repertoarDict['semester'] == 'Vår' else 8, day=1)
@@ -201,11 +230,12 @@ def transferNoterakiv():
 
             sang.repertoar.add(repertoar)
 
-        # Sett inn i miljøsanghefte
-        if sangDict['arkivid'] in tssMSHsangIder:
-            tssMSHRep.sanger.add(sang)
-        if sangDict['arkivid'] in tksMSHsangIder:
-            tksMSHRep.sanger.add(sang)
+        if not kk:
+            # For storkor, sett inn i miljøsanghefte
+            if sangDict['arkivid'] in tssMSHsangIder:
+                tssMSHRep.sanger.add(sang)
+            if sangDict['arkivid'] in tksMSHsangIder:
+                tksMSHRep.sanger.add(sang)
 
         # if sangIndex > 1000:
         #     break
