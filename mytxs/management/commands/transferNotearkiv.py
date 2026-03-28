@@ -3,14 +3,15 @@ import os
 import certifi
 import urllib3
 import json
+import hashlib
 
-from django.core.files.base import ContentFile
+from django.core.files.base import ContentFile, File
 from django.core.management.base import BaseCommand, CommandError
 from django.db.utils import IntegrityError
 
 from mytxs import consts
 from mytxs.management.commands.updateField import objectsGenerator
-from mytxs.models import Kor, Repertoar, Sang
+from mytxs.models import Kor, Repertoar, Sang, SangFil
 
 # Så greia e at MyTXS 1.0 servern supporte ikkje ipv6, og samfundet har ipv6 som default.
 # Dette lede til at dersom vi ikkje eksplisit spesifisere at vi må bruk ipv4 får vi en bug
@@ -36,6 +37,12 @@ class Command(BaseCommand):
         )
 
         parser.add_argument(
+            '--kkDrive',
+            action='store_true',
+            help='Overfør Knauskorets Notearkiv fra Drive etter 2019, gitt en lokal kopi'
+        )
+
+        parser.add_argument(
             '--skipReq',
             action='store_true',
             help='Just write empty files instead of sending requests.',
@@ -46,7 +53,113 @@ class Command(BaseCommand):
             Repertoar.objects.all().delete()
             Sang.objects.all().delete()
         
-        transferNoterakiv(skipReq=options['skipReq'], kk=options['kk'])
+        if options['kkDrive']:
+            transferNoterakivDrive()
+        else:
+            transferNoterakiv(skipReq=options['skipReq'], kk=options['kk'])
+
+
+def transferNoterakivDrive():
+    path = os.environ.get('NOTEARKIV_DUMP_PATH_KK_DRIVE')
+
+    if not path:
+        raise CommandError('SET NOTEARKIV_DUMP_PATH_KK_DRIVE in .env')
+
+    # Det vi må tenk på da e at alt under /repertoar/sang må havn på sangen, uavhengig av kor mange mapper det er nedover. 
+    for path, dirNames, fileNames in list(os.walk(path))[::-1]:
+        if path.count('/') < 3:
+            continue
+
+        repNavn = path.split('/')[2]
+        sangNavn = path.split('/')[3]
+        dato = parseRepDato(repNavn)
+
+        rep, created = Repertoar.objects.get_or_create(
+            navn=repNavn,
+            kor=Kor.objects.get(navn=consts.Kor.Knauskoret),
+            dato=dato,
+            synlig= dato == None
+        )
+
+        sang, created = Sang.objects.get_or_create(
+            navn=sangNavn,
+            kor=Kor.objects.get(navn=consts.Kor.Knauskoret),
+            kortype='Blandakor'
+        )
+
+        if not fileNames and path.count('/') == 3:
+            # Om det e en sang som i drive bare lenker tilbake til tidligere år, legg e det manuelt inn en tom mappe. 
+            print('La til sang på rep:', repNavn, sangNavn)
+            rep.sanger.add(sang)
+            continue
+
+        print(path)
+        filesForPrint = []
+        for fileName in fileNames:
+            rep.sanger.add(sang)
+
+            filePath = os.path.join(path, fileName)
+            with open(filePath, 'rb') as f:
+                file = File(f)
+
+                duplicateFileOnSong = False
+                for otherFileOnSong in SangFil.objects.filter(sang=sang):
+                    if hashFile(filePath) == hashFile(otherFileOnSong.fil.path):
+                        print('Duplicate file:', fileName, '=', otherFileOnSong)
+                        duplicateFileOnSong = True
+                        break
+                if duplicateFileOnSong:
+                    continue
+
+                fileType = '.' + fileName.split('.')[-1]
+                fileNameWithoutType = fileName.replace(fileType, '')
+                for unikFilNr in range(100):
+                    unikSangFilName = fileNameWithoutType + (f'_{unikFilNr}' if unikFilNr else '')
+                    if SangFil.objects.filter(sang=sang, navn=unikSangFilName, fil__endswith=fileType).exists():
+                        print('Avoiding duplicate name:', fileName)
+                        continue
+                    sang.filer.create(
+                        navn=unikSangFilName + fileType,
+                        fil=file
+                    )
+                    filesForPrint.append(unikSangFilName + fileType)
+                    break
+
+        # Må printe slik for å unngå at outputen blir så sykt lang
+        if filesForPrint:
+            print('Added files: ', filesForPrint)
+
+    for sang in Sang.objects.filter(filer__isnull=True):
+        print('Sang uten noen filer:', sang)
+
+
+def parseRepDato(repNavn: str):
+    'Returne date tilsvarende et godt gjett på dato gitt repertoarNavn ala Vår 26 o.l.'
+    if not repNavn:
+        return None
+
+    if 'vår' in repNavn.lower():
+        måned = 1
+    elif 'høst' in repNavn.lower():
+        måned = 8
+    elif 'julekonsert' in repNavn.lower():
+        måned = 12
+    else:
+        return None
+
+    år = int(''.join([c for c in repNavn if c.isnumeric()]))
+    if år < 100:
+        år += 2000
+
+    return datetime.date(år, måned, 1)
+
+
+def hashFile(path, chunk_size=8192):
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(chunk_size), b''):
+            h.update(chunk)
+    return h.digest()
 
 
 def transferNoterakiv(skipReq=False, kk=False):
