@@ -13,52 +13,52 @@ class DbCacheModel(models.Model):
 
     dbCacheField = models.JSONField(editable=False, default=dict)
 
+    def shouldUpdateRelation(self, oldSelf, reverseRelation, model, fkChanged):
+        '''
+        Si om vi burde calle save utover denne relasjonen. Formelen her er komplisert:
+        - Om det er noen felt som ser på oss, og vi har nettopp blitt opprettet, endret FK eller blitt slettet. 
+        - Om noen av feltene som ser på oss enten ikke stiller noen krav, eller feltet hos oss de ser på er endret siden oldSelf.
+        '''
+        for dbCacheFieldName in getDbCachedFields(model):
+            fields = [p.split('.')[1] for p in getattr(model, dbCacheFieldName).paths if p.split('.')[0] == reverseRelation]
+            if (fields and fkChanged) or any([f == '' or getAttrAndCall(self, f) != getAttrAndCall(oldSelf, f) for f in fields]):
+                return True
+        return False
+
     def saveRelated(self, oldSelf=None, caller=None, delete=False):
         'Lagre relaterte objekt basert på dbCache sin path.'
         for relation, reverseRelation, model in getAllRelatedModelsWithFieldNameAndReverse(type(self)):
-            dbCacheFields = []
-
-            for dbCacheFieldName in getDbCachedFields(model):
-                fields = [p.split('.')[1] for p in getattr(model, dbCacheFieldName).paths if p.split('.')[0] == reverseRelation]
-                if (delete and fields) or any([f == '' or getAttrAndCall(self, f) != getAttrAndCall(oldSelf, f) for f in fields]):
-                    dbCacheFields.append(dbCacheFieldName)
-
-            if not dbCacheFields:
+            isForwardFK = isinstance(type(self)._meta.get_field(relation), models.ForeignKey)
+            fkChanged = isForwardFK and (oldSelf == None or getattr(oldSelf, relation) != getattr(self, relation))
+            if not self.shouldUpdateRelation(oldSelf, reverseRelation, model, fkChanged or delete):
                 continue
 
-            # Bare lagre felt som ikkje lagres hver save
-            dbCacheFields = [f for f in dbCacheFields if any(
-                [p.split('.')[0] == '' and p.split(".")[1] != '' for p in getattr(model, f).paths]
-            )]
-
-            relatedList = [getattr(self, relation)]
-            if hasattr(relatedList[0], 'all'):
-                if delete:
-                    # Slettede ting har ikkje RelatedManager, altså .all() raise exception. 
-                    relatedList = []
-                else:
-                    relatedList = relatedList[0].all()
+            relatedList = set()
+            if isForwardFK:
+                relatedList.add(getattr(self, relation))
+                if oldSelf:
+                    relatedList.add(getattr(oldSelf, relation))
+            else:
+                relatedList.update(model.objects.filter(**{reverseRelation: self.pk}))
+            relatedList.discard(None)
 
             for related in relatedList:
                 if caller == f'{relation}#{related.pk}':
                     continue
 
-                for field in dbCacheFields:
-                    getattr(related, field)(run=True)
-                DbCacheModel.save(related, caller=f'{reverseRelation}#{self.pk}')
+                type(self).__bases__[0].save(related, caller=f'{reverseRelation}#{self.pk}')
 
     def save(self, *args, caller=None, **kwargs):
         'Save som vedlikeheld dbCache fields og relaterte avhengige dbCache fields.'
-        # Slett ting i dbCache vi ikkje har metoda for
         for key in [k for k in self.dbCacheField.keys() if k not in getDbCachedFields(type(self))]:
             del self.dbCacheField[key]
 
         oldSelf = type(self).objects.filter(pk=self.pk).first()
 
         for dbCacheFieldName in getDbCachedFields(type(self)):
-            fields = [p[1:] for p in getattr(type(self), dbCacheFieldName).paths if p.split(".")[0] == '' and p.split(".")[1] != '']
+            localFields = [p[1:] for p in getattr(type(self), dbCacheFieldName).paths if p.split('.')[0] == '' and p.split('.')[1] != '']
 
-            if len(fields) == 0 or any([getAttrAndCall(self, field) != getAttrAndCall(oldSelf, field) for field in fields]):
+            if len(localFields) == 0 or any([getAttrAndCall(self, field) != getAttrAndCall(oldSelf, field) for field in localFields]):
                 getattr(self, dbCacheFieldName)(run=True)
 
         super().save(*args, **kwargs)
@@ -71,7 +71,6 @@ class DbCacheModel(models.Model):
     def delete(self, *args, **kwargs):
         'Delete som vedlikeheld dbCache fields og relaterte avhengige dbCache fields.'
         super().delete(*args, **kwargs)
-
         thread(self.saveRelated)(delete=True)
 
     class Meta:
@@ -111,8 +110,11 @@ def dbCache(actualMethod=None, paths=[], runOnNone=False):
         if run:
             self.dbCacheField[actualMethod.__name__] = actualMethod(self)
         elif runOnNone and self.dbCacheField.get(actualMethod.__name__, None) == None:
-            DbCacheModel.save(self)
+            # Slik at det kjøre save metoder på alt over objektet som har dbCache feltet, 
+            # altså alle abstrakte modeller oppover. 
+            type(self).__bases__[0].save(self)
 
+        # Django vil raise et exception dersom __str__ returne None. 
         return self.dbCacheField.get(actualMethod.__name__, 'UNSAVED_OBJ_STR' if actualMethod.__name__ == '__str__' else None)
 
     _decorator.dbCached = True
