@@ -13,7 +13,7 @@ testCases = [
     ('A2', '2A')
 ]
 
-class DekorasjonOvervalørTestCase(SimpleTestCase):
+class GjettStemmegruppeTestCase(SimpleTestCase):
     def testGjettStemmegruppe(self):
         for param, answer in testCases:
-            self.assertEquals(gjettStemmegruppe(param), answer)
+            self.assertEqual(gjettStemmegruppe(param), answer)
