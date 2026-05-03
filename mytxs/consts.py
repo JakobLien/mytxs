@@ -83,6 +83,15 @@ tilgangBeskrivelser = [
 ]
 
 alleTilganger = list(tilgangTilKorNavn.keys())
+medlemsRegsiterTilganger = [
+    Tilgang.medlemsdata,
+    Tilgang.vervInnehavelse,
+    Tilgang.verv,
+    Tilgang.dekorasjonInnehavelse,
+    Tilgang.dekorasjon,
+    Tilgang.turne,
+    Tilgang.tilgang
+]
 
 # Hold denne lista i en rekkefølge vi ønske å slett de i, for seed --clear sin del:)
 loggedModelNames = [

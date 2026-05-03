@@ -255,7 +255,7 @@ class MedlemQuerySet(models.QuerySet):
             ).order_by('start__year').values('start__year')[:1]
         ))
 
-    def annotateKor(self, annotationNavn='korNavn', korAlternativ=consts.bareStorkorNavn, aktiv=False):
+    def annotateKor(self, annotationNavn='korNavn', korAlternativ=consts.bareStorkorNavn, aktiv=False, dato=None):
         '''
         Annotater korNavn som det tidligste koret av korAlternativ, bare aktive kor dersom aktiv=True.
         I utgangspunktet annotater dette storkoret til vedkommende. 
@@ -264,14 +264,14 @@ class MedlemQuerySet(models.QuerySet):
             **{annotationNavn: Subquery(
                 VervInnehavelse.objects.filter(
                     stemmegruppeVerv(includeDirr=True),
-                    vervInnehavelseAktiv('') if aktiv else qBool(True),
+                    vervInnehavelseAktiv('', dato=dato) if aktiv or dato else qBool(True),
                     verv__kor__navn__in=korAlternativ,
                     medlem=OuterRef('pk')
                 ).order_by('start').values('verv__kor__navn')[:1]
             )}
         )
 
-    def annotateStemmegruppe(self, kor=None, includeUkjent=False, understemmegruppe=False, includeDirr=False, pkPath='pk'):
+    def annotateStemmegruppe(self, kor=None, includeUkjent=False, understemmegruppe=False, includeDirr=False, pkPath='pk', dato=None):
         '''
         Annotate navnet på stemmegruppen medlemmet har i koret. 
         Om includeDirr er False og querysettet inneholder dirra, annotates None på dirrigenten. 
@@ -279,7 +279,7 @@ class MedlemQuerySet(models.QuerySet):
         return self.annotate(
             stemmegruppe=Subquery(
                 VervInnehavelse.objects.filter(
-                    vervInnehavelseAktiv(''),
+                    vervInnehavelseAktiv('', dato=dato),
                     stemmegruppeVerv(includeUkjentStemmegruppe=includeUkjent, includeDirr=includeDirr),
                     korLookup(kor, 'verv__kor') if kor else qBool(True),
                     medlem=OuterRef(pkPath)
@@ -312,16 +312,17 @@ class MedlemQuerySet(models.QuerySet):
         
         return self.annotate(**conditionDict).annotate(**valueDict)
 
-    def sjekkheftePrefetch(self, kor):
+    def sjekkheftePrefetch(self, kor, dato=None):
         'Prefetch all dataen vi skal ha i det koret. Om Kor er None prefetches ingenting.'
         return self.prefetch_related(
             Prefetch('vervInnehavelser', queryset=VervInnehavelse.objects.none() if kor == None else VervInnehavelse.objects.filter(
-                vervInnehavelseAktiv(''),
+                vervInnehavelseAktiv('', dato=dato),
                 ~stemmegruppeVerv(includeDirr=True),
                 verv__kor__navn__in=[kor.navn, consts.Kor.Sangern] if kor.navn in consts.bareStorkorNavn else [kor.navn]
             ).prefetch_related('verv__kor')),
             Prefetch('dekorasjonInnehavelser', queryset=DekorasjonInnehavelse.objects.none() if kor == None else DekorasjonInnehavelse.objects.filter(
                 ~Q(dekorasjon__overvalør__dekorasjonInnehavelser__medlem__pk=F('medlem__pk')),
+                Q(start__lte=dato) if dato != None else qBool(True),
                 dekorasjon__kor__navn__in=[kor.navn, consts.Kor.Sangern] if kor.navn in consts.bareStorkorNavn else [kor.navn]
             ).prefetch_related('dekorasjon__kor')),
         )
