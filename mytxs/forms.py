@@ -2,11 +2,12 @@ import datetime
 from django import forms
 from django.db.models import Q
 from django.db.models.fields import BLANK_CHOICE_DASH
+from django.forms import ValidationError
 from django.shortcuts import redirect
 
 from mytxs import consts
-from mytxs.fields import BitmapMultipleChoiceField, MultipleFileField, MyDateFormField
-from mytxs.models import Hendelse, Kor, Medlem, MedlemQuerySet, Sang, Verv, Oppmøte
+from mytxs.fields import BitmapMultipleChoiceField, MyDateFormField
+from mytxs.models import Hendelse, Kor, Medlem, MedlemQuerySet, Verv, VervInnehavelse, Oppmøte
 from mytxs.utils.formUtils import postIfPost, toolTip
 from mytxs.utils.modelUtils import getPathToKor, stemmegruppeVerv, vervInnehavelseAktiv
 
@@ -278,6 +279,42 @@ class RepertoarFilterForm(NavnKorFilterForm):
 
 class ShareCalendarForm(forms.Form):
     gmail = forms.EmailField(help_text=toolTip('Skriv in gmailen din her for å inviteres til en google kalender som oppdaterer umiddelbart!'))
+
+
+class SjekkhefteDatoForm(forms.Form):
+    dato = MyDateFormField(required=False)
+
+    def __init__(self, *args, medlem=None, korNavn=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.medlem = medlem
+        self.korNavn = korNavn
+
+    def isValidDate(self, dato, medlem, korNavn):
+        # Generelt har alle lov til å sjå datoer der de selv var aktive. 
+        if VervInnehavelse.objects.filter(
+            vervInnehavelseAktiv('', dato=dato),
+            stemmegruppeVerv(includeDirr=True),
+            medlem=medlem,
+            verv__kor__navn=korNavn
+        ).exists():
+            return True
+
+        # Også har styrefolk lov til å sjå det dem ellers kunna sett ved å bla i medlemsregisteret
+        if medlem.tilganger.filter(
+            navn__in=consts.medlemsRegsiterTilganger,
+            kor__navn=korNavn
+        ).exists():
+            return True
+
+    def clean(self, *args, **kwargs):
+        cleaned_data = super().clean(*args, **kwargs)
+        if cleaned_data['dato'] != None and not self.isValidDate(cleaned_data['dato'], self.medlem, self.korNavn):
+            raise ValidationError(f'Kun perioden du var aktiv.')
+        return cleaned_data
+
+    def getDato(self):
+        if self.is_valid():
+            return self.cleaned_data['dato']
 
 
 class InnstillingerForm(forms.Form):

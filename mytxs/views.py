@@ -22,7 +22,7 @@ from django.http import FileResponse, HttpResponse
 
 from mytxs import consts
 from mytxs.fields import intToBitList
-from mytxs.forms import HendelseFilterForm, LoggFilterForm, MedlemFilterForm, NavnKorFilterForm, ShareCalendarForm, TurneFilterForm, VervFilterForm, OppmøteFilterForm
+from mytxs.forms import HendelseFilterForm, LoggFilterForm, MedlemFilterForm, NavnKorFilterForm, ShareCalendarForm, SjekkhefteDatoForm, TurneFilterForm, VervFilterForm, OppmøteFilterForm
 from mytxs.management.commands.transfer import transferByJWT
 from mytxs.models import Dekorasjon, DekorasjonInnehavelse, Hendelse, Kor, Lenke, Logg, Medlem, MedlemQuerySet, Repertoar, Sang, SangFil, Tilgang, Turne, Verv, VervInnehavelse, Oppmøte
 from mytxs.forms import HendelseFilterForm, LoggFilterForm, MedlemFilterForm, NavnKorFilterForm, RepertoarFilterForm, SangFilterForm, ShareCalendarForm, TurneFilterForm, VervFilterForm, OppmøteFilterForm
@@ -203,7 +203,11 @@ def sjekkheftet(request, side, underside=None):
     
     # Gruperinger er visuelle grupperinger i sjekkheftet på samme side, klassisk stemmegrupper. 
     grupperinger = {}
+    sjekkheftetDatoForm = None
     if kor := Kor.objects.filter(navn=side).first():
+        sjekkheftetDatoForm = SjekkhefteDatoForm(request.GET, medlem=request.user.medlem, korNavn=kor.navn)
+        dato = sjekkheftetDatoForm.getDato()
+
         request.queryset = Medlem.objects.distinct().order_by(*Medlem._meta.ordering).annotateKarantenekor(
             kor=kor if kor.navn != consts.Kor.Sangern else None
         )
@@ -211,28 +215,36 @@ def sjekkheftet(request, side, underside=None):
         if tilgang := Tilgang.objects.filter(sjekkheftetSynlig=True, navn=underside, kor=kor).first():
             # Om det e en tilgangsdefinert undergruppe vi ser på, f.eks. styret
             request.queryset = request.queryset.filter(
-                vervInnehavelseAktiv(),
+                vervInnehavelseAktiv(dato=dato),
                 vervInnehavelser__verv__kor=kor,
                 vervInnehavelser__verv__tilganger=tilgang
-            ).annotatePublic(
-                overrideVisible=request.user.medlem.tilganger.filter(navn=consts.Tilgang.sjekkhefteSynlig, kor=kor).exists()
-            ).sjekkheftePrefetch(kor=kor)
+            )
+
+            if dato == None:
+                request.queryset = request.queryset.annotatePublic(
+                    overrideVisible=request.user.medlem.tilganger.filter(navn=consts.Tilgang.sjekkhefteSynlig, kor=kor).exists()
+                )
+
+            request.queryset = request.queryset.sjekkheftePrefetch(kor=kor, dato=dato)
 
             grupperinger = {'': request.queryset}
         else:
             # Om det e heile koret
             request.queryset = request.queryset.filter(
                 stemmegruppeVerv('vervInnehavelser__verv', includeUkjentStemmegruppe=False, includeDirr=True),
-                vervInnehavelseAktiv(),
+                vervInnehavelseAktiv(dato=dato),
                 vervInnehavelser__verv__kor=kor
-            ).annotatePublic(
-                overrideVisible=request.user.medlem.tilganger.filter(navn=consts.Tilgang.sjekkhefteSynlig, kor=kor).exists()
-            ).annotateStemmegruppe(kor, includeDirr=True)
+            ).annotateStemmegruppe(kor, includeDirr=True, dato=dato)
+            
+            if dato == None:
+                request.queryset = request.queryset.annotatePublic(
+                    overrideVisible=request.user.medlem.tilganger.filter(navn=consts.Tilgang.sjekkhefteSynlig, kor=kor).exists()
+                )
 
             if kor.navn not in consts.bareSmåkorNavn:
-                request.queryset = request.queryset.annotateKor(annotationNavn='småkor', korAlternativ=consts.bareSmåkorNavn, aktiv=True)
+                request.queryset = request.queryset.annotateKor(annotationNavn='småkor', korAlternativ=consts.bareSmåkorNavn, aktiv=True, dato=dato)
             
-            request.queryset = request.queryset.sjekkheftePrefetch(kor=kor)
+            request.queryset = request.queryset.sjekkheftePrefetch(kor=kor, dato=dato)
 
             grupperinger = {key: [] for key in ['Dirigent'] + kor.stemmegrupper() }
             for medlem in request.queryset:
@@ -275,7 +287,8 @@ def sjekkheftet(request, side, underside=None):
 
     return render(request, 'mytxs/sjekkheftet.html', {
         'grupperinger': grupperinger, 
-        'heading': 'Sjekkheftet'
+        'heading': 'Sjekkheftet',
+        'sjekkheftetDatoForm': sjekkheftetDatoForm,
     })
 
 

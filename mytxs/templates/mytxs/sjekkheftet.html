@@ -5,6 +5,16 @@
 
 {% block beforeSjekkheftetContent %}{% endblock %}
 
+{% if sjekkheftetDatoForm %}
+<form action="{{ request.path }}" method="get">
+    {% for field in sjekkheftetDatoForm.visible_fields %}
+    {{ field.errors }} {{ field.label_tag }} {{ field }}
+    {% endfor %}
+    <input type="submit" value="Se">
+    {{ sjekkheftetDatoForm.non_field_errors }}
+</form>
+{% endif %}
+
 {% block sjekkheftetContent %}
 
 {% if grupperinger|length > 1 %}
