@@ -71,7 +71,10 @@ class HendelseFilterForm(NavnKorFilterForm):
     kategori = forms.ChoiceField(choices=BLANK_CHOICE_DASH + list(Hendelse.KATEGORI_CHOICES), required=False)
     
     def applyFilter(self, queryset):
-        queryset = super().applyFilter(queryset)
+        queryset = KorFilterForm.applyFilter(self, queryset)
+
+        if navn := self.cleaned_data['navn']:
+            queryset = queryset.filter(*map(lambda n: Q(navn__unaccent__icontains=n), navn.split()))
 
         if start := self.cleaned_data['start']:
             queryset = queryset.filter(startDate__gte=start)
@@ -130,7 +133,7 @@ class MedlemFilterForm(NavnKorFilterForm):
 
         if navn := self.cleaned_data['navn']:
             queryset = queryset.annotateFulltNavn()
-            queryset = queryset.filter(*map(lambda n: Q(fulltNavn__icontains=n), navn.split()))
+            queryset = queryset.filter(*map(lambda n: Q(fulltNavn__unaccent__icontains=n), navn.split()))
         
         if navn := self.cleaned_data['ikkeOverførtData']:
             queryset = queryset.filter(overførtData=False)
@@ -244,11 +247,13 @@ class SangFilterForm(NavnKorFilterForm):
             raise Exception('Invalid filterForm')
 
         if navn := self.cleaned_data['navn']:
-            # Dette sjekke om alle ordan e i navnet, heller enn at helheten e i navnet. 
-            queryset = queryset.filter(*map(lambda n: Q(navn__icontains=n), navn.split()))
+            queryset = queryset.filter(*map(lambda n: Q(navn__unaccent__icontains=n), navn.split()))
 
         if kor := self.cleaned_data['kor']:
-            queryset = queryset.filter(repertoar__kor__navn=kor.navn)
+            if kor.navn in consts.bareStorkorNavn:
+                queryset = queryset.filter(Q(repertoar__kor__navn=kor.navn))
+            else:
+                queryset = queryset.filter(Q(kor__navn=kor.navn))
 
         if år := self.cleaned_data['år']:
             queryset = queryset.filter(repertoar__dato__year=år)
@@ -281,7 +286,7 @@ class InnstillingerForm(forms.Form):
     # Ting som admin har
     adminTilganger = forms.MultipleChoiceField(required=False, choices=[(o, o) for o in consts.alleTilganger], 
         help_text=toolTip('Dette sier hvilke tilganger du får i det valgte koret, bare tilgjengelig for admin brukere.'))
-    adminTilgangerKor = forms.MultipleChoiceField(required=False, choices=[(o, o) for o in consts.alleKorNavn], 
+    adminTilgangerKor = forms.MultipleChoiceField(required=False, choices=[(o, o) for o in consts.bareTilgangKorNavn], 
         help_text=toolTip('Dette gir deg alle tilganger i det valgte koret, bare tilgjengelig for admin brukere.'))
 
     # Ting som folk med tilgang har

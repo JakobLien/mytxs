@@ -9,26 +9,24 @@ from django.utils.autoreload import autoreload_started
 
 
 class Command(RunServerCommand):
-    help = "Run Django development server with Tailwind CSS watch mode"
-
     def add_arguments(self, parser):
         super().add_arguments(parser)
         parser.add_argument(
             '--tw',
             action='store_true',
-            help='Automatisk oppdater styles.css filer når relevante filer endres.',
+            help='Run Django development server with StatReloader running tailwindcss on relevant changes',
         )
 
     def repoRoot(self):
         return Path(__file__).parent.parent.parent.parent
 
-    def runCommandOnChange(self, regexPath, command):
+    def runCommandOnChange(self, regexPath, command, preventReload=False):
         def callback(sender: autoreload.StatReloader, file_path, **kwargs):
             pathFromRepoRoot = str(file_path).replace(str(self.repoRoot()), '')
-            if re.fullmatch(regexPath, pathFromRepoRoot): # Sjekk om vi faktisk må kjør tailwind.
+            if re.fullmatch(regexPath, pathFromRepoRoot):
+                print(file_path, 'changed, running command.\n$', command)
                 subprocess.Popen(command.split(' '))
-                autoreload.trigger_reload(file_path)
-            return None # Don't suppress other handlers
+                return preventReload
         autoreload.file_changed.connect(callback)
 
     def handle(self, *args, **options):
@@ -41,13 +39,15 @@ class Command(RunServerCommand):
             autoreload_started.connect(watchExtra)
 
             self.runCommandOnChange(
-                '/mytxs/(templates/.*|static/mytxs/(inputStyles\.css|static/mytxs/.*\.js))',
-                'tailwindcss --cwd mytxs -i static/mytxs/inputStyles.css -o static/mytxs/styles.css --minify'
+                r'/mytxs/(templates/.*|static/mytxs/(inputStyles\.css|static/mytxs/.*\.js))',
+                'tailwindcss --cwd mytxs -i static/mytxs/inputStyles.css -o static/mytxs/styles.css --minify',
+                preventReload=True
             )
 
             self.runCommandOnChange(
-                '/docs/index\.html',
-                'tailwindcss --cwd docs -o styles.css --minify'
+                r'/docs/index\.html',
+                'tailwindcss --cwd docs -o styles.css --minify',
+                preventReload=True
             )
 
         super().handle(*args, **options)

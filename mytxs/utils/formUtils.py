@@ -77,3 +77,16 @@ def toolTip(helpText):
 def addHelpText(form, *fieldNames, helpText=''):
     for fieldName in fieldNames:
         form.fields[fieldName].help_text = toolTip(helpText)
+
+
+def limitDekorasjonInnehavelseDelete(DekorasjonInnehavelseFormset):
+    class SubForm(DekorasjonInnehavelseFormset):
+        def clean(self, *args, **kwargs):
+            super().clean(*args, **kwargs)
+
+            for form in self.forms:
+                if form.cleaned_data.get("DELETE"):
+                    instance = form.instance
+                    if not instance.canDelete():
+                        form.add_error('DELETE', "Kan ikke slette dekorasjonInnehavelse med deviice på seg")
+    return SubForm

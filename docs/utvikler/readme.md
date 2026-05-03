@@ -37,7 +37,7 @@ For merge strategi bruke vi alltid merge strategi rebase, og dette er for å gj�
 ## Oppsett
 Her er hvordan man setter opp nettsiden lokalt. Om du ikke har erfaring med progging kan jeg anbefale [VS Code](https://code.visualstudio.com/) som editor, den e heilt grei. 
 1. Når du er der du vil ha repoet, clone repoet med `git clone https://github.com/JakobLien/mytxs.git`. 
-1. Installer [Python](https://www.python.org/downloads/), helst versjon 3.11 slik som kjøre på servern. 
+1. Installer [Python](https://www.python.org/downloads/), helst versjon 3.13 slik som kjøre på servern. 
     - Koden burde kjøre fint med høyere python versjoner også, men da er det lett å introdusere syntax som ikke støttes av python versjonen på serveren, hvilket er kjipt. 
 1. Installer [PostgreSQL](https://www.postgresql.org/download/), og få satt opp en enkel database med [default credentials](#postgres-default-credentials). Om du bruker andre credentials, noter det til sendere. Bruk helst versjon 15, men høyere burde også gå fint. 
     - For Mac anbefales sterkt [Postgres.app](https://postgresapp.com/), den bare fungerer og er dritdigg. 
