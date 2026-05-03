@@ -131,16 +131,10 @@ def harFilTilgang(medlem, filePath):
     
     # Sjekkhefte bildet
     if type(instance) == Medlem and fieldName == 'bilde':
-        # Bilder av aktive har alle tilgang til
-        if instance.aktiveKor.exists():
-            return instance
-        
-        # Øverige bilder har de med tilgang tilgang til med medlemsdata tilgangen
-        if medlem.tilganger.filter(navn=consts.Tilgang.medlemsdata, kor__navn=instance.storkorNavn()):
-            return instance
+        return instance
 
+    # Dekorasjonsikoner
     elif type(instance) == Dekorasjon and fieldName == 'ikon':
-        # Dekorasjonsikoner
         return instance
 
     # Notearkiv filer
