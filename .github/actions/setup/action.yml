@@ -1,11 +1,12 @@
 name: Setup Django
+description: Installere python og dependencies, blant annet Django. 
 runs:
   using: composite
   steps:
-    - name: Sett opp Python 3.11.2
+    - name: Sett opp Python 3.13
       uses: actions/setup-python@v6
       with:
-        python-version: '3.11.2'
+        python-version: '3.13'
 
     - name: Installer dependencies
       shell: bash

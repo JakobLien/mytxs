@@ -17,7 +17,7 @@ from django.forms import inlineformset_factory, modelform_factory, modelformset_
 from django.http import FileResponse, HttpResponse, HttpResponseForbidden, HttpResponseNotFound
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from django.views.decorators.cache import never_cache
+from django.views.decorators.csrf import csrf_exempt
 from django.http import FileResponse, HttpResponse 
 
 from mytxs import consts
@@ -30,13 +30,13 @@ from mytxs.utils.formAccess import addHelpText, disableBrukt, disableFields, dis
 from mytxs.utils.formAddField import addBulkFileUpload, addDeleteCheckbox, addDeleteUserCheckbox, addHendelseMedlemmer, addReverseM2M
 from mytxs.utils.googleCalendar import getOrCreateAndShareCalendar
 from mytxs.utils.lazyDropdown import lazyDropdown
-from mytxs.utils.formUtils import filesIfPost, postIfPost, dekorasjonInlineFormsetArgs, vervInlineFormsetArgs, sangInlineFormsetArgs
+from mytxs.utils.formUtils import filesIfPost, limitDekorasjonInnehavelseDelete, postIfPost, dekorasjonInlineFormsetArgs, vervInlineFormsetArgs, sangInlineFormsetArgs
 from mytxs.utils.hashUtils import addHash, testHash
 from mytxs.utils.modelUtils import inneværendeSemester, korLookup, qBool, randomDistinct, vervInnehavelseAktiv, stemmegruppeVerv, annotateInstance
 from mytxs.utils.pagination import getPaginatedInlineFormSet, addPaginatorPage
 from mytxs.utils.downloadUtils import downloadFile, downloadICal, downloadVCard
 from mytxs.utils.utils import getHalvårStart
-from mytxs.utils.viewUtils import HttpResponseUnauthorized, harFilTilgang, harTilgang, redirectToInstance
+from mytxs.utils.viewUtils import harFilTilgang, harTilgang, redirectToInstance
 
 # Create your views here.
 
@@ -53,7 +53,7 @@ def serve(request, path):
         return HttpResponseNotFound()
 
 
-@never_cache # For å fiks csrf feil med QR kode scanning. 
+@csrf_exempt # For å fiks csrf feil med QR kode scanning. 
 def login(request):
     if request.user.is_authenticated:
         return render(request, 'mytxs/base.html')
@@ -329,6 +329,7 @@ def medlem(request, medlemPK):
     DekorasjonInnehavelseFormset = inlineformset_factory(Medlem, DekorasjonInnehavelse, formset=getPaginatedInlineFormSet(request), **dekorasjonInlineFormsetArgs)
 
     MedlemsDataForm = addReverseM2M(MedlemsDataForm, 'turneer')
+    DekorasjonInnehavelseFormset = limitDekorasjonInnehavelseDelete(DekorasjonInnehavelseFormset)
 
     medlemsDataForm = MedlemsDataForm(
         postIfPost(request, 'medlemdata'), 
@@ -386,7 +387,11 @@ def medlem(request, medlemPK):
 
 @harTilgang
 def notearkiv(request, kor, side):
-    request.user.medlem.stemmegruppe = Medlem.objects.filter(pk=request.user.medlem.pk).annotateStemmegruppe(kor=kor, understemmegruppe=True).first().stemmegruppe
+    request.user.medlem.stemmegruppe = VervInnehavelse.objects.filter(
+        stemmegruppeVerv(),
+        medlem=request.user.medlem,
+        verv__kor__navn=kor
+    ).order_by('-start').values_list('verv__navn', flat=True).first()
 
     if side == 'repertoar':
         class ÅrForm(forms.Form):
@@ -999,6 +1004,7 @@ def dekorasjon(request, kor, dekorasjonNavn):
     DekorasjonInnehavelseFormset = inlineformset_factory(Dekorasjon, DekorasjonInnehavelse, formset=getPaginatedInlineFormSet(request), **dekorasjonInlineFormsetArgs)
 
     DekorasjonForm = addDeleteCheckbox(DekorasjonForm)
+    DekorasjonInnehavelseFormset = limitDekorasjonInnehavelseDelete(DekorasjonInnehavelseFormset)
 
     dekorasjonForm = DekorasjonForm(postIfPost(request, 'dekorasjonForm'), filesIfPost(request, 'dekorasjonForm'), instance=request.instance, prefix='dekorasjonForm')
     dekorasjonInnehavelseFormset = DekorasjonInnehavelseFormset(postIfPost(request, 'dekorasjonInnehavelser'), instance=request.instance, prefix='dekorasjonInnehavelser')
@@ -1309,6 +1315,9 @@ def repertoar(request, kor, repertoarNavn):
 
     repertoarForm = RepertoarForm(request.POST or None, instance=request.instance)
 
+    repertoarForm.fields['sanger'].queryset = repertoarForm.fields['sanger'].queryset \
+        .filter(kor__navn='TXS' if kor in consts.bareStorkorNavn else kor)
+
     disableFormMedlem(request.user.medlem, repertoarForm)
 
     if request.method == 'POST':
@@ -1363,6 +1372,9 @@ def sang(request, kor, sangNavn):
 
     sangForm = SangForm(postIfPost(request, 'sang'), filesIfPost(request, 'sang'), instance=request.instance, prefix='sang')
     sangFilForm = SangFilForm(postIfPost(request, 'filer'), instance=request.instance, prefix='filer')
+
+    sangForm.fields['repertoar'].queryset = sangForm.fields['repertoar'].queryset \
+        .filter(kor__navn__in=consts.bareStorkorNavn if kor == consts.Kor.TXS else [kor])
 
     disableFormMedlem(request.user.medlem, sangForm)
     disableFormMedlem(request.user.medlem, sangFilForm)

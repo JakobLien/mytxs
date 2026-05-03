@@ -1,9 +1,13 @@
+import hashlib
+
 from django import forms
 from django.core.files.base import ContentFile
+from django.forms import ValidationError
+from django.db import IntegrityError
 
 from mytxs import consts
 from mytxs.fields import MultipleFileField, MyModelMultipleChoiceField
-from mytxs.models import Hendelse, Medlem
+from mytxs.models import Medlem
 from mytxs.utils.modelUtils import stemmegruppeVerv, vervInnehavelseAktiv
 
 # Alt som legg til fields på forms
@@ -33,6 +37,7 @@ def addReverseM2M(ModelForm, related_name):
             return instance
 
     return NewForm
+
 
 def addDeleteCheckbox(ModelForm):
     '''
@@ -104,17 +109,48 @@ def addHendelseMedlemmer(HendelseForm):
     return NewForm
 
 
+def hashFile(file, chunk_size=8192):
+    h = hashlib.sha256()
+    for chunk in iter(lambda: file.read(chunk_size), b''):
+        h.update(chunk)
+    file.seek(0) # VIKTIG! Om vi ikkje gjør dette blir alle opplastedde filer tomme!
+    return h.digest()
+
+
 def addBulkFileUpload(SangForm):
     class NewForm(SangForm):
         BULK_UPLOAD=MultipleFileField(required=False)
+
+        def clean(self, *args, **kwargs):
+            super().clean(*args, **kwargs)
+
+            # Sjekk at opplastede filer faktisk har ulik data fra alle andre lagrede filer, 
+            # og andre filer som lastes opp samtidig. 
+            if self.instance.pk:
+                existingFiles = [f.fil for f in self.instance.filer.all()]
+                for file in self.cleaned_data['BULK_UPLOAD']:
+                    for existingFile in existingFiles:
+                        if hashFile(file) == hashFile(existingFile):
+                            raise ValidationError(f'Opplastede fil {file.name} har samme innhold som {existingFile.name}')
+                    existingFiles.append(file)
 
         def save(self, *args, **kwargs):
             super().save(*args, **kwargs)
 
             for file in self.cleaned_data['BULK_UPLOAD']:
-                self.instance.filer.create(
-                    navn=file.name,
-                    fil=ContentFile(file.file.read(), name=file.name)
-                )
-    
+                # Legg på -1, -2 osv om vi allerede har en fil med det navnet. 
+                unikSangNr = 0
+                suffix = '' if '.' not in file.name else '.' + file.name.split('.')[-1]
+                fileNameWithoutSuffix = file.name[:-len(suffix)]
+                while True:
+                    try:
+                        file.name = fileNameWithoutSuffix + (f'-{unikSangNr}' if unikSangNr else '') + suffix
+                        self.instance.filer.create(
+                            navn=file.name,
+                            fil=ContentFile(file.file.read(), name=file.name)
+                        )
+                        break
+                    except IntegrityError as e:
+                        unikSangNr += 1
+
     return NewForm

@@ -6,7 +6,7 @@ from django import forms
 from django.apps import apps
 from django.conf import settings as djangoSettings
 from django.core import mail
-from django.db import models
+from django.db import IntegrityError, models
 from django.db.models import Value as V, Q, Case, When, Max, Sum, ExpressionWrapper, F, OuterRef, Subquery, Prefetch, Exists
 from django.db.models.fields import BLANK_CHOICE_DASH
 from django.db.models.functions import Concat, ExtractMinute, ExtractHour, Right, Coalesce, Cast, Substr, StrIndex, Lower, Substr, StrIndex
@@ -1194,6 +1194,14 @@ class DekorasjonInnehavelse(DbCacheModel):
         self.clean()
         super().save(*args, **kwargs)
 
+    def canDelete(self):
+        return not (self.vrangstrupeDeviice or self.vrangstrupeSpørsmål or self.vrangstrupeSvar)
+
+    def delete(self, *args, **kwargs):
+        if not self.canDelete():
+            raise IntegrityError('Kan ikke slette dekorasjonsInnehavelse som har data på seg')
+        super().save(*args, **kwargs)
+
 
 class Turne(DbCacheModel):
     navn = models.CharField(max_length=30)
@@ -1771,11 +1779,17 @@ class Sang(DbCacheModel):
         return f'{self.navn}'
 
     class Meta:
-        unique_together = ('kor', 'navn')
+        constraints = [models.UniqueConstraint('kor', Lower('navn'), name='sang_unique_name')]
         ordering = ['kor', 'navn', '-pk']
         verbose_name_plural = 'sanger'
 
+    def clean(self, *args, **kwargs):
+        # Fordi vi ikkje kan få inn unaccent som en db level constraint, fikse vi det heller her. 
+        if Sang.objects.filter(~Q(pk=self.pk), kor=self.kor, navn__unaccent__iexact=self.navn).exists():
+            raise ValidationError('Finnes allerede en sang som heter dette.')
+
     def save(self, *args, **kwargs):
+        self.clean(self)
         super().save(*args, **kwargs)
 
 
