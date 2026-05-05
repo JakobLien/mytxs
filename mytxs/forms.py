@@ -291,7 +291,7 @@ class SjekkhefteDatoForm(forms.Form):
 
     def isValidDate(self, dato, medlem, korNavn):
         # Generelt har alle lov til å sjå datoer der de selv var aktive. 
-        if VervInnehavelse.objects.filter(
+        if dato <= datetime.date.today() and VervInnehavelse.objects.filter(
             vervInnehavelseAktiv('', dato=dato),
             stemmegruppeVerv(includeDirr=True),
             medlem=medlem,
