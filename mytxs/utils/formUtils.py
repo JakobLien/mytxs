@@ -2,15 +2,22 @@ from django.forms import BaseFormSet
 
 # Alt forøverig om forms
 
-dekorasjonInlineFormsetArgs = {
-    'fields': ['medlem', 'dekorasjon', 'start'],
-    'extra': 1,
-    'can_delete_extra': False
+understemmeFormsetArgs = {
+    'fields': ['verv'],
+    'extra': 0,
+    'can_delete': False
 }
 
 
 vervInlineFormsetArgs = {
     'fields': ['medlem', 'verv', 'start', 'slutt'],
+    'extra': 1,
+    'can_delete_extra': False
+}
+
+
+dekorasjonInlineFormsetArgs = {
+    'fields': ['medlem', 'dekorasjon', 'start'],
     'extra': 1,
     'can_delete_extra': False
 }

@@ -3,15 +3,12 @@ from http import HTTPStatus
 from django.apps import apps
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import FileField, Q, Exists, OuterRef
+from django.db.models import FileField
 from django.http import HttpResponse
 from django.shortcuts import redirect
 
-from mytxs import consts
 from mytxs.models import Dekorasjon, Medlem
-from mytxs.models import Medlem, Repertoar, Sang, SangFil
-from mytxs.utils.modelUtils import stemmegruppeVerv, vervInnehavelseAktiv
-from mytxs.utils.utils import getHalvårStart
+from mytxs.models import Medlem, Sang, SangFil
 
 # Utils til bruk i og rundt views
 

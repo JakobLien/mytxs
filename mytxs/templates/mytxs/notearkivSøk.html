@@ -18,9 +18,10 @@
     {{ sang.navn }} {% if user.medlem|tilgangExists:consts.Tilgang.notearkiv %}<a class="text-sm" href="{{ sang.get_absolute_url }}">Rediger</a>{% endif %}
 </span> 
 <div class="hidden pl-2">
+    <span class="text-sm">{% addSangDownloadLinks sang %}</span>
     {% for fil in sang.filer.all%}
-    <a class="{% if fil.stemmegruppe and request.user.medlem.stemmegruppe%}{% if fil.stemmegruppe in request.user.medlem.stemmegruppe or request.user.medlem.stemmegruppe in fil.stemmegruppe %}backdrop-brightness-110{% endif %}{% endif %}" 
-    href="{{ fil.fil.url }}" target="_blank">{{ fil }}</a><br>
+    <a class="{% if fil.relevant %}backdrop-brightness-110{% endif %}" 
+        href="{{ fil.fil.url }}" target="_blank">{{ fil }}</a><br>
     {% endfor %}
 </div>
 <br>

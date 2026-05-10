@@ -186,7 +186,7 @@ INTERNAL_IPS = [
 
 # Media files, uploaded by user
 MEDIA_ROOT = os.path.join(BASE_DIR, 'uploads')
-MEDIA_URL = '/uploads/'
+MEDIA_URL = '/serve/'
 
 # Dokumentasjons filer
 DOCS_ROOT = os.path.join(BASE_DIR, 'docs')

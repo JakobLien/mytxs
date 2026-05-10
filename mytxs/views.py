@@ -1,7 +1,10 @@
-import datetime
-import json
 import csv
+import datetime
+from io import BytesIO
+import json
 import os
+from urllib.parse import quote
+import zipfile
 
 from django import forms
 from django.contrib import messages
@@ -30,7 +33,7 @@ from mytxs.utils.formAccess import addHelpText, disableBrukt, disableFields, dis
 from mytxs.utils.formAddField import addBulkFileUpload, addDeleteCheckbox, addDeleteUserCheckbox, addHendelseMedlemmer, addReverseM2M
 from mytxs.utils.googleCalendar import getOrCreateAndShareCalendar
 from mytxs.utils.lazyDropdown import lazyDropdown
-from mytxs.utils.formUtils import filesIfPost, limitDekorasjonInnehavelseDelete, postIfPost, dekorasjonInlineFormsetArgs, vervInlineFormsetArgs, sangInlineFormsetArgs
+from mytxs.utils.formUtils import filesIfPost, limitDekorasjonInnehavelseDelete, postIfPost, dekorasjonInlineFormsetArgs, vervInlineFormsetArgs, understemmeFormsetArgs, sangInlineFormsetArgs
 from mytxs.utils.hashUtils import addHash, testHash
 from mytxs.utils.modelUtils import inneværendeSemester, korLookup, qBool, randomDistinct, vervInnehavelseAktiv, stemmegruppeVerv, annotateInstance
 from mytxs.utils.pagination import getPaginatedInlineFormSet, addPaginatorPage
@@ -41,16 +44,38 @@ from mytxs.utils.viewUtils import harFilTilgang, harTilgang, redirectToInstance
 # Create your views here.
 
 @login_required
-def serve(request, path):
+def serve(request, path, download=False):
     instance = harFilTilgang(request.user.medlem, path)
     if not instance:
         return HttpResponseForbidden()
 
     try:
         suffix = '.' + path.split('.')[1] if '.' in path else ''
-        return FileResponse(open('uploads/'+path, 'rb'), filename=str(instance).replace(suffix, '') + suffix)
+        return FileResponse(open('uploads/'+path, 'rb'), as_attachment=download, filename=str(instance).replace(suffix, '') + suffix)
     except FileNotFoundError:
         return HttpResponseNotFound()
+
+
+@login_required
+def serveSangZip(request, filePKs):
+    'filePKs er en kommaseparert liste av PKer, virke enklast det.'
+    sangFiler = list(SangFil.objects.filter(pk__in=filePKs.split(',')))
+    if not sangFiler:
+        return HttpResponseNotFound()
+    if len(sangFiler) == 1:
+        return serve(request, sangFiler[0].fil.name, download=True)
+
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for sangFil in sangFiler:
+            if harFilTilgang(request.user.medlem, sangFil.fil.name):
+                zf.write(sangFil.fil.path, str(sangFil))
+    buffer.seek(0)
+
+    filename = 'Eksport'
+    if 'navn' in request.GET:
+        filename = quote(request.GET.get('navn'), safe='')
+    return FileResponse(buffer, content_type="application/zip", filename=filename)
 
 
 @csrf_exempt # For å fiks csrf feil med QR kode scanning. 
@@ -338,6 +363,7 @@ def medlem(request, medlemPK):
         MedlemsDataForm = addDeleteUserCheckbox(modelform_factory(Medlem, exclude=['user']))
     else:
         MedlemsDataForm = modelform_factory(Medlem, exclude=['user', 'gammeltMedlemsnummer', 'død'])
+    UnderstemmeFormset = inlineformset_factory(Medlem, VervInnehavelse, **understemmeFormsetArgs)
     VervInnehavelseFormset = inlineformset_factory(Medlem, VervInnehavelse, formset=getPaginatedInlineFormSet(request), **vervInlineFormsetArgs)
     DekorasjonInnehavelseFormset = inlineformset_factory(Medlem, DekorasjonInnehavelse, formset=getPaginatedInlineFormSet(request), **dekorasjonInlineFormsetArgs)
 
@@ -345,19 +371,19 @@ def medlem(request, medlemPK):
     DekorasjonInnehavelseFormset = limitDekorasjonInnehavelseDelete(DekorasjonInnehavelseFormset)
 
     medlemsDataForm = MedlemsDataForm(
-        postIfPost(request, 'medlemdata'), 
-        filesIfPost(request, 'medlemdata'), 
-        instance=request.instance, 
+        postIfPost(request, 'medlemdata'),
+        filesIfPost(request, 'medlemdata'),
+        instance=request.instance,
         prefix='medlemdata'
     )
     vervInnehavelseFormset = VervInnehavelseFormset(
-        postIfPost(request, 'vervInnehavelser'), 
-        instance=request.instance, 
+        postIfPost(request, 'vervInnehavelser'),
+        instance=request.instance,
         prefix='vervInnehavelser'
     )
     dekorasjonInnehavelseFormset = DekorasjonInnehavelseFormset(
-        postIfPost(request, 'dekorasjonInnehavelser'), 
-        instance=request.instance, 
+        postIfPost(request, 'dekorasjonInnehavelser'),
+        instance=request.instance,
         prefix='dekorasjonInnehavelser'
     )
 
@@ -369,8 +395,26 @@ def medlem(request, medlemPK):
             disableFields(medlemsDataForm, 'gammeltMedlemsnummer')
         if 'notis' in medlemsDataForm.fields and not request.user.medlem.redigerTilgangQueryset(Medlem, includeExtended=False).contains(request.instance):
             disableFields(medlemsDataForm, 'notis')
-    
-    disableFormMedlem(request.user.medlem, vervInnehavelseFormset)
+
+    understemmeFormset = None
+    if not disableFormMedlem(request.user.medlem, vervInnehavelseFormset) and request.user.medlem == request.instance:
+        understemmeFormset = UnderstemmeFormset(
+            postIfPost(request, 'understemme'),
+            instance=request.instance,
+            queryset=request.instance.vervInnehavelser.filter(
+                stemmegruppeVerv(),
+                vervInnehavelseAktiv(''),
+                ~Q(verv__kor__navn=consts.Kor.Knauskoret)
+            ),
+            prefix='understemme'
+        )
+        for understemmeForm in understemmeFormset:
+            understemmeForm.fields['verv'].label = 'Understemmegruppe'
+            understemmeForm.fields['verv'].empty_label = None
+            understemmeForm.fields['verv'].queryset = understemmeForm.fields['verv'].queryset.filter(
+                navn__endswith=understemmeForm.instance.verv.navn[-2:],
+                kor=understemmeForm.instance.verv.kor
+            )
 
     disableFormMedlem(request.user.medlem, dekorasjonInnehavelseFormset)
 
@@ -382,6 +426,8 @@ def medlem(request, medlemPK):
     if request.method == 'POST':
         if medlemsDataForm.is_valid():
             medlemsDataForm.save()
+        if understemmeFormset and understemmeFormset.is_valid():
+            understemmeFormset.save()
         if vervInnehavelseFormset.is_valid():
             vervInnehavelseFormset.save()
         if dekorasjonInnehavelseFormset.is_valid():
@@ -394,7 +440,7 @@ def medlem(request, medlemPK):
 
     return render(request, 'mytxs/medlem.html', {
         'forms': [medlemsDataForm], 
-        'formsets': [vervInnehavelseFormset, dekorasjonInnehavelseFormset],
+        'formsets': ([understemmeFormset] if understemmeFormset else []) + [vervInnehavelseFormset, dekorasjonInnehavelseFormset],
     })
 
 
@@ -422,7 +468,7 @@ def notearkiv(request, kor, side):
             kor__navn=kor,
         ).prefetch_related(Prefetch( # Skjul filer som er skjult
             'sanger', queryset=Sang.objects.all().prefetch_related(Prefetch(
-                'filer', queryset=SangFil.objects.filter(skjul=False)
+                'filer', queryset=SangFil.objects.filter(skjul=False).annotateRelevant(request.user.medlem.stemmegruppe)
             ), 'kor')
         ), 'kor')
 
@@ -437,7 +483,7 @@ def notearkiv(request, kor, side):
 
         addPaginatorPage(request)
         request.paginatorPage.object_list = request.paginatorPage.object_list.prefetch_related(Prefetch(
-            'filer', queryset=SangFil.objects.filter(skjul=False)
+            'filer', queryset=SangFil.objects.filter(skjul=False).annotateRelevant(request.user.medlem.stemmegruppe)
         ), 'kor')
 
         return render(request, 'mytxs/notearkivSøk.html', {'filterForm': sangFilterForm})
@@ -445,7 +491,7 @@ def notearkiv(request, kor, side):
     if synligRepertoar := Repertoar.objects.filter(kor__navn=kor, synlig=True, navn=side):
         request.queryset = synligRepertoar.prefetch_related(Prefetch(
             'sanger', queryset=Sang.objects.all().prefetch_related(Prefetch(
-                'filer', queryset=SangFil.objects.filter(skjul=False)
+                'filer', queryset=SangFil.objects.filter(skjul=False).annotateRelevant(request.user.medlem.stemmegruppe)
             ), 'kor')
         ), 'kor')
 
