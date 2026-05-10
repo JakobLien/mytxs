@@ -463,7 +463,7 @@ def notearkiv(request, kor, side):
         
         request.queryset = Repertoar.objects.filter(
             # Du får opp alle repertoar for koret, med unntak av om du e gammel småkorst
-            (Q(dato__lt=getHalvårStart()) if kor in consts.bareSmåkorNavn and not request.user.medlem.aktiveKor.filter(navn=kor).exists() else qBool(True)) if årForm.cleaned_data['år'] else qBool(True),
+            (Q(dato__lt=(datetime.datetime.now() - datetime.timedelta(hours=12)).date()) if kor in consts.bareSmåkorNavn and not request.user.medlem.aktiveKor.filter(navn=kor).exists() else qBool(True)) if årForm.cleaned_data['år'] else qBool(True),
             Q(dato__year=årForm.cleaned_data['år']) if årForm.cleaned_data['år'] else Q(dato__isnull=True),
             kor__navn=kor,
         ).prefetch_related(Prefetch( # Skjul filer som er skjult
