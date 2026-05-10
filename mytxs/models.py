@@ -1745,7 +1745,7 @@ class SangQuerySet(models.QuerySet):
                 stemmegruppeVerv('kor__verv', includeDirr=True),
                 vervInnehavelseAktiv('kor__verv__vervInnehavelser') | # Aktive har tilgang til alt
                 Q( # Gammel småkorist, isafall:
-                    Q(repertoar__dato__lt=getHalvårStart()) | # Sangen e på et repertoar fra et tidligar semester
+                    Q(repertoar__dato__lt=(datetime.datetime.now() - datetime.timedelta(hours=12)).date()) | # Sangen e på et repertoar fra et tidligar semester
                     Q(repertoar__dato__isnull=True) # Sangen har ingen repertoar eller e på et repertoar uten dato
                 ),
                 kor__verv__vervInnehavelser__medlem=medlem,
@@ -1801,7 +1801,25 @@ class Sang(DbCacheModel):
         super().save(*args, **kwargs)
 
 
+class SangQuerySet(models.QuerySet):
+    def annotateRelevant(self, stemmegruppe):
+        return self.alias(
+            medlemStemmegruppe=V(stemmegruppe)
+        ).annotate(relevant=Q(
+            Q(fil__endswith='.pdf') | 
+            Q(
+                ~Q(stemmegruppe='') & ~Q(medlemStemmegruppe='') & 
+                Q(
+                    Q(stemmegruppe__contains=stemmegruppe) |
+                    Q(medlemStemmegruppe__contains=F('stemmegruppe'))
+                )
+            )
+        ))
+
+
 class SangFil(DbCacheModel):
+    objects = SangQuerySet.as_manager()
+
     navn = models.CharField(max_length=100, blank=True)
 
     sang = models.ForeignKey(

@@ -1,12 +1,14 @@
 import datetime
+from urllib.parse import urlencode
+
 from django import template
 from django.core.paginator import Paginator
 from django.forms import BaseForm, BaseFormSet, FileField
-from django.template import TemplateSyntaxError, defaultfilters, defaulttags
+from django.template import TemplateSyntaxError, defaultfilters
 from django.utils.safestring import mark_safe
 from django.urls import reverse
 
-from mytxs.models import Logg
+from mytxs.models import Logg, Repertoar, Sang, SangFil
 from mytxs.utils.formAccess import formIsEnabled, formIsVisible
 
 # Her legg vi til custom template tags and filters
@@ -185,6 +187,29 @@ def linkTo(instance, label=''):
 @register.filter
 def tilgangExists(medlem, tilgangNavn):
     return medlem.tilganger.filter(navn__in=tilgangNavn.split(',')).exists()
+
+
+@register.simple_tag
+def addSangDownloadLinks(sangEllerRep):
+    'Denne er skrevet for at den ikke skal lage flere spørringer.'
+    if isinstance(sangEllerRep, Repertoar):
+        sangFiler = [f for s in sangEllerRep.sanger.all() for f in s.filer.all() if not f.skjul]
+    if isinstance(sangEllerRep, Sang):
+        sangFiler = [f for f in sangEllerRep.filer.all() if not f.skjul]
+    if not sangFiler:
+        return ''
+
+    returnStr = 'Last ned:'
+    queryParams = urlencode({'navn': sangEllerRep.navn})
+    returnStr += ' <a href="' + reverse('serveSangZip', args=[','.join([str(f.pk) for f in sangFiler])]) + f'?{queryParams}">Alle</a>'
+    if relevantSangFiler := [f for f in sangFiler if f.relevant]:
+        returnStr += ' <a href="' + reverse('serveSangZip', args=[','.join([str(f.pk) for f in relevantSangFiler])]) + f'?{queryParams}">Relevante</a>'
+    if pdfSangFiler := [f for f in sangFiler if f.fil.name.endswith('.pdf')]:
+        returnStr += ' <a href="' + reverse('serveSangZip', args=[','.join([str(f.pk) for f in pdfSangFiler])]) + f'?{queryParams}">Noter</a>'
+
+    if isinstance(sangEllerRep, Sang):
+        returnStr += '<br>'
+    return mark_safe(returnStr)
 
 
 class IfAllNode(template.Node):

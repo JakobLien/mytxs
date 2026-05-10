@@ -82,7 +82,8 @@ urlpatterns = [
     path('sang', views.sangListe, name='sang'),
     path('sang/<kor:kor>/<path:sangNavn>', views.sang, name='sang'),
 
-    path('uploads/<path:path>', views.serve, name='serve'),
+    path('serve/<path:path>', views.serve, name='serve'),
+    path('serveSangZip/<path:filePKs>', views.serveSangZip, name='serveSangZip'),
     path('docs/', lambda req: FileResponse(open('docs/index.html', 'rb')), name='docs'),
 
     path('publish/<str:key>', views.publish, name='publish'),

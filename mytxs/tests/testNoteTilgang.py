@@ -20,12 +20,12 @@ class NoteTilgangTestCase(TestCase):
         cls.user = User.objects.create(username='admin')
         cls.medlem = Medlem.objects.create(user=cls.user, fornavn='admin', etternavn='adminsen')
 
-        cls.lagSangFil(cls, 'TSS nå', consts.Kor.TSS, inneværendeSemester=True)
-        cls.lagSangFil(cls, 'TSS før', consts.Kor.TSS, inneværendeSemester=False)
-        cls.lagSangFil(cls, 'TSS nå og før', consts.Kor.TSS, inneværendeSemester=None)
-        cls.lagSangFil(cls, 'KK nå', consts.Kor.Knauskoret, inneværendeSemester=True)
-        cls.lagSangFil(cls, 'KK før', consts.Kor.Knauskoret, inneværendeSemester=False)
-        cls.lagSangFil(cls, 'KK nå og før', consts.Kor.Knauskoret, inneværendeSemester=None)
+        cls.lagSangFil(cls, 'TSS nå', consts.Kor.TSS, sangPåDagensRep=True)
+        cls.lagSangFil(cls, 'TSS før', consts.Kor.TSS, sangPåDagensRep=False)
+        cls.lagSangFil(cls, 'TSS nå og før', consts.Kor.TSS, sangPåDagensRep=None)
+        cls.lagSangFil(cls, 'KK nå', consts.Kor.Knauskoret, sangPåDagensRep=True)
+        cls.lagSangFil(cls, 'KK før', consts.Kor.Knauskoret, sangPåDagensRep=False)
+        cls.lagSangFil(cls, 'KK nå og før', consts.Kor.Knauskoret, sangPåDagensRep=None)
 
     def settKorMedlemskap(self, korNavn, aktiv=True):
         'Setter kormedlemskap i TSS eller Knauskoret.'
@@ -43,7 +43,7 @@ class NoteTilgangTestCase(TestCase):
             **({} if aktiv else {'slutt': datetime.date.today() - datetime.timedelta(1)})
         )
 
-    def lagSangFil(self, navn, korNavn, inneværendeSemester):
+    def lagSangFil(self, navn, korNavn, sangPåDagensRep):
         sang = Sang.objects.create(
             navn='testSang: ' + navn,
             kor=Kor.objects.filter(navn=consts.Kor.TXS if korNavn in consts.bareStorkorNavn else korNavn).first()
@@ -55,18 +55,18 @@ class NoteTilgangTestCase(TestCase):
             fil=ContentFile(bytes(), name='testFilNavn.mp3')
         )
 
-        if inneværendeSemester != False:
+        if sangPåDagensRep != False:
             sang.repertoar.create(
                 navn='testRep: ' + navn,
                 kor=Kor.objects.filter(navn=korNavn).first(),
                 dato=datetime.date.today()
             )
 
-        if inneværendeSemester != True:
+        if sangPåDagensRep != True:
             sang.repertoar.create(
                 navn='testRep2: ' + navn,
                 kor=Kor.objects.filter(navn=korNavn).first(),
-                dato=datetime.date.today() - datetime.timedelta(365)
+                dato=datetime.date.today() - datetime.timedelta(7)
             )
 
     def sjekkFilTilgang(self, sang, skalHaTilgang=True):
@@ -99,4 +99,4 @@ class NoteTilgangTestCase(TestCase):
         self.settKorMedlemskap(consts.Kor.TSS, aktiv=True)
         self.settKorMedlemskap(consts.Kor.Knauskoret, aktiv=False)
         for sang in Sang.objects.all():
-            self.sjekkFilTilgang(sang, skalHaTilgang=sang.kor.navn==consts.Kor.TXS or sang.repertoar.filter(dato__lt=getHalvårStart()).exists())
+            self.sjekkFilTilgang(sang, skalHaTilgang=sang.kor.navn==consts.Kor.TXS or sang.repertoar.filter(dato__lt=datetime.date.today()).exists())
