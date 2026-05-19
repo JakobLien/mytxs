@@ -1208,7 +1208,7 @@ class DekorasjonInnehavelse(DbCacheModel):
     def delete(self, *args, **kwargs):
         if not self.canDelete():
             raise IntegrityError('Kan ikke slette dekorasjonsInnehavelse som har data på seg')
-        super().save(*args, **kwargs)
+        super().delete(*args, **kwargs)
 
 
 class Turne(DbCacheModel):
