@@ -68,6 +68,14 @@
         {% endif %}
         {% endif %}
         
+        {% if sjekkheftetDatoForm.getDato %}
+        {% if medlem.sluttet %}
+        <li>Sluttet: {{ medlem.sluttet }}</li>
+        {% else %}
+        <li>Fortsatt aktiv</li>
+        {% endif %}
+        {% endif %}
+
         {% if medlem.public__fødselsdato %}
         <li>Fødselsdato: {{ medlem.public__fødselsdato }}</li>
         {% endif %}
