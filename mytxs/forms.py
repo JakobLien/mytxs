@@ -295,7 +295,6 @@ class SjekkhefteDatoForm(forms.Form):
             vervInnehavelseAktiv('', dato=dato),
             stemmegruppeVerv(includeDirr=True),
             medlem=medlem,
-            verv__kor__navn=korNavn
         ).exists():
             return True
 

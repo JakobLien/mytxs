@@ -344,6 +344,15 @@ class MedlemQuerySet(models.QuerySet):
             ))
         )
 
+    def annotateSluttetDato(self, kor):
+        return self.annotate(
+            sluttet=VervInnehavelse.objects.filter(
+                stemmegruppeVerv(includeDirr=True),
+                korLookup(kor, 'verv__kor'),
+                medlem=OuterRef('pk')
+            ).order_by('-start').values('slutt')[:1]
+        )
+
     def annotateFravær(self, kor, heleSemesteret=False):
         'Annotater umeldtFravær, ugyldigFravær, gyldigFravær og hendelseVarighet'
         def getDateTime(fieldName, backupDateFieldName=None):

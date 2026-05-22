@@ -237,6 +237,9 @@ def sjekkheftet(request, side, underside=None):
             kor=kor if kor.navn != consts.Kor.Sangern else None
         )
 
+        if dato:
+            request.queryset = request.queryset.annotateSluttetDato(kor=kor)
+
         if tilgang := Tilgang.objects.filter(sjekkheftetSynlig=True, navn=underside, kor=kor).first():
             # Om det e en tilgangsdefinert undergruppe vi ser på, f.eks. styret
             request.queryset = request.queryset.filter(
@@ -245,7 +248,7 @@ def sjekkheftet(request, side, underside=None):
                 vervInnehavelser__verv__tilganger=tilgang
             )
 
-            if dato == None:
+            if not dato:
                 request.queryset = request.queryset.annotatePublic(
                     overrideVisible=request.user.medlem.tilganger.filter(navn=consts.Tilgang.sjekkhefteSynlig, kor=kor).exists()
                 )
@@ -260,8 +263,8 @@ def sjekkheftet(request, side, underside=None):
                 vervInnehavelseAktiv(dato=dato),
                 vervInnehavelser__verv__kor=kor
             ).annotateStemmegruppe(kor, includeDirr=True, dato=dato)
-            
-            if dato == None:
+
+            if not dato:
                 request.queryset = request.queryset.annotatePublic(
                     overrideVisible=request.user.medlem.tilganger.filter(navn=consts.Tilgang.sjekkhefteSynlig, kor=kor).exists()
                 )
