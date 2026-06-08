@@ -1811,17 +1811,15 @@ class Sang(DbCacheModel):
 
 
 class SangQuerySet(models.QuerySet):
-    def annotateRelevant(self, stemmegruppe):
+    def annotateRelevant(self, medlemStemmegruppe):
+        if not medlemStemmegruppe:
+            return self.annotate(relevant=Q(fil__endswith='.pdf'))
         return self.alias(
-            medlemStemmegruppe=V(stemmegruppe)
-        ).annotate(relevant=Q(
-            Q(fil__endswith='.pdf') | 
-            Q(
-                ~Q(stemmegruppe='') & ~Q(medlemStemmegruppe='') & 
-                Q(
-                    Q(stemmegruppe__contains=stemmegruppe) |
-                    Q(medlemStemmegruppe__contains=F('stemmegruppe'))
-                )
+            medlemStemmegruppe=V(medlemStemmegruppe)
+        ).annotate(relevant=Q(fil__endswith='.pdf') | Q(
+            ~Q(stemmegruppe='') & Q(
+                Q(stemmegruppe__contains=medlemStemmegruppe) |
+                Q(medlemStemmegruppe__contains=F('stemmegruppe'))
             )
         ))
 
