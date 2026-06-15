@@ -47,7 +47,7 @@ Tilgangene er separert av kor, så TSS har ingen tilgang i TKS sine sysaker, og 
 - `verv`: Denne gir tilgang til å opprette, slette og redigere på verv. 
 - `vervInnehavelse`: Denne gir tilgang til å opprette, fjerne og endre på vervInnehavelser. 
 - `dekorasjon` og `dekorasjonInnehavelse`: Du skjønner. 
-- `lenke`: Lar deg redigere korets lenker på [lenker siden](http://mytxs.samfundet.no/lenker). Disse lenkene er synlige for alle aktive i koret. 
+- `lenke`: Lar deg redigere korets lenker på [lenkesiden](http://mytxs.samfundet.no/lenker). Disse lenkene er synlige for alle aktive i koret. 
 - `turne`: Lar deg redigere turneer. 
 - `semesterplan` og `fravær`: Lar deg henholdsvis redigere semesterplan og fraværet til folk. 
 - `tilgang`: Lar deg redigere tilganger, samt hvilke verv som har de. 
@@ -62,7 +62,7 @@ Under tilganger på admin funksjoner finnes det også en oversikt side, som vise
 
 
 ## Lenker
-Lenker er en liten bonusfunksjon som er grei å vite om. På [lenker siden](https://mytxs.samfundet.no/lenker) kan alle aktive meldemmer av koret se lenker, og adminer kan redigere de. I tillegg kan disse lenkene også brukes som forkortede (ish) redirect lenker, tenk [bit.ly](https://bitly.com/). For å opprette en redirect lenke er det bare å krysse av for at den skal redirecte, og så lenge det er krysset av vil `http://mytxs.samfundet.no/to/<kor>/<lenke-navn>` redirecte dit. 
+Lenker er en liten bonusfunksjon som er grei å vite om. På [lenkesiden](https://mytxs.samfundet.no/lenker) kan alle aktive meldemmer av koret se lenker, og adminer kan redigere de. I tillegg kan disse lenkene også brukes som forkortede (ish) redirect lenker, tenk [bit.ly](https://bitly.com/). For å opprette en redirect lenke er det bare å krysse av for at den skal redirecte, og så lenge det er krysset av vil `https://mytxs.samfundet.no/to/<kor>/<lenke-navn>` redirecte dit. 
 
 Det som er kult med disse lenkene, i motsetning til bit.ly lenker og lignende, er at man kan slette en slik lenke, også opprette den igjen senere, gitt at man gir den samme navn. Altså er det mulig å produsere en QR kode, og fortløpende endre hva den peker på, etter at man har printet den opp. Lenker både til redirect lenken, og til et bilde av QR koden for denne lenken dukker opp til høyre på siden når dette er krysset av for. 
 
@@ -79,7 +79,7 @@ Fraværssøknader som folk skriver kommer inn [her](https://mytxs.samfundet.no/f
 
 ### Fraværsføring
 Fraværsføring er, etter undertegnedes erfaring, stress. Derfor har MyTXS flere verktøy som hjelper med dette. I tillegg til å kunne jobbe med fraværet litt som i et regneark på enhver individuelle hendelse, er det også 2 ekstra verktøy for å føre fravær på direkten, der begge disse dukker opp en halvtime før enhver obligatorisk hendelse starter, på siden til hendelsen. 
-- Fraværmodus: Dette dukker opp som en lenke på toppen av hendelsen. Når man er i fraværmodus får man opp en liste av folk, og kan føre fraværet til vedkommende ved å trykke på de. Da føres fraværet basert på når du trykker på, rundet ned til nærmeste hele minutt. Etter å ha trykket på de kan man også redigere det konkrete antall minutter frvær. Det er en par instillinger på toppen der man kan velge å få opp de som har blitt ført på, samt de som har meldt at de ikke kommer. 
+- Fraværmodus: Dette dukker opp som en lenke på toppen av hendelsen. Når man er i fraværmodus får man opp en liste av folk, og kan føre fraværet til vedkommende ved å trykke på de. Da føres fraværet basert på når du trykker på, rundet ned til nærmeste hele minutt. Etter å ha trykket på de kan man også redigere det konkrete antall minutter frvær. Det er en par innstillinger på toppen der man kan velge å få opp de som har blitt ført på, samt de som har meldt at de ikke kommer. 
 - QR kode: QR koden burde være kjent for de fleste, men kort sagt er det en QR kode med en lenke til en spessiel MyTXS innloggings side. Når de logger inn der føres fraværet på samme måte som om de hadde blitt trykket på i fraværmodus, minuttet rundes ned. 
 
 
@@ -115,7 +115,7 @@ Utgangspunktet er at undergruppe hendelser har en ekstra dropdown der man kan ve
 
 
 ## Logg
-MyTXS har et logg system, som loggfører alle endringer på nesten alle objekter i databasen. Disse loggene er mulig å søke og bla seg frem i, men som oftest er det lettest å følge lenker med litens skrift `(Logg)` til høyre for overskrifter og skjema. Loggene er knyttet på alle relasjoner, slik at innad i loggene en kan trykke seg fra Medlem til VervInnehavelser til Verv til Tilganger, samt fram og tilbake i tid på samme logg. 
+MyTXS har et loggsystem, som loggfører alle endringer på nesten alle objekter i databasen. Disse loggene er mulig å søke og bla seg frem i, men som oftest er det lettest å følge lenker med litens skrift `(Logg)` til høyre for overskrifter og skjema. Loggene er knyttet på alle relasjoner, slik at innad i loggene en kan trykke seg fra Medlem til VervInnehavelser til Verv til Tilganger, samt fram og tilbake i tid på samme logg. 
 
 Det eneste vi ikke har logger på er personinformasjon, altså all data på medlemmet deres med unntak av navnet deres. Dette er for at det skal være lett for folk å vite hvilken personinformasjon vi har lagret på de, og lett for de å rette opp i og eller slette den. GDPR og sånnt vøttu:)
 
