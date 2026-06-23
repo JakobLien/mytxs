@@ -382,14 +382,14 @@ def insertMedlem(medlemDict):
     # Spesielle statuser
     if (innbudtVervInnehavelse := VervInnehavelse.objects.filter(
         medlem=medlem,
-        verv__navn='Innbudt medlem',
+        verv__navn=consts.innbudtMedlemDekorasjonNavn,
         verv__kor=kor
     ).first()) or medlemDict.get('status') == 'Innbudt':
         # Gi de med "Innbudt medlem" status eller vervInnehavelse den tilsvarende dekorasjonen på året de sluttet
         # Som del av dette bytter vi innbudt medlem fra å være et verv til å være en dekorasjon, fordi det gir 
         # vesentlig my meir meining. Etter overføring kan vi da bare slett vervet som ingen har, så e vi good:)
         innbudtDekorasjon, created = Dekorasjon.objects.get_or_create(
-            navn='Innbudt medlem',
+            navn=consts.innbudtMedlemDekorasjonNavn,
             kor=kor
         )
 
