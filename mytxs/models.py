@@ -557,9 +557,14 @@ class Medlem(DbCacheModel):
         # Notearkiv
         navBarNode(sider, 'notearkiv', isPage=False)
         for kor in Kor.objects.filter(
-            stemmegruppeVerv(includeDirr=True),
-            verv__vervInnehavelser__medlem=self
-        ).values_list('navn', flat=True):
+            Q(
+                stemmegruppeVerv(includeDirr=True),
+                verv__vervInnehavelser__medlem=self
+            ) | Q(
+                dekorasjoner__navn=consts.innbudtMedlemDekorasjonNavn,
+                dekorasjoner__dekorasjonInnehavelser__medlem=self
+            )
+        ).values_list('navn', flat=True).distinct():
             navBarNode(sider['notearkiv'], kor, isPage=False)
             navBarNode(sider['notearkiv'][kor], 'repertoar', defaultParameters=f'?år={datetime.date.today().year}')
             navBarNode(sider['notearkiv'][kor], 'søk')
@@ -1745,8 +1750,13 @@ class SangQuerySet(models.QuerySet):
             Q( # Storkor
                 Q(kor__navn=consts.Kor.TXS), # Må mappe fra TXS til TSS og TKS
                 Exists(Kor.objects.filter( # Har tilgang om du noen sinne har sunget i storkor
-                    stemmegruppeVerv(includeDirr=True),
-                    verv__vervInnehavelser__medlem=medlem,
+                    Q(
+                        stemmegruppeVerv(includeDirr=True), 
+                        verv__vervInnehavelser__medlem=medlem
+                    ) | Q(
+                        dekorasjoner__navn=consts.innbudtMedlemDekorasjonNavn,
+                        dekorasjoner__dekorasjonInnehavelser__medlem=medlem
+                    ),
                     navn__in=consts.bareStorkorNavn
                 )),
             ) | \

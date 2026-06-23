@@ -409,3 +409,17 @@ def runSeed(self):
             dekorasjon.overvalør = vrangstrupeDekorasjoner[i+1] 
             dekorasjon.save()
             self.stdout.write('Satt ' + str(dekorasjon) + ' overvalør til ' + str(vrangstrupeDekorasjoner[i+1]) )
+
+    # Opprett Innbudt medlem
+    dekorasjon, dekorasjonCreated = Dekorasjon.objects.get_or_create(
+        navn=consts.innbudtMedlemDekorasjonNavn, 
+        kor=TSS,
+        defaults={'bruktIKode': True}
+    )
+    vrangstrupeDekorasjoner.append(dekorasjon)
+    if dekorasjonCreated:
+        self.stdout.write('Created dekorasjon ' + dekorasjon.navn + ' for kor TSS')
+    if dekorasjon.bruktIKode == False:
+        dekorasjon.bruktIKode = True
+        dekorasjon.save()
+        self.stdout.write('Satt ' + dekorasjon.navn + ' bruktIKode til True') 
