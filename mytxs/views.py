@@ -963,8 +963,16 @@ def vrangstrupen(request):
         '-start__year',
         Case(*[When(dekorasjon__navn=consts.vrangstrupeDekorasjoner[i], then=2-i) for i in range(3)])
     ).prefetch_related('medlem', 'dekorasjon')
+
+    nesteOKM = Hendelse.objects.filter(
+        startDate__gte=datetime.date.today(),
+        navn__icontains='OKM',
+        kor__navn=consts.Kor.TSS
+    ).first()
+
     return render(request, 'mytxs/vrangstrupen.html', {
-        'heading': 'Vrangstrupens Deviicer',
+        'heading': 'Vrangstrupen',
+        'nesteOKM': nesteOKM
     })
 
 

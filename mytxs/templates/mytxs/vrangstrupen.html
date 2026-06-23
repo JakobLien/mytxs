@@ -2,11 +2,19 @@
 {% load mytxsTags %}
 
 {% block content %}
-<p>(Om noe er feil eller mangler, klag til Jakob.)</p>
-<input type="button" value="Tilfeldig deviice" onclick="
+{% if nesteOKM %}
+<p class="text-lg">Neste OKM er
+{{ nesteOKM.startDate }}
+{% if nesteOKM.startTime %} kl {{ nesteOKM.startTime }}{% endif %}
+{% if nesteOKM.sted %} på {{ nesteOKM.sted }}{% endif %}.<p>
+{% endif %}
+
+<h2 class="text-2xl mt-4 inline-block">Deviicer</h2>
+<input type="button" value="Tilfeldig" onclick="
     deviicer = Array(...document.querySelectorAll('#deviiceListe > h2'));
     window.location.hash = deviicer[Math.floor(Math.random() * deviicer.length)].id;
 ">
+<p>(Om noe er feil eller mangler, klag til Jakob.)</p>
 
 <div class="bg-customPurple brightness-125 p-2 max-w-2xl mb-8">
     <h2 class="text-xl">Min deviice</h2>
