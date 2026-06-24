@@ -564,7 +564,7 @@ class Medlem(DbCacheModel):
                 dekorasjoner__navn=consts.innbudtMedlemDekorasjonNavn,
                 dekorasjoner__dekorasjonInnehavelser__medlem=self
             )
-        ).values_list('navn', flat=True).distinct():
+        ).values_list('navn', flat=True).distinct().orderKor():
             navBarNode(sider['notearkiv'], kor, isPage=False)
             navBarNode(sider['notearkiv'][kor], 'repertoar', defaultParameters=f'?år={datetime.date.today().year}')
             navBarNode(sider['notearkiv'][kor], 'søk')
