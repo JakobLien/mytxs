@@ -378,3 +378,15 @@ def gjettStemmegruppe(filnavn):
 
         return stemmegruppe[::-1]
     return ''
+
+
+'''
+Hadd en prodfeil der orderKor for notearkivet gjor at heile nettsida tok rundt 6 
+sekund å last inn, fordi database nivå orderKor var så treig. Det var kjipt, 
+så no gjør vi heller dette i python, med fjerning av duplikater osv.
+'''
+def orderKor(*korLister, tksRekkefølge=False):
+    return sorted(
+        set([kor for korListe in korLister for kor in korListe]),
+        key=lambda k: consts.bareKorNavn.index(k) if not tksRekkefølge else consts.bareKorNavnTKSRekkefølge.index(k)
+    )
