@@ -22,7 +22,7 @@ from mytxs.fields import BitmapMultipleChoiceField, MyDateField, MyManyToManyFie
 from mytxs.utils.formUtils import toolTip
 from mytxs.utils.googleCalendar import updateGoogleCalendar
 from mytxs.utils.modelCacheUtils import DbCacheModel, cacheQS, dbCache
-from mytxs.utils.modelUtils import annotateInstance, bareAktiveDecorator, gjettStemmegruppe, qBool, groupBy, getInstancesForKor, isStemmegruppeVervNavn, korLookup, stemmegruppeOrdering, strToModels, validateBruktIKode, validateM2MFieldEmpty, validateStartSlutt, vervInnehavelseAktiv, stemmegruppeVerv
+from mytxs.utils.modelUtils import annotateInstance, bareAktiveDecorator, gjettStemmegruppe, orderKor, qBool, groupBy, getInstancesForKor, isStemmegruppeVervNavn, korLookup, stemmegruppeOrdering, strToModels, validateBruktIKode, validateM2MFieldEmpty, validateStartSlutt, vervInnehavelseAktiv, stemmegruppeVerv
 from mytxs.utils.navBar import navBarNode
 from mytxs.utils.utils import cropImage, getCord, getHalvårStart, getStemmegrupper
 
@@ -556,15 +556,16 @@ class Medlem(DbCacheModel):
 
         # Notearkiv
         navBarNode(sider, 'notearkiv', isPage=False)
-        for kor in Kor.objects.filter(
-            Q(
+        for kor in orderKor( # Å gjør denne spørringen på den direkte måten tok 6 sek i prod, på hvert eneste request. 
+            Kor.objects.filter(
                 stemmegruppeVerv(includeDirr=True),
                 verv__vervInnehavelser__medlem=self
-            ) | Q(
+            ).values_list('navn', flat=True),
+            Kor.objects.filter(
                 dekorasjoner__navn=consts.innbudtMedlemDekorasjonNavn,
                 dekorasjoner__dekorasjonInnehavelser__medlem=self
-            )
-        ).values_list('navn', flat=True).distinct().orderKor():
+            ).values_list('navn', flat=True),
+        ):
             navBarNode(sider['notearkiv'], kor, isPage=False)
             navBarNode(sider['notearkiv'][kor], 'repertoar', defaultParameters=f'?år={datetime.date.today().year}')
             navBarNode(sider['notearkiv'][kor], 'søk')
