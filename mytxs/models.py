@@ -1748,7 +1748,7 @@ class SangQuerySet(models.QuerySet):
     def filtrerLeseTilgang(self, medlem):
         'Hvilke sanger et medlem har lesetilgang til er ganske sammensatt, så vi tar det her for å unngå å måtta implementer det fleir gong.'
         return self.filter(
-            Q( # Storkor
+            Exists(Sang.objects.filter( # Storkor
                 Q(kor__navn=consts.Kor.TXS), # Må mappe fra TXS til TSS og TKS
                 Exists(Kor.objects.filter( # Har tilgang om du noen sinne har sunget i storkor
                     Q(
@@ -1760,8 +1760,9 @@ class SangQuerySet(models.QuerySet):
                     ),
                     navn__in=consts.bareStorkorNavn
                 )),
-            ) | \
-            Q( # Småkor
+                pk=OuterRef('pk')
+            )) |
+            Exists(Sang.objects.filter( # Småkor
                 stemmegruppeVerv('kor__verv', includeDirr=True),
                 vervInnehavelseAktiv('kor__verv__vervInnehavelser') | # Aktive har tilgang til alt
                 Q( # Gammel småkorist, isafall:
@@ -1769,8 +1770,9 @@ class SangQuerySet(models.QuerySet):
                     Q(repertoar__dato__isnull=True) # Sangen har ingen repertoar eller e på et repertoar uten dato
                 ),
                 kor__verv__vervInnehavelser__medlem=medlem,
-                kor__navn__in=consts.bareSmåkorNavn
-            )
+                kor__navn__in=consts.bareSmåkorNavn,
+                pk=OuterRef('pk')
+            ))
         )
 
 
