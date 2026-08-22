@@ -315,6 +315,25 @@ class SjekkhefteDatoForm(forms.Form):
         if self.is_valid():
             return self.cleaned_data['dato']
 
+class SemesterplanÅrForm(forms.Form):
+    år = forms.ChoiceField(required=False, choices=[])
+
+    def __init__(self, *args, medlem=None, korNavn=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        førsteStemmeVerv = VervInnehavelse.objects.filter(
+            stemmegruppeVerv(includeDirr=True),
+            medlem=medlem,
+            verv__kor__navn=korNavn,
+        ).first()
+        if førsteStemmeVerv: # Trur ikkje folk uten stemmegruppeverv har tilgang til semesterplan, men veldig fint å ikkje kræsj uansett:)
+            self.fields['år'].choices = [(y, y) for y in range(førsteStemmeVerv.start.year, datetime.datetime.today().year + 1)] + BLANK_CHOICE_DASH
+
+    def getÅr(self):
+        if self.is_valid():
+            return self.cleaned_data['år']
+
+    def isCurrentYear(self):
+        return self.getÅr() in ["", str(datetime.datetime.today().year)]
 
 class InnstillingerForm(forms.Form):
     optionFormSubmitted = forms.BooleanField(widget=forms.HiddenInput(), initial=True)
