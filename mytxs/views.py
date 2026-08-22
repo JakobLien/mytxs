@@ -25,7 +25,7 @@ from django.http import FileResponse, HttpResponse
 
 from mytxs import consts
 from mytxs.fields import intToBitList
-from mytxs.forms import HendelseFilterForm, LoggFilterForm, MedlemFilterForm, NavnKorFilterForm, ShareCalendarForm, SjekkhefteDatoForm, TurneFilterForm, VervFilterForm, OppmøteFilterForm
+from mytxs.forms import HendelseFilterForm, LoggFilterForm, MedlemFilterForm, NavnKorFilterForm, ShareCalendarForm, SjekkhefteDatoForm, TurneFilterForm, VervFilterForm, OppmøteFilterForm, SemesterplanÅrForm
 from mytxs.management.commands.transfer import transferByJWT
 from mytxs.models import Dekorasjon, DekorasjonInnehavelse, Hendelse, Kor, Lenke, Logg, Medlem, MedlemQuerySet, Repertoar, Sang, SangFil, Tilgang, Turne, Verv, VervInnehavelse, Oppmøte
 from mytxs.forms import HendelseFilterForm, LoggFilterForm, MedlemFilterForm, NavnKorFilterForm, RepertoarFilterForm, SangFilterForm, ShareCalendarForm, TurneFilterForm, VervFilterForm, OppmøteFilterForm
@@ -528,7 +528,7 @@ def semesterplan(request, kor):
         request.queryset = Hendelse.objects.filter(
             kategori=Hendelse.UNDERGRUPPE,
             kor__navn__in=[consts.Kor.Sangern, kor] if kor in consts.bareStorkorNavn else [kor],
-            startDate__gte=getHalvårStart() if request.GET.get('gammelt') else datetime.datetime.today(),
+            startDate__gte=getHalvårStart() if request.GET.get('heleSemesteret') else datetime.datetime.today(),
             navn__regex=r'\[(.* )*#[0-9]+( .*)*\]' # Regex for firkantparentes med et hashtag tall ledd separert med mellomrom
         ).prefetch_related('oppmøter__medlem')
 
@@ -546,10 +546,14 @@ def semesterplan(request, kor):
             getOrCreateAndShareCalendar(kor, request.user.medlem, shareCalendarForm.cleaned_data['gmail'])
             return redirect(request.get_full_path())
 
+    semesterplanÅrForm = SemesterplanÅrForm(request.GET, medlem=request.user.medlem, korNavn=kor)
+
     request.queryset = request.user.medlem.getHendelser(kor)
 
-    if not request.GET.get('gammelt'):
+    if not semesterplanÅrForm.getÅr():
         request.queryset = request.queryset.filter(startDate__gte=datetime.datetime.today())
+    else:
+        request.queryset = request.queryset.filter(startDate__year=semesterplanÅrForm.getÅr())
 
     if request.GET.get('utenUndergruppe'):
         request.queryset = request.queryset.exclude(kategori=Hendelse.UNDERGRUPPE)
@@ -562,7 +566,8 @@ def semesterplan(request, kor):
     
     return render(request, 'mytxs/semesterplan.html', { 
         'medlem': request.user.medlem,
-        'shareCalendarForm': shareCalendarForm
+        'shareCalendarForm': shareCalendarForm,
+        'semesterplanÅrForm': semesterplanÅrForm,
     })
 
 

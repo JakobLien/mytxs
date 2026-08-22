@@ -21,11 +21,19 @@
 <br>
 {% endif %}
 
-{% toggleURLparam 'jobbvakter' 'jobbvakter' gammelt=None %} {% toggleURLparam 'gammelt' 'vis gammelt' %} {% toggleURLparam 'utenUndergruppe' 'skjul undergruppe hendelser' %}
-<br>
+{% toggleURLparam 'jobbvakter' 'jobbvakter' gammelt=None %} {% toggleURLparam 'utenUndergruppe' 'skjul undergruppe hendelser' %}
+
+{% if semesterplanÅrForm %}
+<form action="{{ request.path }}" method="get" onchange="this.submit()">
+    {{ semesterplanÅrForm }}
+</form>
+{% endif %}
+
+{% if semesterplanÅrForm.isCurrentYear %}
 <span>Minutter gyldig fravær: {{ medlem|showFravær:'gyldigFravær' }}</span>
 <br>
 <span>Minutter ugyldig fravær: {{ medlem|showFravær:'altUgyldigFravær' }}</span>
+{% endif %}
 
 <table class="text-left">
     <tr class="[&>*]:w-52 border-b border-black">
