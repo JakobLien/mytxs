@@ -115,7 +115,7 @@ def registrer(request, medlemPK):
     medlem = Medlem.objects.filter(pk=medlemPK, user=None).first()
 
     if not medlem or not testHash(request):
-        raise HttpResponseNotFound('No Medlem matches the given query.')
+        return HttpResponseNotFound('No Medlem matches the given query.')
 
     userCreationForm = UserCreationForm(request.POST or None)
 
@@ -948,7 +948,7 @@ def lenker(request):
 def lenkeRedirect(request, kor, lenkeNavn):
     if lenke := Lenke.objects.filter(kor__navn=kor, navn=lenkeNavn, redirect=True).first():
         return redirect(lenke.lenke)
-    raise HttpResponseNotFound('Redirect not found.')
+    return HttpResponseNotFound('Redirect not found.')
 
 
 @harTilgang
