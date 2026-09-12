@@ -585,7 +585,7 @@ class Medlem(DbCacheModel):
         # Herunder er admin sidene
         admin = navBarNode(sider, 'admin', inURL=False, isPage=False)
 
-        if self.tilganger.filter(navn__in=[consts.Tilgang.tversAvKor, consts.Tilgang.medlemsdata, consts.Tilgang.vervInnehavelse, consts.Tilgang.dekorasjonInnehavelse, consts.Tilgang.turne]).exists():
+        if self.tilganger.filter(navn__in=[consts.Tilgang.tversAvKor, consts.Tilgang.medlemsdata, consts.Tilgang.vervInnehavelse, consts.Tilgang.dekorasjonInnehavelse, consts.Tilgang.turne, consts.Tilgang.sjekkhefteBilde]).exists():
             navBarNode(admin, 'medlem')
 
         if self.tilganger.filter(navn__in=[consts.Tilgang.tversAvKor, consts.Tilgang.semesterplan, consts.Tilgang.fravær]).exists():
@@ -614,9 +614,6 @@ class Medlem(DbCacheModel):
         if self.tilganger.filter(navn__in=[consts.Tilgang.tversAvKor, consts.Tilgang.turne]).exists():
             navBarNode(admin, 'turne')
 
-        if self.tilganger.exists():
-            navBarNode(admin, 'logg')
-        
         if self.tilganger.filter(navn__in=[consts.Tilgang.eksport]).exists():
             navBarNode(admin, 'eksport', isPage=False)
             for tilgang in self.tilganger.filter(navn__in=[consts.Tilgang.eksport]):
@@ -625,10 +622,10 @@ class Medlem(DbCacheModel):
         if self.tilganger.filter(navn__in=[consts.Tilgang.notearkiv]).exists():
             navBarNode(admin, 'repertoar')
             navBarNode(admin, 'sang')
-        
-        if self.tilganger.exists():
+
+        if self.tilganger.filter(navn__in=consts.modelTilTilgangNavn.values()).exists():
             navBarNode(admin, 'logg')
-        
+
         sider.generateURLs()
 
         return sider
@@ -771,6 +768,14 @@ class Medlem(DbCacheModel):
                 (relaterteTilganger := self.tilganger.filter(navn__in=relatedTilgang))
             ):
                 return getInstancesForKor(model, Kor.objects.filter(tilganger__in=relaterteTilganger)) | self.redigerTilgangQueryset(model)
+
+        if model == Medlem and (sjekkhefteBildeTilgang := self.tilganger.filter(navn=consts.Tilgang.sjekkhefteBilde)):
+            # Håndter sjekkhefteBilde tilgangen
+            return self.redigerTilgangQueryset(model) | Medlem.objects.filter(
+                vervInnehavelseAktiv(),
+                stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
+                vervInnehavelser__verv__kor__tilganger__in=sjekkhefteBildeTilgang
+            )
 
         # Forøverig, return de sidene der du kan redigere sidens instans
         return self.redigerTilgangQueryset(model)
