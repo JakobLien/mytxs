@@ -48,6 +48,7 @@ class Tilgang:
     eksport = 'eksport'
     sjekkhefteSynlig = 'sjekkhefteSynlig'
     notearkiv = 'notearkiv'
+    sjekkhefteBilde = 'sjekkhefteBilde'
 
 tilgangTilKorNavn = {
     Tilgang.medlemsdata: bareStorkorNavn,
@@ -64,7 +65,9 @@ tilgangTilKorNavn = {
     Tilgang.eksport: bareKorNavn, 
     Tilgang.sjekkhefteSynlig: bareKorNavn, 
     Tilgang.notearkiv: bareKorNavn,
+    Tilgang.sjekkhefteBilde: bareStorkorNavn,
 }
+
 tilgangBeskrivelser = [
     'For å kunne endre på medlemsdataene til de i ditt storkor.',
     'For å opprette og slette dekorasjoner, samt endre på eksisterende dekorasjoner.',
@@ -79,7 +82,8 @@ tilgangBeskrivelser = [
     'For å kunne sette relasjoner til objekter i andre kor.',
     'For å kunne eksportere medlemsregisterdata.',
     'Gjør at all dataen i sjekkheftet er synlig for deg.',
-    'Lar deg redigere notearkivet.'
+    'Lar deg redigere notearkivet.',
+    'Lar deg redigere sjekkheftebildene til de aktive i storkoret.'
 ]
 
 alleTilganger = list(tilgangTilKorNavn.keys())

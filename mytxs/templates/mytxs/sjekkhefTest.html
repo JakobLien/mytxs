@@ -9,7 +9,15 @@
 
 <p>Her kan du teste deg på hvor godt du kan 20 tilfeldige navn fra sjekkheftet.<br>
 Det går i utgangspunktet på <a href="?">fornavn</a>, men du kan fint også prøve deg
-på <a href="?fulltNavn"> fulle navn</a>.</p>
+på <a href="?fulltNavn"> fulle navn</a>.<br> Du kan også bruke filtrene under til å
+avgrense det tilfeldige utvalget.</p>
+
+<form action="{{ request.path }}" method="get">
+    {{ filterForm.as_p }}
+
+    <input type="button" value="Clear" onclick="window.location='?';"/>
+    <input type="submit" value="Filtrer">
+</form>
 
 <div class="mt-4">
     {% for medlem in request.queryset %}

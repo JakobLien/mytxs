@@ -182,7 +182,7 @@ def sjekkheftet(request, side, underside=None):
     if side == 'søk':
         request.queryset = Medlem.objects.distinct().annotateKarantenekor(storkor=True).filter(
             vervInnehavelseAktiv(),
-            stemmegruppeVerv('vervInnehavelser__verv')
+            stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True)
         )
 
         medlemFilterForm = MedlemFilterForm(request.GET)
@@ -214,16 +214,19 @@ def sjekkheftet(request, side, underside=None):
         return render(request, 'mytxs/sjekkhefteKart.html')
 
     if side == 'sjekkhefTest':
-        request.queryset = randomDistinct(
-            Medlem.objects.filter(
-                vervInnehavelseAktiv(),
-                stemmegruppeVerv('vervInnehavelser__verv'),
-                ~Q(bilde='')
-            ), 20
+        request.queryset = Medlem.objects.filter(
+            vervInnehavelseAktiv(),
+            stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
+            ~Q(bilde='')
         )
 
+        medlemFilterForm = MedlemFilterForm(request.GET)
+        request.queryset = medlemFilterForm.applyFilter(request.queryset)
+        request.queryset = randomDistinct(request.queryset, 20)
+
         return render(request, 'mytxs/sjekkhefTest.html', {
-            'heading': 'Sjekkheftet'
+            'heading': 'Sjekkheftet',
+            'filterForm': medlemFilterForm
         })
     
     # Gruperinger er visuelle grupperinger i sjekkheftet på samme side, klassisk stemmegrupper. 
@@ -357,10 +360,23 @@ def medlem(request, medlemPK):
     if request.GET.get('loggInnSom') and request.user.is_superuser:
         auth_login(request, request.instance.user)
         return redirect(request.path)
-    
+
+    sjekkhefteBildeRedigering = False
+
     if not request.user.medlem.redigerTilgangQueryset(Medlem).contains(request.instance) and request.user.medlem != request.instance:
         # Om du ikke har redigeringstilgang på medlemmet, skjul dataen demmers
-        MedlemsDataForm = modelform_factory(Medlem, fields=['fornavn', 'mellomnavn', 'etternavn'])
+
+        # Unntak for sjekkhefteBilde tilgangen
+        if Medlem.objects.filter(
+            vervInnehavelseAktiv(),
+            stemmegruppeVerv('vervInnehavelser__verv', includeDirr=True),
+            vervInnehavelser__verv__kor__tilganger__in=request.user.medlem.tilganger.filter(navn=consts.Tilgang.sjekkhefteBilde),
+            pk=medlemPK,
+        ).exists():
+            sjekkhefteBildeRedigering = True
+            MedlemsDataForm = modelform_factory(Medlem, fields=['fornavn', 'mellomnavn', 'etternavn', 'bilde'])
+        else:
+            MedlemsDataForm = modelform_factory(Medlem, fields=['fornavn', 'mellomnavn', 'etternavn'])
     elif request.user.medlem.redigerTilgangQueryset(Medlem, includeExtended=False).contains(request.instance):
         # Om du har tilgang ikke fordi det e deg sjølv, også vis gammeltMedlemsnummer og død feltan
         MedlemsDataForm = addDeleteUserCheckbox(modelform_factory(Medlem, exclude=['user']))
@@ -398,6 +414,10 @@ def medlem(request, medlemPK):
             disableFields(medlemsDataForm, 'gammeltMedlemsnummer')
         if 'notis' in medlemsDataForm.fields and not request.user.medlem.redigerTilgangQueryset(Medlem, includeExtended=False).contains(request.instance):
             disableFields(medlemsDataForm, 'notis')
+
+    if sjekkhefteBildeRedigering:
+        # Om visningen av Medlemsdata er av sjekkhefteBilde tilgangen, la dem rediger bilde. 
+        medlemsDataForm.fields['bilde'].disabled = False
 
     understemmeFormset = None
     if not disableFormMedlem(request.user.medlem, vervInnehavelseFormset) and request.user.medlem == request.instance:
