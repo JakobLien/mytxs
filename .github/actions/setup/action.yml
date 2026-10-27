@@ -3,13 +3,19 @@ description: Installere python og dependencies, blant annet Django.
 runs:
   using: composite
   steps:
-    - name: Sett opp Python 3.13
-      uses: actions/setup-python@v6
-      with:
-        python-version: '3.13'
-
     - name: Installer dependencies
       shell: bash
       run: |
-        python -m pip install --upgrade pip
-        python -m pip install -r requirements.txt
+        echo 'deb http://deb.debian.org/debian trixie-backports main' >> /etc/apt/sources.list
+        apt update
+        apt install -y python3-venv
+        grep -E '# apt ' requirements.txt | \
+        sed -n 's/.*# apt //p' | while IFS= read -r line; do
+          apt install -y $line
+        done
+
+        python3 -m venv venv --system-site-packages
+        source venv/bin/activate
+
+        # Vi treng pytailwindcss i workflowen for å verifiser at tailwind e kjørt, men ikkje i prod! 
+        python3 -m pip install -r <(grep -ve apt requirements.txt) 
