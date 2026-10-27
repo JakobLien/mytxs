@@ -11,20 +11,28 @@ env:
 jobs:
   committed-migrations:
     runs-on: ubuntu-latest
+    container:
+      image: debian:trixie
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
-      - run: |
-          python manage.py makemigrations
-          git diff --quiet 
+      - name: python manage.py makemigrations --check
+        shell: bash
+        run: |
+          source venv/bin/activate
+          python manage.py makemigrations --check
 
   committed-tailwind:
     runs-on: ubuntu-latest
+    container:
+      image: debian:trixie
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
       - name: Regenerer tailwind uten endringer
+        shell: bash
         run: |
+          source venv/bin/activate
           tailwindcss --cwd mytxs -i static/mytxs/inputStyles.css -o static/mytxs/styles.css --minify
           tailwindcss --cwd docs -o styles.css --minify
 
@@ -38,32 +46,31 @@ jobs:
 
   django-test:
     runs-on: ubuntu-latest
-
+    container:
+      image: debian:trixie
     services:
       postgres:
-        image: postgres:15
+        image: postgres:17
         env:
           POSTGRES_PASSWORD: postgrespassword
         ports:
           - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 1s
+          --health-timeout 5s
+          --health-retries 10
     env:
       PGHOST: localhost
       PGPORT: 5432
       PGUSER: postgres
       PGPASSWORD: postgrespassword
       PGDATABASE: postgres
-
     steps: 
       - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
-
-      - name: Vente til Postgres er klar
-        run: |
-          until pg_isready; do
-            echo "Venter på Postgres..."
-            sleep 1
-          done
-          psql --version
-          echo "Postgres er klar"
-
-      - run: python manage.py test
+      - name: python manage.py test
+        shell: bash
+        run:
+          source venv/bin/activate
+          python manage.py test
