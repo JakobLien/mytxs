@@ -124,6 +124,18 @@ def past(moment):
         return moment < datetime.date.today()
 
 
+@register.filter
+def alder(fødselsdato, dato=None):
+    'Returne alderen i år til noen er født på fødselsdato, per dato (default i dag). Brukes i sjekkheftet.'
+    if not fødselsdato:
+        return ''
+    if isinstance(fødselsdato, datetime.datetime):
+        fødselsdato = fødselsdato.date()
+    if dato is None:
+        dato = datetime.date.today()
+    return dato.year - fødselsdato.year - ((dato.month, dato.day) < (fødselsdato.month, fødselsdato.day))
+
+
 @register.simple_tag(takes_context=True)
 def addSubNavigation(context):
     'Denne opprette en navigasjonsmeny (på denne siden) basert på medlem.navBar'
