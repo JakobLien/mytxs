@@ -77,7 +77,7 @@
         {% endif %}
 
         {% if medlem.public__fødselsdato %}
-        <li>Fødselsdato: {{ medlem.public__fødselsdato }}</li>
+        <li>Fødselsdato: {{ medlem.public__fødselsdato }} ({{ medlem.public__fødselsdato|alder }} år)</li>
         {% endif %}
         {% if medlem.public__epost %}
         <li>Epost: <a href="mailto:{{ medlem.public__epost }}">{{ medlem.public__epost }}</a></li>
