@@ -138,7 +138,7 @@ Vi har 2 modeller for logging:
 
 Grunnen til at vi ikke har LoggM2M som del av Logg er fordi m2m relasjoner kan endres på begge sider, og om vi lagre verv -> tilgang informasjonen på vervet som en liste, hvilket er mulig, blir det veldig mange logger av at man endrer fra tilgang siden, og mindre oversiktlig hva som faktisk ble endret. Slik det er nå kan man med stor sikkerhet si at "dersom vi har en logg på den modellen, er det den modellen sitt modelform som ble endret" (Det er også kodemessig enklere å gjøre det som en separat tabel.)
 
-For å unngå å lage loggs på ting folk skal kunne endre selv, og ikke minst slette selv, unngår loggene å lagre noe av dataen fra Medlem modellen med unntak av navnet deres. Slik sikrer vi at om en bruker går inn og sletter dataen sin, er den faktisk slettet, veldig greit for personvernet. 
+For å unngå å lage logs på ting folk skal kunne endre selv, og ikke minst slette selv, unngår loggene å lagre noe av dataen fra Medlem modellen med unntak av navnet deres. Slik sikrer vi at om en bruker går inn og sletter dataen sin, er den faktisk slettet, veldig greit for personvernet. 
 
 
 ## Infrastruktur
@@ -222,13 +222,13 @@ Mot servern:
 1. Den skal automatisk laste inn på nytt når filer har endret seg, om ikke kjør `rm reload;touch reload`. Gi den et minutt eller to, så burde endringene være [live](https://mytxs.samfundet.no/). 
 
 
-### Lesing av loggs
-ITK har også et oppsett der man kan se loggs fra de kjørende instansen(e?) på serveren. For å gjøre det, logg på serveren som beskrevet over, og deretter:
+### Lesing av logs
+ITK har også et oppsett der man kan se logs fra de kjørende instansen(e?) på serveren. For å gjøre det, logg på serveren som beskrevet over, og deretter:
 1. Skriv `ssh cirkus`. Dette tror jeg er en (ihvertfall virituelt) separat server der alle koden til ITK faktisk kjører. 
 1. Så spørs det på hvilken logg man skal se. Av min oppfatning er følgende hva loggene innebærer. For hver av disse, trykk `q` for å gå ut av loggen. 
-    1. For å se kjøre loggs, skriv `less /var/log/uwsgi/app/mytxs.samfundet.no.log`
-    1. For å se mellomserver(?) loggs, skriv `less /var/log/apache2/external/error-mytxs.samfundet.no.log`
-    1. For å se logg av innkommende requests, skriv `less /var/log/apache2/external/access-mytxs.samfundet.no.log`
+    1. For å se uwsgi logs, hvilket inkluderer python logs: `tail -f /var/log/uwsgi/app/mytxs.samfundet.no.log`
+    1. For å se apache error logs: `tail -f /var/log/apache2/external/error-mytxs.samfundet.no.log`
+    1. For å se apache ikke-error logs: `tail -f /var/log/apache2/external/access-mytxs.samfundet.no.log`
 
 
 ### CICD
@@ -258,12 +258,23 @@ Scriptet ligger som en fil i rot på servern, men ikke (enda?) i git, for at det
     }
     
     run pwd # For debugging formål, si kor vi kjøre fra
+    run whoami # For debugging formål, hvilken bruker kjører scriptet
+    run groups # For debugging formål, hvilke grupper har brukeren som kjører scriptet
+    
     run git -c safe.directory=/home/cassarossa/sangern/felles/web/mytxs pull # For å si at dette e greit å kjør fra script bruker
+    
     run source venv/bin/activate
     export HOME=/home/cassarossa/sangern/jakobli # For å få pip te å bruk min cache når den installere ting
-    run python -m pip install -r requirements.txt
+    
+    # # Endring av apt pakker må gjøres manuelt på server'n, fordi man må vær root for å kjør det. 
+    # run apt update
+    # run apt install -y $(sed -n 's/.*# apt //p' requirements.txt | tr '\n' ' ')
+    
+    run pip install --upgrade -r <(grep -ve apt requirements.txt)
+    
     run python manage.py migrate
     run python manage.py collectstatic --noinput
+    
     run rm -f reload
     run touch reload
     run sleep 5s
